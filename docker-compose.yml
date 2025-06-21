@@ -1,0 +1,10 @@
+version: '3.8'
+
+services:
+  sparkyfitness-frontend:
+    image: codewithcj/sparkyfitness:latest # Using a pre-built image
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+    restart: always

@@ -1,0 +1,91 @@
+
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import ZoomableChart from "../ZoomableChart";
+import { usePreferences } from "@/contexts/PreferencesContext";
+import { debug, info, warn, error } from "@/utils/logging";
+
+interface NutritionData {
+  date: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  saturated_fat: number;
+  polyunsaturated_fat: number;
+  monounsaturated_fat: number;
+  trans_fat: number;
+  cholesterol: number;
+  sodium: number;
+  potassium: number;
+  dietary_fiber: number;
+  sugars: number;
+  vitamin_a: number;
+  vitamin_c: number;
+  calcium: number;
+  iron: number;
+}
+
+interface NutritionChartsGridProps {
+  nutritionData: NutritionData[];
+}
+
+const NutritionChartsGrid = ({ nutritionData }: NutritionChartsGridProps) => {
+  const { loggingLevel } = usePreferences();
+  info(loggingLevel, 'NutritionChartsGrid: Rendering component.');
+
+  const nutritionCharts = [
+    { key: 'calories', label: 'Calories', color: '#8884d8', unit: 'cal' },
+    { key: 'protein', label: 'Protein', color: '#82ca9d', unit: 'g' },
+    { key: 'carbs', label: 'Carbs', color: '#ffc658', unit: 'g' },
+    { key: 'fat', label: 'Fat', color: '#ff7300', unit: 'g' },
+    { key: 'saturated_fat', label: 'Saturated Fat', color: '#ff6b6b', unit: 'g' },
+    { key: 'polyunsaturated_fat', label: 'Polyunsaturated Fat', color: '#4ecdc4', unit: 'g' },
+    { key: 'monounsaturated_fat', label: 'Monounsaturated Fat', color: '#45b7d1', unit: 'g' },
+    { key: 'trans_fat', label: 'Trans Fat', color: '#f9ca24', unit: 'g' },
+    { key: 'cholesterol', label: 'Cholesterol', color: '#eb4d4b', unit: 'mg' },
+    { key: 'sodium', label: 'Sodium', color: '#6c5ce7', unit: 'mg' },
+    { key: 'potassium', label: 'Potassium', color: '#a29bfe', unit: 'mg' },
+    { key: 'dietary_fiber', label: 'Dietary Fiber', color: '#fd79a8', unit: 'g' },
+    { key: 'sugars', label: 'Sugars', color: '#fdcb6e', unit: 'g' },
+    { key: 'vitamin_a', label: 'Vitamin A', color: '#e17055', unit: 'μg' },
+    { key: 'vitamin_c', label: 'Vitamin C', color: '#00b894', unit: 'mg' },
+    { key: 'calcium', label: 'Calcium', color: '#0984e3', unit: 'mg' },
+    { key: 'iron', label: 'Iron', color: '#2d3436', unit: 'mg' }
+  ];
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      {nutritionCharts.map((chart) => (
+        <ZoomableChart key={chart.key} title={`${chart.label} (${chart.unit})`}>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">{chart.label} ({chart.unit})</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="h-48">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={nutritionData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="date" fontSize={10} />
+                    <YAxis fontSize={10} />
+                    <Tooltip />
+                    <Line
+                      type="monotone"
+                      dataKey={chart.key}
+                      stroke={chart.color}
+                      strokeWidth={2}
+                      dot={false}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+        </ZoomableChart>
+      ))}
+    </div>
+  );
+};
+
+export default NutritionChartsGrid;

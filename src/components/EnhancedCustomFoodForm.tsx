@@ -1,0 +1,737 @@
+
+import { useState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { Plus, Trash2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { toast } from "@/hooks/use-toast";
+
+interface Food {
+  id?: string;
+  name: string;
+  brand?: string;
+  calories?: number;
+  protein?: number;
+  carbs?: number;
+  fat?: number;
+  serving_size?: number;
+  serving_unit?: string;
+  saturated_fat?: number;
+  polyunsaturated_fat?: number;
+  monounsaturated_fat?: number;
+  trans_fat?: number;
+  cholesterol?: number;
+  sodium?: number;
+  potassium?: number;
+  dietary_fiber?: number;
+  sugars?: number;
+  vitamin_a?: number;
+  vitamin_c?: number;
+  calcium?: number;
+  iron?: number;
+}
+
+interface FoodVariant {
+  id?: string;
+  serving_size: number;
+  serving_unit: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  saturated_fat: number;
+  polyunsaturated_fat: number;
+  monounsaturated_fat: number;
+  trans_fat: number;
+  cholesterol: number;
+  sodium: number;
+  potassium: number;
+  dietary_fiber: number;
+  sugars: number;
+  vitamin_a: number;
+  vitamin_c: number;
+  calcium: number;
+  iron: number;
+}
+
+interface EnhancedCustomFoodFormProps {
+  onSave: (foodData: any) => void;
+  food?: Food;
+}
+
+const COMMON_UNITS = [
+  'g', 'kg', 'mg', 'oz', 'lb', 'ml', 'l', 'cup', 'tbsp', 'tsp', 
+  'piece', 'slice', 'serving', 'can', 'bottle', 'packet', 'bag',
+  'bowl', 'plate', 'handful', 'scoop', 'bar', 'stick'
+];
+
+const EnhancedCustomFoodForm = ({ onSave, food }: EnhancedCustomFoodFormProps) => {
+  const { user } = useAuth();
+  const [loading, setLoading] = useState(false);
+  const [variants, setVariants] = useState<FoodVariant[]>([]);
+  const [formData, setFormData] = useState({
+    name: "",
+    brand: "",
+  });
+
+  useEffect(() => {
+    if (food) {
+      setFormData({
+        name: food.name || "",
+        brand: food.brand || "",
+      });
+      
+      if (food.id) {
+        loadExistingVariants();
+      } else {
+        // For new foods from OpenFoodFacts, use the passed food data
+        const initialVariant = {
+          serving_size: food.serving_size || 100,
+          serving_unit: food.serving_unit || "g",
+          calories: food.calories || 0,
+          protein: food.protein || 0,
+          carbs: food.carbs || 0,
+          fat: food.fat || 0,
+          saturated_fat: food.saturated_fat || 0,
+          polyunsaturated_fat: food.polyunsaturated_fat || 0,
+          monounsaturated_fat: food.monounsaturated_fat || 0,
+          trans_fat: food.trans_fat || 0,
+          cholesterol: food.cholesterol || 0,
+          sodium: food.sodium || 0,
+          potassium: food.potassium || 0,
+          dietary_fiber: food.dietary_fiber || 0,
+          sugars: food.sugars || 0,
+          vitamin_a: food.vitamin_a || 0,
+          vitamin_c: food.vitamin_c || 0,
+          calcium: food.calcium || 0,
+          iron: food.iron || 0,
+        };
+        setVariants([initialVariant]);
+      }
+    } else {
+      // Initialize with default variant for completely new foods
+      setVariants([{
+        serving_size: 100,
+        serving_unit: "g",
+        calories: 0,
+        protein: 0,
+        carbs: 0,
+        fat: 0,
+        saturated_fat: 0,
+        polyunsaturated_fat: 0,
+        monounsaturated_fat: 0,
+        trans_fat: 0,
+        cholesterol: 0,
+        sodium: 0,
+        potassium: 0,
+        dietary_fiber: 0,
+        sugars: 0,
+        vitamin_a: 0,
+        vitamin_c: 0,
+        calcium: 0,
+        iron: 0,
+      }]);
+    }
+  }, [food]);
+
+  const loadExistingVariants = async () => {
+    if (!food?.id) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('food_variants')
+        .select('*')
+        .eq('food_id', food.id);
+
+      if (error) {
+        console.error('Error loading variants:', error);
+        return;
+      }
+
+      if (data && data.length > 0) {
+        // Load variants with their specific nutrition values from the database
+        const variantsWithNutrition = data.map(variant => ({
+          id: variant.id,
+          serving_size: variant.serving_size,
+          serving_unit: variant.serving_unit,
+          calories: variant.calories || 0,
+          protein: variant.protein || 0,
+          carbs: variant.carbs || 0,
+          fat: variant.fat || 0,
+          saturated_fat: variant.saturated_fat || 0,
+          polyunsaturated_fat: variant.polyunsaturated_fat || 0,
+          monounsaturated_fat: variant.monounsaturated_fat || 0,
+          trans_fat: variant.trans_fat || 0,
+          cholesterol: variant.cholesterol || 0,
+          sodium: variant.sodium || 0,
+          potassium: variant.potassium || 0,
+          dietary_fiber: variant.dietary_fiber || 0,
+          sugars: variant.sugars || 0,
+          vitamin_a: variant.vitamin_a || 0,
+          vitamin_c: variant.vitamin_c || 0,
+          calcium: variant.calcium || 0,
+          iron: variant.iron || 0,
+        }));
+        setVariants(variantsWithNutrition);
+      } else {
+        // If no variants exist, create one from the main food data
+        setVariants([{
+          serving_size: food.serving_size || 100,
+          serving_unit: food.serving_unit || "g",
+          calories: food.calories || 0,
+          protein: food.protein || 0,
+          carbs: food.carbs || 0,
+          fat: food.fat || 0,
+          saturated_fat: food.saturated_fat || 0,
+          polyunsaturated_fat: food.polyunsaturated_fat || 0,
+          monounsaturated_fat: food.monounsaturated_fat || 0,
+          trans_fat: food.trans_fat || 0,
+          cholesterol: food.cholesterol || 0,
+          sodium: food.sodium || 0,
+          potassium: food.potassium || 0,
+          dietary_fiber: food.dietary_fiber || 0,
+          sugars: food.sugars || 0,
+          vitamin_a: food.vitamin_a || 0,
+          vitamin_c: food.vitamin_c || 0,
+          calcium: food.calcium || 0,
+          iron: food.iron || 0,
+        }]);
+      }
+    } catch (error) {
+      console.error('Error:', error);
+    }
+  };
+
+  const addVariant = () => {
+    setVariants([...variants, { 
+      serving_size: 1, 
+      serving_unit: "g",
+      calories: 0,
+      protein: 0,
+      carbs: 0,
+      fat: 0,
+      saturated_fat: 0,
+      polyunsaturated_fat: 0,
+      monounsaturated_fat: 0,
+      trans_fat: 0,
+      cholesterol: 0,
+      sodium: 0,
+      potassium: 0,
+      dietary_fiber: 0,
+      sugars: 0,
+      vitamin_a: 0,
+      vitamin_c: 0,
+      calcium: 0,
+      iron: 0,
+    }]);
+  };
+
+  const removeVariant = (index: number) => {
+    if (variants.length > 1) {
+      setVariants(variants.filter((_, i) => i !== index));
+    }
+  };
+
+  const updateVariant = (index: number, field: keyof FoodVariant, value: string | number) => {
+    const updatedVariants = [...variants];
+    updatedVariants[index] = { ...updatedVariants[index], [field]: value };
+    setVariants(updatedVariants);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+
+    setLoading(true);
+    try {
+      // Use the first variant as the base nutrition values for the food
+      const baseVariant = variants[0];
+      const foodData = {
+        name: formData.name,
+        brand: formData.brand,
+        user_id: user.id,
+        is_custom: true,
+        serving_size: baseVariant.serving_size,
+        serving_unit: baseVariant.serving_unit,
+        calories: baseVariant.calories,
+        protein: baseVariant.protein,
+        carbs: baseVariant.carbs,
+        fat: baseVariant.fat,
+        saturated_fat: baseVariant.saturated_fat,
+        polyunsaturated_fat: baseVariant.polyunsaturated_fat,
+        monounsaturated_fat: baseVariant.monounsaturated_fat,
+        trans_fat: baseVariant.trans_fat,
+        cholesterol: baseVariant.cholesterol,
+        sodium: baseVariant.sodium,
+        potassium: baseVariant.potassium,
+        dietary_fiber: baseVariant.dietary_fiber,
+        sugars: baseVariant.sugars,
+        vitamin_a: baseVariant.vitamin_a,
+        vitamin_c: baseVariant.vitamin_c,
+        calcium: baseVariant.calcium,
+        iron: baseVariant.iron,
+      };
+
+      let foodId = food?.id;
+      let savedFood;
+
+      if (food && food.id) {
+        // Update existing food
+        const { error: updateError } = await supabase
+          .from('foods')
+          .update(foodData)
+          .eq('id', food.id);
+        
+        if (updateError) throw updateError;
+        savedFood = { ...foodData, id: food.id };
+
+        // Update variants - first get existing variants to handle updates properly
+        const { data: existingVariants } = await supabase
+          .from('food_variants')
+          .select('id, serving_unit')
+          .eq('food_id', food.id);
+
+        const existingVariantMap = new Map(existingVariants?.map(v => [v.serving_unit, v.id]) || []);
+
+        // Process each variant
+        for (const variant of variants) {
+          const variantData = {
+            food_id: food.id,
+            serving_size: variant.serving_size,
+            serving_unit: variant.serving_unit,
+            calories: variant.calories,
+            protein: variant.protein,
+            carbs: variant.carbs,
+            fat: variant.fat,
+            saturated_fat: variant.saturated_fat,
+            polyunsaturated_fat: variant.polyunsaturated_fat,
+            monounsaturated_fat: variant.monounsaturated_fat,
+            trans_fat: variant.trans_fat,
+            cholesterol: variant.cholesterol,
+            sodium: variant.sodium,
+            potassium: variant.potassium,
+            dietary_fiber: variant.dietary_fiber,
+            sugars: variant.sugars,
+            vitamin_a: variant.vitamin_a,
+            vitamin_c: variant.vitamin_c,
+            calcium: variant.calcium,
+            iron: variant.iron,
+          };
+
+          if (variant.id) {
+            // Update existing variant
+            const { error } = await supabase
+              .from('food_variants')
+              .update(variantData)
+              .eq('id', variant.id);
+            if (error) throw error;
+          } else {
+            // Insert new variant
+            const { error } = await supabase
+              .from('food_variants')
+              .insert([variantData]);
+            if (error) throw error;
+          }
+        }
+
+        // Remove any variants that were deleted (existed before but not in current variants)
+        const currentVariantIds = variants.filter(v => v.id).map(v => v.id);
+        if (existingVariants) {
+          const variantsToDelete = existingVariants.filter(ev => !currentVariantIds.includes(ev.id));
+          for (const variantToDelete of variantsToDelete) {
+            const { error } = await supabase
+              .from('food_variants')
+              .delete()
+              .eq('id', variantToDelete.id);
+            if (error) throw error;
+          }
+        }
+      } else {
+        // Create new food - let Supabase generate the ID
+        const { data: newFood, error: insertError } = await supabase
+          .from('foods')
+          .insert([foodData])
+          .select()
+          .single();
+        
+        if (insertError) throw insertError;
+        foodId = newFood.id;
+        savedFood = newFood;
+
+        // Insert new variants
+        const variantsToInsert = variants.map(variant => ({
+          food_id: foodId,
+          serving_size: variant.serving_size,
+          serving_unit: variant.serving_unit,
+          calories: variant.calories,
+          protein: variant.protein,
+          carbs: variant.carbs,
+          fat: variant.fat,
+          saturated_fat: variant.saturated_fat,
+          polyunsaturated_fat: variant.polyunsaturated_fat,
+          monounsaturated_fat: variant.monounsaturated_fat,
+          trans_fat: variant.trans_fat,
+          cholesterol: variant.cholesterol,
+          sodium: variant.sodium,
+          potassium: variant.potassium,
+          dietary_fiber: variant.dietary_fiber,
+          sugars: variant.sugars,
+          vitamin_a: variant.vitamin_a,
+          vitamin_c: variant.vitamin_c,
+          calcium: variant.calcium,
+          iron: variant.iron,
+        }));
+
+        const { error: variantsError } = await supabase
+          .from('food_variants')
+          .insert(variantsToInsert);
+
+        if (variantsError) throw variantsError;
+      }
+
+      toast({
+        title: "Success",
+        description: `Food ${food && food.id ? 'updated' : 'saved'} successfully with ${variants.length} unit variant(s)`,
+      });
+      
+      if (!food || !food.id) {
+        setFormData({
+          name: "",
+          brand: "",
+        });
+        setVariants([{
+          serving_size: 100,
+          serving_unit: "g",
+          calories: 0,
+          protein: 0,
+          carbs: 0,
+          fat: 0,
+          saturated_fat: 0,
+          polyunsaturated_fat: 0,
+          monounsaturated_fat: 0,
+          trans_fat: 0,
+          cholesterol: 0,
+          sodium: 0,
+          potassium: 0,
+          dietary_fiber: 0,
+          sugars: 0,
+          vitamin_a: 0,
+          vitamin_c: 0,
+          calcium: 0,
+          iron: 0,
+        }]);
+      }
+      
+      onSave(savedFood);
+    } catch (error) {
+      console.error('Error saving food:', error);
+      toast({
+        title: "Error",
+        description: `Failed to ${food && food.id ? 'update' : 'save'} food`,
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const updateField = (field: string, value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{food && food.id ? 'Edit Food' : 'Add Custom Food'}</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Basic Info */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="name">Food Name *</Label>
+              <Input
+                id="name"
+                value={formData.name}
+                onChange={(e) => updateField('name', e.target.value)}
+                required
+              />
+            </div>
+            <div>
+              <Label htmlFor="brand">Brand</Label>
+              <Input
+                id="brand"
+                value={formData.brand}
+                onChange={(e) => updateField('brand', e.target.value)}
+              />
+            </div>
+          </div>
+
+          {/* Unit Variants with Individual Nutrition */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold">Unit Variants</h3>
+              <Button type="button" onClick={addVariant} size="sm">
+                <Plus className="w-4 h-4 mr-1" />
+                Add Unit
+              </Button>
+            </div>
+            <p className="text-sm text-gray-600">
+              Add different unit measurements for this food with specific nutrition values for each unit.
+            </p>
+            
+            <div className="space-y-6">
+              {variants.map((variant, index) => (
+                <Card key={index} className="p-4">
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="number"
+                        step="0.1"
+                        value={variant.serving_size}
+                        onChange={(e) => updateVariant(index, 'serving_size', Number(e.target.value))}
+                        className="w-24"
+                      />
+                      <Select
+                        value={variant.serving_unit}
+                        onValueChange={(value) => updateVariant(index, 'serving_unit', value)}
+                      >
+                        <SelectTrigger className="w-32">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {COMMON_UNITS.map(unit => (
+                            <SelectItem key={unit} value={unit}>{unit}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {index === 0 && (
+                        <Badge variant="secondary" className="text-xs">Primary Unit</Badge>
+                      )}
+                      {variants.length > 1 && index > 0 && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => removeVariant(index)}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      )}
+                    </div>
+
+                    {/* Nutrition for this specific variant */}
+                    <div className="space-y-4">
+                      <h4 className="text-md font-medium">
+                        Nutrition per {variant.serving_size} {variant.serving_unit}
+                      </h4>
+                      
+                      {/* Main Macros */}
+                      <div>
+                        <h5 className="text-sm font-medium text-gray-700 mb-3">Main Nutrients</h5>
+                        <div className="grid grid-cols-4 gap-4">
+                          <div>
+                            <Label>Calories</Label>
+                            <Input
+                              type="number"
+                              value={variant.calories}
+                              onChange={(e) => updateVariant(index, 'calories', Number(e.target.value))}
+                            />
+                          </div>
+                          <div>
+                            <Label>Protein (g)</Label>
+                            <Input
+                              type="number"
+                              step="0.1"
+                              value={variant.protein}
+                              onChange={(e) => updateVariant(index, 'protein', Number(e.target.value))}
+                            />
+                          </div>
+                          <div>
+                            <Label>Carbs (g)</Label>
+                            <Input
+                              type="number"
+                              step="0.1"
+                              value={variant.carbs}
+                              onChange={(e) => updateVariant(index, 'carbs', Number(e.target.value))}
+                            />
+                          </div>
+                          <div>
+                            <Label>Fat (g)</Label>
+                            <Input
+                              type="number"
+                              step="0.1"
+                              value={variant.fat}
+                              onChange={(e) => updateVariant(index, 'fat', Number(e.target.value))}
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Detailed Fat Information */}
+                      <div>
+                        <h5 className="text-sm font-medium text-gray-700 mb-3">Fat Breakdown</h5>
+                        <div className="grid grid-cols-4 gap-4">
+                          <div>
+                            <Label>Saturated Fat (g)</Label>
+                            <Input
+                              type="number"
+                              step="0.1"
+                              value={variant.saturated_fat}
+                              onChange={(e) => updateVariant(index, 'saturated_fat', Number(e.target.value))}
+                            />
+                          </div>
+                          <div>
+                            <Label>Polyunsaturated Fat (g)</Label>
+                            <Input
+                              type="number"
+                              step="0.1"
+                              value={variant.polyunsaturated_fat}
+                              onChange={(e) => updateVariant(index, 'polyunsaturated_fat', Number(e.target.value))}
+                            />
+                          </div>
+                          <div>
+                            <Label>Monounsaturated Fat (g)</Label>
+                            <Input
+                              type="number"
+                              step="0.1"
+                              value={variant.monounsaturated_fat}
+                              onChange={(e) => updateVariant(index, 'monounsaturated_fat', Number(e.target.value))}
+                            />
+                          </div>
+                          <div>
+                            <Label>Trans Fat (g)</Label>
+                            <Input
+                              type="number"
+                              step="0.1"
+                              value={variant.trans_fat}
+                              onChange={(e) => updateVariant(index, 'trans_fat', Number(e.target.value))}
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Minerals and Other Nutrients */}
+                      <div>
+                        <h5 className="text-sm font-medium text-gray-700 mb-3">Minerals & Other</h5>
+                        <div className="grid grid-cols-4 gap-4">
+                          <div>
+                            <Label>Cholesterol (mg)</Label>
+                            <Input
+                              type="number"
+                              step="0.1"
+                              value={variant.cholesterol}
+                              onChange={(e) => updateVariant(index, 'cholesterol', Number(e.target.value))}
+                            />
+                          </div>
+                          <div>
+                            <Label>Sodium (mg)</Label>
+                            <Input
+                              type="number"
+                              step="0.1"
+                              value={variant.sodium}
+                              onChange={(e) => updateVariant(index, 'sodium', Number(e.target.value))}
+                            />
+                          </div>
+                          <div>
+                            <Label>Potassium (mg)</Label>
+                            <Input
+                              type="number"
+                              step="0.1"
+                              value={variant.potassium}
+                              onChange={(e) => updateVariant(index, 'potassium', Number(e.target.value))}
+                            />
+                          </div>
+                          <div>
+                            <Label>Dietary Fiber (g)</Label>
+                            <Input
+                              type="number"
+                              step="0.1"
+                              value={variant.dietary_fiber}
+                              onChange={(e) => updateVariant(index, 'dietary_fiber', Number(e.target.value))}
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Sugars and Vitamins */}
+                      <div>
+                        <h5 className="text-sm font-medium text-gray-700 mb-3">Sugars & Vitamins</h5>
+                        <div className="grid grid-cols-4 gap-4">
+                          <div>
+                            <Label>Sugars (g)</Label>
+                            <Input
+                              type="number"
+                              step="0.1"
+                              value={variant.sugars}
+                              onChange={(e) => updateVariant(index, 'sugars', Number(e.target.value))}
+                            />
+                          </div>
+                          <div>
+                            <Label>Vitamin A (μg)</Label>
+                            <Input
+                              type="number"
+                              step="0.1"
+                              value={variant.vitamin_a}
+                              onChange={(e) => updateVariant(index, 'vitamin_a', Number(e.target.value))}
+                            />
+                          </div>
+                          <div>
+                            <Label>Vitamin C (mg)</Label>
+                            <Input
+                              type="number"
+                              step="0.1"
+                              value={variant.vitamin_c}
+                              onChange={(e) => updateVariant(index, 'vitamin_c', Number(e.target.value))}
+                            />
+                          </div>
+                          <div>
+                            <Label>Calcium (mg)</Label>
+                            <Input
+                              type="number"
+                              step="0.1"
+                              value={variant.calcium}
+                              onChange={(e) => updateVariant(index, 'calcium', Number(e.target.value))}
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      <div>
+                        <div className="grid grid-cols-4 gap-4">
+                          <div>
+                            <Label>Iron (mg)</Label>
+                            <Input
+                              type="number"
+                              step="0.1"
+                              value={variant.iron}
+                              onChange={(e) => updateVariant(index, 'iron', Number(e.target.value))}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          </div>
+
+          <Button type="submit" disabled={loading} className="w-full">
+            {loading ? 'Saving...' : (food && food.id ? 'Update Food' : 'Add Food')}
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
+  );
+};
+
+export default EnhancedCustomFoodForm;

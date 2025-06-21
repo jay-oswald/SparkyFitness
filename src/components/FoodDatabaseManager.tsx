@@ -1,0 +1,494 @@
+
+import { useState, useEffect } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
+import { Search, Edit, Trash2, Plus, Share2, Users, Filter } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { useActiveUser } from "@/contexts/ActiveUserContext";
+import { toast } from "@/hooks/use-toast";
+import EnhancedCustomFoodForm from "./EnhancedCustomFoodForm";
+
+interface Food {
+  id: string;
+  name: string;
+  brand?: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  serving_size: number;
+  serving_unit: string;
+  is_custom: boolean;
+  user_id?: string;
+  shared_with_public?: boolean;
+  saturated_fat?: number;
+  polyunsaturated_fat?: number;
+  monounsaturated_fat?: number;
+  trans_fat?: number;
+  cholesterol?: number;
+  sodium?: number;
+  potassium?: number;
+  dietary_fiber?: number;
+  sugars?: number;
+  vitamin_a?: number;
+  vitamin_c?: number;
+  calcium?: number;
+  iron?: number;
+}
+
+type FoodFilter = 'all' | 'mine' | 'family' | 'public';
+
+const FoodDatabaseManager = () => {
+  const { user } = useAuth();
+  const { activeUserId } = useActiveUser();
+  const [foods, setFoods] = useState<Food[]>([]);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [editingFood, setEditingFood] = useState<Food | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const [foodFilter, setFoodFilter] = useState<FoodFilter>('all');
+
+  useEffect(() => {
+    if (user && activeUserId) {
+      loadFoods();
+    }
+  }, [user, activeUserId, searchTerm, currentPage, itemsPerPage, foodFilter]);
+
+  const loadFoods = async () => {
+    try {
+      setLoading(true);
+      
+      // Get total count first - this will be filtered by RLS automatically
+      let countQuery = supabase
+        .from('foods')
+        .select('*', { count: 'exact', head: true });
+
+      if (searchTerm) {
+        countQuery = countQuery.ilike('name', `%${searchTerm}%`);
+      }
+
+      // Apply filter to count query
+      if (foodFilter === 'mine') {
+        countQuery = countQuery.eq('user_id', user?.id);
+      } else if (foodFilter === 'family') {
+        countQuery = countQuery.neq('user_id', user?.id).is('shared_with_public', false);
+      } else if (foodFilter === 'public') {
+        countQuery = countQuery.eq('shared_with_public', true);
+      }
+
+      const { count, error: countError } = await countQuery;
+      
+      if (countError) {
+        console.error('Error getting count:', countError);
+        toast({
+          title: "Error",
+          description: "Failed to load food count",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      setTotalCount(count || 0);
+
+      // Get paginated data - RLS will automatically filter this
+      const from = (currentPage - 1) * itemsPerPage;
+      const to = from + itemsPerPage - 1;
+
+      let query = supabase
+        .from('foods')
+        .select('*')
+        .range(from, to);
+
+      if (searchTerm) {
+        query = query.ilike('name', `%${searchTerm}%`);
+      }
+
+      // Apply filter to data query
+      if (foodFilter === 'mine') {
+        query = query.eq('user_id', user?.id);
+      } else if (foodFilter === 'family') {
+        query = query.neq('user_id', user?.id).is('shared_with_public', false);
+      } else if (foodFilter === 'public') {
+        query = query.eq('shared_with_public', true);
+      }
+
+      const { data, error } = await query.order('name');
+
+      if (error) {
+        console.error('Error loading foods:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load foods",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      setFoods(data || []);
+    } catch (error) {
+      console.error('Error:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleFilterChange = (value: FoodFilter) => {
+    setFoodFilter(value);
+    setCurrentPage(1); // Reset to first page when filter changes
+  };
+
+  const togglePublicSharing = async (foodId: string, currentState: boolean) => {
+    try {
+      const { error } = await supabase
+        .from('foods')
+        .update({ shared_with_public: !currentState })
+        .eq('id', foodId);
+
+      if (error) {
+        console.error('Error updating sharing:', error);
+        toast({
+          title: "Error",
+          description: "Failed to update sharing settings",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      toast({
+        title: "Success",
+        description: !currentState ? "Food shared with public" : "Food made private",
+      });
+
+      loadFoods();
+    } catch (error) {
+      console.error('Error:', error);
+    }
+  };
+
+  const deleteFood = async (foodId: string) => {
+    if (!confirm('Are you sure you want to delete this food?')) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('foods')
+        .delete()
+        .eq('id', foodId);
+
+      if (error) {
+        console.error('Error deleting food:', error);
+        toast({
+          title: "Error",
+          description: "Failed to delete food",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      toast({
+        title: "Success",
+        description: "Food deleted successfully",
+      });
+
+      loadFoods();
+    } catch (error) {
+      console.error('Error:', error);
+    }
+  };
+
+  const handleEdit = (food: Food) => {
+    setEditingFood(food);
+    setShowEditDialog(true);
+  };
+
+  const handleSaveComplete = () => {
+    loadFoods();
+    setShowAddDialog(false);
+    setShowEditDialog(false);
+    setEditingFood(null);
+  };
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
+
+  const handleItemsPerPageChange = (value: string) => {
+    setItemsPerPage(parseInt(value));
+    setCurrentPage(1); // Reset to first page
+  };
+
+  const canEdit = (food: Food) => {
+    // Only allow editing if the user owns the food
+    return food.user_id === user?.id;
+  };
+
+  const getFoodSourceBadge = (food: Food) => {
+    if (!food.user_id) {
+      return <Badge variant="outline" className="text-xs w-fit">System</Badge>;
+    }
+    
+    if (food.user_id === user?.id) {
+      return <Badge variant="secondary" className="text-xs w-fit">Your Food</Badge>;
+    }
+    
+    // If this food belongs to someone else but we can see it, check why
+    if (food.shared_with_public) {
+      return <Badge variant="outline" className="text-xs w-fit bg-green-50 text-green-700">Public</Badge>;
+    }
+    
+    // If we can see this food but it's not public and not ours, it must be family access
+    return <Badge variant="outline" className="text-xs w-fit bg-blue-50 text-blue-700">Family</Badge>;
+  };
+
+  const getFilterTitle = () => {
+    switch (foodFilter) {
+      case 'all':
+        return `All Foods (${totalCount})`;
+      case 'mine':
+        return `My Foods (${totalCount})`;
+      case 'family':
+        return `Family Foods (${totalCount})`;
+      case 'public':
+        return `Public Foods (${totalCount})`;
+      default:
+        return `Foods (${totalCount})`;
+    }
+  };
+
+  const getEmptyMessage = () => {
+    switch (foodFilter) {
+      case 'all':
+        return "No foods found";
+      case 'mine':
+        return "No foods created by you found";
+      case 'family':
+        return "No family foods found";
+      case 'public':
+        return "No public foods found";
+      default:
+        return "No foods found";
+    }
+  };
+
+  const totalPages = Math.ceil(totalCount / itemsPerPage);
+
+  if (!user || !activeUserId) {
+    return <div>Please sign in to manage your food database.</div>;
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Controls in a single row: Search, Filter, Items per page, Add button */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+        {/* Search box */}
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+          <Input
+            placeholder="Search foods..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+
+        {/* Filter dropdown */}
+        <div className="flex items-center gap-2 whitespace-nowrap">
+          <Filter className="h-4 w-4 text-gray-500" />
+          <Select value={foodFilter} onValueChange={handleFilterChange}>
+            <SelectTrigger className="w-32">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All</SelectItem>
+              <SelectItem value="mine">My Foods</SelectItem>
+              <SelectItem value="family">Family</SelectItem>
+              <SelectItem value="public">Public</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Items per page selector */}
+        <div className="flex items-center gap-2 whitespace-nowrap">
+          <span className="text-sm">Items per page:</span>
+          <Select value={itemsPerPage.toString()} onValueChange={handleItemsPerPageChange}>
+            <SelectTrigger className="w-20">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="10">10</SelectItem>
+              <SelectItem value="15">15</SelectItem>
+              <SelectItem value="25">25</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Add new food button */}
+        <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+          <DialogTrigger asChild>
+            <Button className="whitespace-nowrap">
+              <Plus className="w-4 h-4 mr-2" />
+              Add New Food
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Add New Food</DialogTitle>
+              <DialogDescription>
+                Enter the details for a new food item to add to your database.
+              </DialogDescription>
+            </DialogHeader>
+            <EnhancedCustomFoodForm onSave={handleSaveComplete} />
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      {loading ? (
+        <div>Loading foods...</div>
+      ) : (
+        <>
+          <Card>
+            <CardHeader>
+              <CardTitle>{getFilterTitle()}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {foods.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  {getEmptyMessage()}
+                </div>
+              ) : (
+                <div className="grid gap-3">
+                  {foods.map((food) => (
+                    <div key={food.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg gap-4">
+                      <div className="flex-1">
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-2 mb-1">
+                          <span className="font-medium">{food.name}</span>
+                          {food.brand && (
+                            <Badge variant="secondary" className="text-xs w-fit">
+                              {food.brand}
+                            </Badge>
+                          )}
+                          {getFoodSourceBadge(food)}
+                          {food.shared_with_public && (
+                            <Badge variant="outline" className="text-xs w-fit bg-green-50 text-green-700">
+                              <Share2 className="h-3 w-3 mr-1" />
+                              Public
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4 text-xs sm:text-sm text-gray-600 dark:text-gray-400">
+                          <div>
+                            <span className="font-medium">{food.calories}</span> cal
+                          </div>
+                          <div>
+                            <span className="font-medium text-blue-600">{food.protein}g</span> protein
+                          </div>
+                          <div>
+                            <span className="font-medium text-orange-600">{food.carbs}g</span> carbs
+                          </div>
+                          <div>
+                            <span className="font-medium text-yellow-600">{food.fat}g</span> fat
+                          </div>
+                        </div>
+                        <div className="text-xs text-gray-500 mt-1">
+                          Per {food.serving_size} {food.serving_unit}
+                        </div>
+                      </div>
+                      {canEdit(food) && (
+                        <div className="flex items-center space-x-2">
+                          <Button 
+                            size="sm" 
+                            variant="ghost" 
+                            onClick={() => togglePublicSharing(food.id, food.shared_with_public || false)}
+                            title={food.shared_with_public ? "Make private" : "Share with public"}
+                          >
+                            {food.shared_with_public ? <Users className="w-4 h-4" /> : <Share2 className="w-4 h-4" />}
+                          </Button>
+                          <Button size="sm" variant="ghost" onClick={() => handleEdit(food)}>
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant="ghost" 
+                            onClick={() => deleteFood(food.id)}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <Pagination>
+              <PaginationContent>
+                <PaginationItem>
+                  <PaginationPrevious 
+                    onClick={() => handlePageChange(Math.max(1, currentPage - 1))}
+                    className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                  />
+                </PaginationItem>
+                
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                  const pageNumber = i + 1;
+                  return (
+                    <PaginationItem key={pageNumber}>
+                      <PaginationLink
+                        onClick={() => handlePageChange(pageNumber)}
+                        isActive={currentPage === pageNumber}
+                        className="cursor-pointer"
+                      >
+                        {pageNumber}
+                      </PaginationLink>
+                    </PaginationItem>
+                  );
+                })}
+                
+                <PaginationItem>
+                  <PaginationNext 
+                    onClick={() => handlePageChange(Math.min(totalPages, currentPage + 1))}
+                    className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                  />
+                </PaginationItem>
+              </PaginationContent>
+            </Pagination>
+          )}
+        </>
+      )}
+
+      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Food</DialogTitle>
+            <DialogDescription>
+              Edit the details of the selected food item.
+            </DialogDescription>
+          </DialogHeader>
+          {editingFood && (
+            <EnhancedCustomFoodForm
+              food={editingFood}
+              onSave={handleSaveComplete}
+            />
+          )}
+          </DialogContent>
+      </Dialog>
+    </div>
+  );
+};
+
+export default FoodDatabaseManager;
