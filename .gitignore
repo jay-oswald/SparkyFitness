@@ -12,9 +12,17 @@ dist
 dist-ssr
 *.local
 .env
+supabase/.temp/
 
 # Private folder contents
 private/
+
+# Supabase CLI config
+supabase/config.toml
+
+# Supabase Functions generated files
+supabase/functions/**/*.d.ts
+supabase/functions/**/*.full.ts
 
 # Test coverage
 coverage/
