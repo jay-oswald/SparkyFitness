@@ -14,6 +14,8 @@ SparkyFitness is a comprehensive fitness tracking and management application des
 *   **User Authentication & Profile Management**: 🔒 Secure user authentication, profile switching, and family access management.
 *   **Comprehensive Reports**: 📊 Generate detailed reports on your nutrition and measurement trends.
 *   **Customizable Themes**: 🎨 Switch between light and dark themes.
+![image](https://github.com/user-attachments/assets/ccc7f34e-a663-405f-a4d4-a9888c3197bc)
+
 
 ## 🚀 Getting Started
 
