@@ -63,7 +63,7 @@ interface FoodDiaryProps {
 const FoodDiary = ({ selectedDate, onDateChange }: FoodDiaryProps) => {
   const { user } = useAuth();
   const { activeUserId } = useActiveUser();
-  const { formatDate, loggingLevel } = usePreferences(); // Call usePreferences here
+  const { formatDate, formatDateInUserTimezone, loggingLevel } = usePreferences(); // Call usePreferences here
   debug(loggingLevel, "FoodDiary component rendered for date:", selectedDate);
   const [date, setDate] = useState<Date>(new Date(selectedDate));
   const [refreshTrigger, setRefreshTrigger] = useState(0);
@@ -167,7 +167,7 @@ const FoodDiary = ({ selectedDate, onDateChange }: FoodDiaryProps) => {
     debug(loggingLevel, "Handling date select:", newDate);
     if (newDate) {
       setDate(newDate);
-      const dateString = newDate.toISOString().split('T')[0];
+      const dateString = formatDateInUserTimezone(newDate, 'yyyy-MM-dd'); // Use formatDateInUserTimezone
       info(loggingLevel, "Date selected:", dateString);
       onDateChange(dateString);
     }
@@ -212,7 +212,7 @@ const FoodDiary = ({ selectedDate, onDateChange }: FoodDiaryProps) => {
             quantity: quantity,
             unit: unit,
             variant_id: variantId,
-            entry_date: selectedDate,
+            entry_date: formatDateInUserTimezone(new Date(selectedDate), 'yyyy-MM-dd'), // Ensure date is in user's timezone
           },
         ]);
 

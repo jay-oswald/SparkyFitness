@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { debug, info, warn, error } from '@/utils/logging';
+import { formatInTimeZone } from 'date-fns-tz'; // Import formatInTimeZone
 
 interface PreferencesContextType {
   weightUnit: 'kg' | 'lbs';
@@ -9,14 +10,17 @@ interface PreferencesContextType {
   dateFormat: string;
   autoClearHistory: string; // Add auto_clear_history
   loggingLevel: 'DEBUG' | 'INFO' | 'WARN' | 'ERROR' | 'SILENT'; // Add logging level
+  timezone: string; // Add timezone
   setWeightUnit: (unit: 'kg' | 'lbs') => void;
   setMeasurementUnit: (unit: 'cm' | 'inches') => void;
   setDateFormat: (format: string) => void;
   setAutoClearHistory: (value: string) => void; // Add setter for auto_clear_history
   setLoggingLevel: (level: 'DEBUG' | 'INFO' | 'WARN' | 'ERROR' | 'SILENT') => void; // Add setter for logging level
+  setTimezone: (timezone: string) => void; // Add setter for timezone
   convertWeight: (value: number, from: 'kg' | 'lbs', to: 'kg' | 'lbs') => number;
   convertMeasurement: (value: number, from: 'cm' | 'inches', to: 'cm' | 'inches') => number;
   formatDate: (date: string | Date) => string;
+  formatDateInUserTimezone: (date: string | Date, formatStr?: string) => string; // New function for timezone-aware formatting
   loadPreferences: () => Promise<void>;
 }
 
@@ -37,11 +41,12 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const [dateFormat, setDateFormatState] = useState<string>('MM/DD/YYYY');
   const [autoClearHistory, setAutoClearHistoryState] = useState<string>('never'); // Add state for auto_clear_history
   const [loggingLevel, setLoggingLevelState] = useState<'DEBUG' | 'INFO' | 'WARN' | 'ERROR' | 'SILENT'>('SILENT'); // Add state for logging level
+  const [timezone, setTimezoneState] = useState<string>(Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'); // Add state for timezone, default to browser's timezone
 
   // Log initial state
   useEffect(() => {
     info(loggingLevel, "PreferencesProvider: Initializing PreferencesProvider.");
-    debug(loggingLevel, "PreferencesProvider: Initial state - weightUnit:", weightUnit, "measurementUnit:", measurementUnit, "dateFormat:", dateFormat, "autoClearHistory:", autoClearHistory, "loggingLevel:", loggingLevel);
+    debug(loggingLevel, "PreferencesProvider: Initial state - weightUnit:", weightUnit, "measurementUnit:", measurementUnit, "dateFormat:", dateFormat, "autoClearHistory:", autoClearHistory, "loggingLevel:", loggingLevel, "timezone:", timezone);
   }, []);
 
   useEffect(() => {
@@ -54,6 +59,7 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
       const savedWeightUnit = localStorage.getItem('weightUnit') as 'kg' | 'lbs';
       const savedMeasurementUnit = localStorage.getItem('measurementUnit') as 'cm' | 'inches';
       const savedDateFormat = localStorage.getItem('dateFormat');
+      const savedTimezone = localStorage.getItem('timezone');
       // auto_clear_history and loggingLevel are not stored in localStorage, defaults to 'never' and 'INFO' respectively
 
       if (savedWeightUnit) {
@@ -67,6 +73,10 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
       if (savedDateFormat) {
         setDateFormatState(savedDateFormat);
         debug(loggingLevel, "PreferencesProvider: Loaded dateFormat from localStorage:", savedDateFormat);
+      }
+      if (savedTimezone) {
+        setTimezoneState(savedTimezone);
+        debug(loggingLevel, "PreferencesProvider: Loaded timezone from localStorage:", savedTimezone);
       }
     }
   }, [user, loggingLevel]); // Add loggingLevel to dependency array
@@ -95,6 +105,7 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
         setDateFormatState(data.date_format);
         setAutoClearHistoryState(data.auto_clear_history || 'never'); // Set auto_clear_history state
         setLoggingLevelState((data.logging_level || 'INFO') as 'DEBUG' | 'INFO' | 'WARN' | 'ERROR' | 'SILENT'); // Set logging level state
+        setTimezoneState(data.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'); // Set timezone state
         info(loggingLevel, 'PreferencesContext: Preferences states updated from database.');
       } else {
         info(loggingLevel, 'PreferencesContext: No preferences found, creating default preferences.');
@@ -121,7 +132,8 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
         default_measurement_unit: 'cm',
         system_prompt: 'You are Sparky, a helpful AI assistant for health and fitness tracking. Be friendly, encouraging, and provide accurate information about nutrition, exercise, and wellness.',
         auto_clear_history: 'never',
-        logging_level: 'ERROR' as 'DEBUG' | 'INFO' | 'WARN' | 'ERROR' | 'SILENT' // Add default logging level with type assertion
+        logging_level: 'ERROR' as 'DEBUG' | 'INFO' | 'WARN' | 'ERROR' | 'SILENT', // Add default logging level with type assertion
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC' // Add default timezone
       };
 
 
@@ -152,6 +164,7 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
     system_prompt: string;
     auto_clear_history: string;
     logging_level: 'DEBUG' | 'INFO' | 'WARN' | 'ERROR' | 'SILENT'; // Add logging level to updates type
+    timezone: string; // Add timezone to updates type
   }>) => {
     debug(loggingLevel, "PreferencesProvider: Attempting to update preferences with:", updates);
     if (!user) {
@@ -168,6 +181,10 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
       if (updates.date_format) {
         localStorage.setItem('dateFormat', updates.date_format);
         debug(loggingLevel, "PreferencesProvider: Saved dateFormat to localStorage:", updates.date_format);
+      }
+      if (updates.timezone) {
+        localStorage.setItem('timezone', updates.timezone);
+        debug(loggingLevel, "PreferencesProvider: Saved timezone to localStorage:", updates.timezone);
       }
       // logging_level is not stored in localStorage
       return;
@@ -293,6 +310,20 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
     return value;
   };
 
+  const setTimezone = async (newTimezone: string) => {
+    info(loggingLevel, "PreferencesProvider: Setting timezone to:", newTimezone);
+    try {
+      setTimezoneState(newTimezone);
+      await updatePreferences({ timezone: newTimezone });
+      info(loggingLevel, "PreferencesProvider: Timezone updated successfully.");
+    } catch (err) {
+      error(loggingLevel, 'PreferencesContext: Error setting timezone:', err);
+      // Revert state on error
+      setTimezoneState(timezone);
+      throw err;
+    }
+  };
+
   const formatDate = (date: string | Date) => {
     debug(loggingLevel, "PreferencesProvider: Formatting date:", date);
     const dateObj = typeof date === 'string' ? new Date(date) : date;
@@ -321,6 +352,20 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
     }
   };
 
+  const formatDateInUserTimezone = (date: string | Date, formatStr?: string) => {
+    debug(loggingLevel, `PreferencesProvider: Formatting date in user timezone (${timezone}):`, date);
+    const dateToFormat = typeof date === 'string' ? new Date(date) : date;
+    const formatString = formatStr || 'yyyy-MM-dd'; // Default to YYYY-MM-DD for consistency with DB date type
+
+    try {
+      return formatInTimeZone(dateToFormat, timezone, formatString);
+    } catch (e) {
+      error(loggingLevel, `PreferencesProvider: Error formatting date in timezone ${timezone}:`, e);
+      // Fallback to local date formatting if timezone formatting fails
+      return formatDate(dateToFormat);
+    }
+  };
+
   return (
     <PreferencesContext.Provider value={{
       weightUnit,
@@ -328,14 +373,17 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
       dateFormat,
       autoClearHistory, // Expose autoClearHistory
       loggingLevel, // Expose loggingLevel
+      timezone, // Expose timezone
       setWeightUnit,
       setMeasurementUnit,
       setDateFormat,
       setAutoClearHistory, // Expose setAutoClearHistory
       setLoggingLevel, // Expose setLoggingLevel
+      setTimezone, // Expose setTimezone
       convertWeight,
       convertMeasurement,
       formatDate,
+      formatDateInUserTimezone, // Expose new function
       loadPreferences
     }}>
       {children}

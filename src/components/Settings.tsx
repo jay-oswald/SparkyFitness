@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import FamilyAccessManager from "./FamilyAccessManager";
 import AIServiceSettings from "./AIServiceSettings";
 import CustomCategoryManager from "./CustomCategoryManager";
+import { usePreferences } from "@/contexts/PreferencesContext"; // Import usePreferences
 
 interface Profile {
   id: string;
@@ -29,6 +30,7 @@ interface UserPreferences {
   default_weight_unit: string;
   default_measurement_unit: string;
   logging_level: 'DEBUG' | 'INFO' | 'WARN' | 'ERROR' | 'SILENT'; // Add logging level
+  timezone: string; // Add timezone
 }
 
 interface CustomCategory {
@@ -40,12 +42,14 @@ interface CustomCategory {
 
 const Settings = () => {
   const { user } = useAuth();
+  const { timezone, setTimezone } = usePreferences(); // Use timezone from context
   const [profile, setProfile] = useState<Profile | null>(null);
   const [preferences, setPreferences] = useState<UserPreferences>({
     date_format: 'MM/DD/YYYY',
     default_weight_unit: 'kg',
     default_measurement_unit: 'cm',
-    logging_level: 'ERROR' // Default to ERROR as per user feedback
+    logging_level: 'ERROR', // Default to ERROR as per user feedback
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC' // Default to browser's timezone
   });
   const [customCategories, setCustomCategories] = useState<CustomCategory[]>([]);
   const [profileForm, setProfileForm] = useState({
@@ -131,8 +135,10 @@ const Settings = () => {
         date_format: data.date_format,
         default_weight_unit: data.default_weight_unit,
         default_measurement_unit: data.default_measurement_unit,
-        logging_level: data.logging_level as 'DEBUG' | 'INFO' | 'WARN' | 'ERROR' | 'SILENT' || 'ERROR' // Load logging level, default to ERROR
+        logging_level: data.logging_level as 'DEBUG' | 'INFO' | 'WARN' | 'ERROR' | 'SILENT' || 'ERROR', // Load logging level, default to ERROR
+        timezone: data.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC' // Load timezone
       });
+      setTimezone(data.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'); // Update context timezone
     }
   };
 
@@ -145,7 +151,8 @@ const Settings = () => {
         user_id: user.id,
         date_format: 'MM/DD/YYYY',
         default_weight_unit: 'kg',
-        default_measurement_unit: 'cm'
+        default_measurement_unit: 'cm',
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC' // Set default timezone
       });
 
     if (error) {
@@ -188,7 +195,8 @@ const Settings = () => {
         date_format: preferences.date_format,
         default_weight_unit: preferences.default_weight_unit,
         default_measurement_unit: preferences.default_measurement_unit,
-        logging_level: preferences.logging_level
+        logging_level: preferences.logging_level,
+        timezone: preferences.timezone // Save timezone
       }, { onConflict: 'user_id' });
 
     if (error) {
@@ -493,6 +501,27 @@ const Settings = () => {
                 </SelectContent>
               </Select>
             </div>
+            <div>
+              <Label htmlFor="timezone">Timezone</Label>
+              <Select
+                value={preferences.timezone}
+                onValueChange={(value) => setPreferences(prev => ({ ...prev, timezone: value }))}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {/* Populate with common timezones or a library */}
+                  {/* For simplicity, adding a few examples. In a real app, use a comprehensive list. */}
+                  <SelectItem value="UTC">UTC</SelectItem>
+                  <SelectItem value="America/New_York">America/New_York</SelectItem>
+                  <SelectItem value="America/Los_Angeles">America/Los_Angeles</SelectItem>
+                  <SelectItem value="Europe/London">Europe/London</SelectItem>
+                  <SelectItem value="Asia/Tokyo">Asia/Tokyo</SelectItem>
+                  <SelectItem value="Australia/Sydney">Australia/Sydney</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
           <Button onClick={handlePreferencesUpdate} disabled={loading}>
             <Save className="h-4 w-4 mr-2" />
@@ -500,7 +529,7 @@ const Settings = () => {
           </Button>
          </CardContent>
        </Card>
- 
+  
        {/* Family Access Management */}
        <FamilyAccessManager />
 

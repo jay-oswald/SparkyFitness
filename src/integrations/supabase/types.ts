@@ -525,7 +525,6 @@ export type Database = {
           bio: string | null
           created_at: string | null
           date_of_birth: string | null
-          email: string | null
           full_name: string | null
           id: string
           phone: string | null
@@ -536,7 +535,6 @@ export type Database = {
           bio?: string | null
           created_at?: string | null
           date_of_birth?: string | null
-          email?: string | null
           full_name?: string | null
           id: string
           phone?: string | null
@@ -547,7 +545,6 @@ export type Database = {
           bio?: string | null
           created_at?: string | null
           date_of_birth?: string | null
-          email?: string | null
           full_name?: string | null
           id?: string
           phone?: string | null
@@ -682,6 +679,7 @@ export type Database = {
           id: string
           logging_level: string | null
           system_prompt: string | null
+          timezone: string
           updated_at: string
           user_id: string
         }
@@ -694,6 +692,7 @@ export type Database = {
           id?: string
           logging_level?: string | null
           system_prompt?: string | null
+          timezone?: string
           updated_at?: string
           user_id: string
         }
@@ -706,6 +705,7 @@ export type Database = {
           id?: string
           logging_level?: string | null
           system_prompt?: string | null
+          timezone?: string
           updated_at?: string
           user_id?: string
         }

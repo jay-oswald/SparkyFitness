@@ -13,6 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useActiveUser } from "@/contexts/ActiveUserContext";
 import { toast } from "@/hooks/use-toast";
+import { usePreferences } from "@/contexts/PreferencesContext"; // Import usePreferences
 
 interface FoodSuggestion {
   name: string;
@@ -38,16 +39,17 @@ const EnhancedFoodConfirmation = ({
   isOpen, 
   onClose, 
   onConfirm,
-  contextDate 
+  contextDate
 }: EnhancedFoodConfirmationProps) => {
   const { user } = useAuth();
   const { activeUserId } = useActiveUser();
+  const { formatDateInUserTimezone } = usePreferences(); // Use formatDateInUserTimezone
   
   const [selectedFoods, setSelectedFoods] = useState<boolean[]>(
     new Array(suggestions.length).fill(true)
   );
   const [editedSuggestions, setEditedSuggestions] = useState<FoodSuggestion[]>(suggestions);
-  const [targetDate, setTargetDate] = useState(contextDate || new Date().toISOString().split('T')[0]);
+  const [targetDate, setTargetDate] = useState(contextDate || formatDateInUserTimezone(new Date(), 'yyyy-MM-dd')); // Use formatDateInUserTimezone
   const [globalMealType, setGlobalMealType] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
 
@@ -142,7 +144,7 @@ const EnhancedFoodConfirmation = ({
           meal_type: foodSuggestion.meal_type,
           quantity: foodSuggestion.quantity,
           unit: foodSuggestion.unit,
-          entry_date: targetDate
+          entry_date: formatDateInUserTimezone(new Date(targetDate), 'yyyy-MM-dd') // Ensure date is in user's timezone
         });
 
       if (error) throw error;
