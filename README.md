@@ -4,16 +4,64 @@ SparkyFitness is a comprehensive fitness tracking and management application des
 
 ## ✨ Features
 
-*   **Nutrition Tracking**: 🍎 Log your daily food intake, create and manage custom foods and categories, view nutrition summaries, and analyze trends with interactive charts.
-*   **Exercise Tracking**: 💪 Record your workouts, manage a comprehensive exercise database, and search for exercises.
-*   **Water Intake Tracking**: 💧 Monitor your daily water consumption to stay hydrated.
-*   **Body Measurements**: 📏 Track various body measurements, add custom measurements, and visualize progress with charts.
-*   **Goal Setting**: 🎯 Set and manage your fitness and nutrition goals.
-*   **Daily Progress**: 🗓️ Monitor your daily progress and check-in on your habits.
-*   **AI Nutrition Coach & Chatbot**: 🤖 Interact with SparkyAI for personalized fitness and nutrition guidance. This includes adding food (even by uploading pictures), body measurements, steps, and exercise directly through AI, along with chat history management.
-*   **User Authentication & Profile Management**: 🔒 Secure user authentication, profile switching, and family access management.
-*   **Comprehensive Reports**: 📊 Generate detailed reports on your nutrition and measurement trends.
-*   **Customizable Themes**: 🎨 Switch between light and dark themes.
+## ✨ Features
+
+### 🍎 Nutrition Tracking
+
+* **Log your daily meals**
+* **Create and manage custom foods and categories**
+* **View summaries and analyze trends with interactive charts**
+
+### 💪 Exercise Logging
+
+* **Record your workouts**
+* **Browse and search a comprehensive exercise database**
+* **Track fitness progress over time**
+
+### 💧 Water Intake Monitoring
+
+* **Track daily hydration goals**
+* **Simple, quick water logging**
+
+### 📏 Body Measurements
+
+* **Record body metrics** (e.g. weight, waist, arms)
+* **Add custom measurement types**
+* **Visualize progress through charts**
+
+### 🎯 Goal Setting
+
+* **Set and manage fitness and nutrition goals**
+* **Track progress over time**
+
+### 🗓️ Daily Check-Ins
+
+* **Monitor daily activity**
+* **Stay consistent with habit tracking**
+
+### 🤖 AI Nutrition Coach (SparkyAI)
+
+* **Log food, exercise, body stats, and steps via chat**
+* **Upload food images to log meals automatically**
+* **Includes chat history and personalized guidance**
+
+### 🔒 User Authentication & Profiles
+
+* **Secure login system**
+* **Switch between user profiles**
+* **Support for family access and management**
+
+### 📊 Comprehensive Reports
+
+* **Generate summaries for nutrition and body metrics**
+* **Track long-term trends over weeks or months**
+
+### 🎨 Customizable Themes
+
+* **Switch between light and dark mode**
+* **Designed with a minimal, distraction-free interface**
+
+
 ![image](https://github.com/user-attachments/assets/ccc7f34e-a663-405f-a4d4-a9888c3197bc)
 
 
