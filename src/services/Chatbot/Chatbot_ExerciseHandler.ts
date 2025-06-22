@@ -1,10 +1,11 @@
 import { supabase } from '@/integrations/supabase/client';
 import { CoachResponse } from './Chatbot_types'; // Import types
+import { debug, info, warn, error, UserLoggingLevel } from '@/utils/logging'; // Import logging utility
 
 // Function to process exercise input
-export const processExerciseInput = async (userId: string, data: { exercise_name: string; duration_minutes: number | null; distance: number | null; distance_unit: string | null }, entryDate?: string): Promise<CoachResponse> => {
+export const processExerciseInput = async (userId: string, data: { exercise_name: string; duration_minutes: number | null; distance: number | null; distance_unit: string | null }, entryDate: string | undefined, formatDateInUserTimezone: (date: string | Date, formatStr?: string) => string, userLoggingLevel: UserLoggingLevel): Promise<CoachResponse> => {
   try {
-    console.log('Processing exercise input with data:', data, 'and entryDate:', entryDate);
+    debug(userLoggingLevel, 'Processing exercise input with data:', data, 'and entryDate:', entryDate);
 
     const { exercise_name, duration_minutes, distance, distance_unit } = data;
     const dateToUse = entryDate || new Date().toISOString().split('T')[0]; // Use provided date or today's date
@@ -23,7 +24,7 @@ export const processExerciseInput = async (userId: string, data: { exercise_name
       .limit(1);
 
     if (searchError) {
-      console.error('❌ [Nutrition Coach] Error searching exercises:', searchError);
+      error(userLoggingLevel, '❌ [Nutrition Coach] Error searching exercises:', searchError);
     }
 
     if (existingExercises && existingExercises.length > 0) {
@@ -50,7 +51,7 @@ export const processExerciseInput = async (userId: string, data: { exercise_name
         .single();
 
       if (createError) {
-        console.error('❌ [Nutrition Coach] Error creating exercise:', createError);
+        error(userLoggingLevel, '❌ [Nutrition Coach] Error creating exercise:', createError);
         return {
           action: 'none',
           response: 'Sorry, I couldn\'t create that exercise. Please try again.'
@@ -79,7 +80,7 @@ export const processExerciseInput = async (userId: string, data: { exercise_name
       .single();
 
     if (entryError) {
-      console.error('❌ [Nutrition Coach] Error adding exercise entry:', entryError);
+      error(userLoggingLevel, '❌ [Nutrition Coach] Error adding exercise entry:', entryError);
       return {
         action: 'none',
         response: 'Sorry, I couldn\'t add that exercise. Please try again.'
@@ -87,7 +88,7 @@ export const processExerciseInput = async (userId: string, data: { exercise_name
     }
 
 
-    let response = `🏃‍♂️ **Great workout! Logged for ${dateToUse}!**\n\n💪 ${exercise_name} - ${duration} minutes\n`;
+    let response = `🏃‍♂️ **Great workout! Logged for ${formatDateInUserTimezone(dateToUse, 'PPP')}!**\n\n💪 ${exercise_name} - ${duration} minutes\n`;
     if (distance) {
       response += `📏 Distance: ${distance} ${distance_unit || 'miles'}\n`;
     }
@@ -98,8 +99,8 @@ export const processExerciseInput = async (userId: string, data: { exercise_name
       response
     };
 
-  } catch (error) {
-    console.error('❌ [Nutrition Coach] Error processing exercise input:', error);
+  } catch (err) {
+    error(userLoggingLevel, '❌ [Nutrition Coach] Error processing exercise input:', err);
     return {
       action: 'none',
       response: 'Sorry, I had trouble processing that exercise. Could you try rephrasing what you did?'

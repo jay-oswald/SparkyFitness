@@ -2,8 +2,8 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { debug, info, warn, error } from '@/utils/logging';
-import { formatInTimeZone } from 'date-fns-tz'; // Import formatInTimeZone
-import { parseISO } from 'date-fns'; // Import parseISO
+import { formatInTimeZone, toZonedTime } from 'date-fns-tz'; // Import formatInTimeZone and toZonedTime
+import { parseISO, startOfDay } from 'date-fns'; // Import parseISO and startOfDay
 
 interface PreferencesContextType {
   weightUnit: 'kg' | 'lbs';
@@ -22,6 +22,7 @@ interface PreferencesContextType {
   convertMeasurement: (value: number, from: 'cm' | 'inches', to: 'cm' | 'inches') => number;
   formatDate: (date: string | Date) => string;
   formatDateInUserTimezone: (date: string | Date, formatStr?: string) => string; // New function for timezone-aware formatting
+  parseDateInUserTimezone: (dateString: string) => Date; // New function to parse date string in user's timezone
   loadPreferences: () => Promise<void>;
 }
 
@@ -388,6 +389,18 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
     }
   };
 
+  const parseDateInUserTimezone = (dateString: string): Date => {
+    debug(loggingLevel, `PreferencesProvider: Parsing date string "${dateString}" in user timezone (${timezone}).`);
+    // Parse the date string as an ISO date (which is treated as UTC by default by parseISO for YYYY-MM-DD)
+    const utcDate = parseISO(dateString);
+
+    // Convert this UTC date to the user's timezone
+    const zonedDate = toZonedTime(utcDate, timezone);
+
+    // Get the start of the day in the user's timezone
+    return startOfDay(zonedDate);
+  };
+
   return (
     <PreferencesContext.Provider value={{
       weightUnit,
@@ -406,6 +419,7 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
       convertMeasurement,
       formatDate,
       formatDateInUserTimezone, // Expose new function
+      parseDateInUserTimezone, // Expose new function
       loadPreferences
     }}>
       {children}

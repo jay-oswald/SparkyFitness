@@ -1,10 +1,11 @@
 import { supabase } from '@/integrations/supabase/client';
 import { CoachResponse } from './Chatbot_types'; // Import types
+import { debug, info, warn, error, UserLoggingLevel } from '@/utils/logging'; // Import logging utility
 
 // Function to process water intake input
-export const processWaterInput = async (userId: string, data: { glasses_consumed: number | null }, entryDate?: string): Promise<CoachResponse> => {
+export const processWaterInput = async (userId: string, data: { glasses_consumed: number | null }, entryDate: string | undefined, formatDateInUserTimezone: (date: string | Date, formatStr?: string) => string, userLoggingLevel: UserLoggingLevel): Promise<CoachResponse> => {
   try {
-    console.log('Processing water input with data:', data, 'and entryDate:', entryDate);
+    debug(userLoggingLevel, 'Processing water input with data:', data, 'and entryDate:', entryDate);
 
     const { glasses_consumed } = data;
     const glasses = glasses_consumed || 1; // Default to 1 glass if not provided by AI
@@ -23,7 +24,7 @@ export const processWaterInput = async (userId: string, data: { glasses_consumed
     const newTotal = currentGlasses + glasses;
 
 
-    const { error } = await supabase
+    const { error: upsertError } = await supabase
       .from('water_intake')
       .upsert({
         user_id: userId,
@@ -33,8 +34,8 @@ export const processWaterInput = async (userId: string, data: { glasses_consumed
         onConflict: 'user_id,entry_date'
       });
 
-    if (error) {
-      console.error('❌ [Nutrition Coach] Error updating water intake:', error);
+    if (upsertError) {
+      error(userLoggingLevel, '❌ [Nutrition Coach] Error updating water intake:', upsertError.message);
       return {
         action: 'none',
         response: 'Sorry, I couldn\'t update your water intake. Please try again.'
@@ -44,10 +45,10 @@ export const processWaterInput = async (userId: string, data: { glasses_consumed
 
     return {
       action: 'measurement_added', // Water intake is also a form of measurement tracking
-      response: `💧 **Water logged for ${dateToUse}!**\n\n🥤 Added ${glasses} glass${glasses > 1 ? 'es' : ''}\n📊 Total today: ${newTotal}/8 glasses\n\n${newTotal >= 8 ? '🎉 Great job staying hydrated!' : '💡 Keep drinking water throughout the day!'}`
+      response: `💧 **Water logged for ${formatDateInUserTimezone(dateToUse, 'PPP')}!**\n\n🥤 Added ${glasses} glass${glasses > 1 ? 'es' : ''}\n📊 Total today: ${newTotal}/8 glasses\n\n${newTotal >= 8 ? '🎉 Great job staying hydrated!' : '💡 Keep drinking water throughout the day!'}`
     };
-  } catch (error) {
-    console.error('❌ [Nutrition Coach] Error processing water input:', error);
+  } catch (err) {
+    error(userLoggingLevel, '❌ [Nutrition Coach] Error processing water input:', err);
     return {
       action: 'none',
       response: 'Sorry, I had trouble logging your water intake. Could you try again?'

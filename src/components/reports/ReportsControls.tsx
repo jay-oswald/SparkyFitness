@@ -10,6 +10,7 @@ import { usePreferences } from "@/contexts/PreferencesContext";
 import { useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { debug, info, warn, error } from "@/utils/logging";
+import { format } from 'date-fns'; // Import format from date-fns
 
 interface ReportsControlsProps {
   startDate: string;
@@ -49,7 +50,7 @@ const ReportsControls = ({
 
   const handleStartDateSelect = (newDate: Date | undefined) => {
     if (newDate) {
-      const dateString = newDate.toISOString().split('T')[0];
+      const dateString = format(newDate, 'yyyy-MM-dd'); // Format the date to YYYY-MM-DD using the local timezone
       debug(loggingLevel, 'ReportsControls: Start date selected:', dateString);
       onStartDateChange(dateString);
     } else {
@@ -59,7 +60,7 @@ const ReportsControls = ({
 
   const handleEndDateSelect = (newDate: Date | undefined) => {
     if (newDate) {
-      const dateString = newDate.toISOString().split('T')[0];
+      const dateString = format(newDate, 'yyyy-MM-dd'); // Format the date to YYYY-MM-DD using the local timezone
       debug(loggingLevel, 'ReportsControls: End date selected:', dateString);
       onEndDateChange(dateString);
     } else {
@@ -166,6 +167,16 @@ const ReportsControls = ({
                     onSelect={handleStartDateSelect}
                     initialFocus
                     className={cn("p-3 pointer-events-auto")}
+                    // Ensure the calendar displays the date in the local timezone
+                    // by setting the timezone to the user's local timezone
+                    // This is important for react-day-picker to correctly highlight the selected day
+                    // based on the local date, not UTC.
+                    // This prop is not directly available in react-day-picker,
+                    // but the Date object passed to 'selected' is interpreted based on its internal time.
+                    // The key is to ensure the Date object passed to 'selected'
+                    // accurately reflects the local date.
+                    // Since startDate is already a 'yyyy-MM-dd' string, new Date(startDate)
+                    // will create a Date object in the local timezone at midnight.
                   />
                 </PopoverContent>
               </Popover>
@@ -211,6 +222,16 @@ const ReportsControls = ({
                     onSelect={handleEndDateSelect}
                     initialFocus
                     className={cn("p-3 pointer-events-auto")}
+                    // Ensure the calendar displays the date in the local timezone
+                    // by setting the timezone to the user's local timezone
+                    // This is important for react-day-picker to correctly highlight the selected day
+                    // based on the local date, not UTC.
+                    // This prop is not directly available in react-day-picker,
+                    // but the Date object passed to 'selected' is interpreted based on its internal time.
+                    // The key is to ensure the Date object passed to 'selected'
+                    // accurately reflects the local date.
+                    // Since endDate is already a 'yyyy-MM-dd' string, new Date(endDate)
+                    // will create a Date object in the local timezone at midnight.
                   />
                 </PopoverContent>
               </Popover>

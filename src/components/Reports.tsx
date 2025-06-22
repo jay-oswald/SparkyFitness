@@ -15,6 +15,7 @@ import NutritionChartsGrid from "./reports/NutritionChartsGrid";
 import MeasurementChartsGrid from "./reports/MeasurementChartsGrid";
 import ReportsTables from "./reports/ReportsTables";
 import { log, debug, info, warn, error, UserLoggingLevel } from "@/utils/logging";
+import { format } from 'date-fns'; // Import format from date-fns
 
 interface NutritionData {
   date: string;
@@ -93,7 +94,7 @@ interface CustomMeasurementData {
 const Reports = () => {
   const { user } = useAuth();
   const { activeUserId } = useActiveUser();
-  const { weightUnit, measurementUnit, convertWeight, convertMeasurement, loggingLevel } = usePreferences();
+  const { weightUnit, measurementUnit, convertWeight, convertMeasurement, formatDateInUserTimezone, parseDateInUserTimezone, loggingLevel } = usePreferences();
   const [nutritionData, setNutritionData] = useState<NutritionData[]>([]);
   const [measurementData, setMeasurementData] = useState<MeasurementData[]>([]);
   const [tabularData, setTabularData] = useState<DailyFoodEntry[]>([]);
@@ -103,9 +104,9 @@ const Reports = () => {
   const [startDate, setStartDate] = useState(() => {
     const date = new Date();
     date.setDate(date.getDate() - 14); // Default to 2 weeks ago
-    return date.toISOString().split('T')[0];
+    return formatDateInUserTimezone(date, 'yyyy-MM-dd'); // Use formatDateInUserTimezone for initial date
   });
-  const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
+  const [endDate, setEndDate] = useState(formatDateInUserTimezone(new Date(), 'yyyy-MM-dd')); // Use formatDateInUserTimezone for initial date
   const [showWeightInKg, setShowWeightInKg] = useState(true);
   const [showMeasurementsInCm, setShowMeasurementsInCm] = useState(true);
 
@@ -125,7 +126,7 @@ const Reports = () => {
     if (user && activeUserId) {
       loadReports();
     }
-  }, [user, activeUserId, startDate, endDate, loggingLevel]);
+  }, [user, activeUserId, startDate, endDate, loggingLevel, formatDateInUserTimezone, parseDateInUserTimezone]);
 
   const loadReports = async () => {
     info(loggingLevel, 'Reports: Loading reports...');
@@ -162,8 +163,8 @@ const Reports = () => {
           )
         `)
         .eq('user_id', activeUserId)
-        .gte('entry_date', startDate)
-        .lte('entry_date', endDate)
+        .gte('entry_date', startDate) // Use startDate directly
+        .lte('entry_date', endDate) // Use endDate directly
         .order('entry_date');
 
       if (entriesError) {
@@ -261,8 +262,8 @@ const Reports = () => {
           )
         `)
         .eq('user_id', activeUserId)
-        .gte('entry_date', startDate)
-        .lte('entry_date', endDate)
+        .gte('entry_date', startDate) // Use startDate directly
+        .lte('entry_date', endDate) // Use endDate directly
         .order('entry_date', { ascending: false })
         .order('meal_type');
 
@@ -282,8 +283,8 @@ const Reports = () => {
         .from('check_in_measurements')
         .select('*')
         .eq('user_id', activeUserId)
-        .gte('entry_date', startDate)
-        .lte('entry_date', endDate)
+        .gte('entry_date', startDate) // Use startDate directly
+        .lte('entry_date', endDate) // Use endDate directly
         .order('entry_date');
 
       if (measurementsError) {
@@ -341,8 +342,8 @@ const Reports = () => {
             .select('*')
             .eq('user_id', activeUserId)
             .eq('category_id', category.id)
-            .gte('entry_date', startDate)
-            .lte('entry_date', endDate)
+            .gte('entry_date', startDate) // Use startDate directly
+            .lte('entry_date', endDate) // Use endDate directly
             .order('entry_date')
             .order('entry_timestamp');
 
@@ -457,7 +458,7 @@ const Reports = () => {
             const multiplier = entry.quantity / (food.serving_size || 100);
             
             csvRows.push([
-              new Date(entry.entry_date).toLocaleDateString(),
+              formatDateInUserTimezone(entry.entry_date, 'MMM DD, YYYY'), // Format date for display
               entry.meal_type,
               food.name,
               food.brand || '',
@@ -486,7 +487,7 @@ const Reports = () => {
           // Add total row
           const totals = calculateDayTotal(entries);
           csvRows.push([
-            new Date(date).toLocaleDateString(),
+            formatDateInUserTimezone(date, 'MMM DD, YYYY'), // Format date for display
             'Total',
             '',
             '',
@@ -580,7 +581,7 @@ const Reports = () => {
       ];
 
       const csvRows = measurements.map(measurement => [
-        new Date(measurement.entry_date).toLocaleDateString(),
+        formatDateInUserTimezone(measurement.entry_date, 'MMM DD, YYYY'), // Format date for display
         measurement.weight ? convertWeight(measurement.weight, 'kg', showWeightInKg ? 'kg' : 'lbs').toFixed(1) : '',
         measurement.neck ? convertMeasurement(measurement.neck, 'cm', showMeasurementsInCm ? 'cm' : 'inches').toFixed(1) : '',
         measurement.waist ? convertMeasurement(measurement.waist, 'cm', showMeasurementsInCm ? 'cm' : 'inches').toFixed(1) : '',
@@ -645,7 +646,7 @@ const Reports = () => {
         const formattedHour = `${hour.toString().padStart(2, '0')}:00`;
         
         return [
-          new Date(measurement.date).toLocaleDateString(),
+          formatDateInUserTimezone(measurement.date, 'MMM DD, YYYY'), // Format date for display
           formattedHour,
           measurement.value.toString()
         ];

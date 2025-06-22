@@ -10,6 +10,7 @@ import { ChevronLeft, ChevronRight, CalendarIcon } from "lucide-react";
 import { usePreferences } from "@/contexts/PreferencesContext";
 import { cn } from "@/lib/utils";
 import { debug, info, warn, error } from '@/utils/logging'; // Import logging utility
+import { format } from 'date-fns'; // Import format from date-fns
 
 
 interface CheckInPreferencesProps {
@@ -41,7 +42,8 @@ const CheckInPreferences = ({
   const handleDateSelect = (newDate: Date | undefined) => {
     debug(loggingLevel, "Handling date select from calendar:", newDate);
     if (newDate) {
-      const dateString = newDate.toISOString().split('T')[0];
+      // Format the date to YYYY-MM-DD using the local timezone
+      const dateString = format(newDate, 'yyyy-MM-dd');
       info(loggingLevel, "Date selected:", dateString);
       onDateChange(dateString);
     } else {
@@ -125,7 +127,7 @@ const CheckInPreferences = ({
                 <PopoverContent className="w-auto p-0">
                   <Calendar
                     mode="single"
-                    selected={date}
+                    selected={new Date(selectedDate)} // Ensure selected date is a Date object
                     onSelect={handleDateSelect}
                     initialFocus
                   />

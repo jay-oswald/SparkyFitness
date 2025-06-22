@@ -25,7 +25,8 @@ const Index = () => {
    const { loggingLevel } = usePreferences();
    debug(loggingLevel, "Index: Component rendered.");
  
-   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+   const { formatDateInUserTimezone } = usePreferences();
+   const [selectedDate, setSelectedDate] = useState(formatDateInUserTimezone(new Date(), 'yyyy-MM-dd'));
    const [activeTab, setActiveTab] = useState<string>("");
  
    const handleSignOut = async () => {

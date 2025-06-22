@@ -8,6 +8,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useActiveUser } from "@/contexts/ActiveUserContext";
 import { usePreferences } from "@/contexts/PreferencesContext";
 import { debug, info, warn, error } from '@/utils/logging';
+import { format } from 'date-fns'; // Import format from date-fns
 
 interface DailyProgressProps {
   selectedDate: string;
@@ -62,7 +63,7 @@ const DailyProgress = ({ selectedDate, refreshTrigger }: DailyProgressProps) => 
      debug(loggingLevel, "DailyProgress: Fetching goals...");
      const { data: goalsData, error: goalsError } = await supabase.rpc('get_goals_for_date', {
        p_user_id: currentUserId,
-       p_date: selectedDate
+       p_date: format(new Date(selectedDate), 'yyyy-MM-dd') // Ensure date is formatted correctly
      });
 
      if (goalsError) {
@@ -97,7 +98,7 @@ const DailyProgress = ({ selectedDate, refreshTrigger }: DailyProgressProps) => 
          )
        `)
        .eq('user_id', currentUserId)
-       .eq('entry_date', selectedDate);
+       .eq('entry_date', format(new Date(selectedDate), 'yyyy-MM-dd')); // Ensure date is formatted correctly
 
      if (entriesError) {
        error(loggingLevel, 'DailyProgress: Error loading food entries for intake:', entriesError);
@@ -136,7 +137,7 @@ const DailyProgress = ({ selectedDate, refreshTrigger }: DailyProgressProps) => 
        .from('exercise_entries')
        .select('calories_burned')
        .eq('user_id', currentUserId)
-       .eq('entry_date', selectedDate);
+       .eq('entry_date', format(new Date(selectedDate), 'yyyy-MM-dd')); // Ensure date is formatted correctly
 
      if (exerciseError) {
        error(loggingLevel, 'DailyProgress: Error loading exercise entries:', exerciseError);
@@ -156,7 +157,7 @@ const DailyProgress = ({ selectedDate, refreshTrigger }: DailyProgressProps) => 
        .from('check_in_measurements')
        .select('steps')
        .eq('user_id', currentUserId)
-       .eq('entry_date', selectedDate);
+       .eq('entry_date', format(new Date(selectedDate), 'yyyy-MM-dd')); // Ensure date is formatted correctly
 
      if (stepsError) {
        error(loggingLevel, 'DailyProgress: Error loading daily steps:', stepsError);

@@ -12,6 +12,7 @@ import { usePreferences } from "@/contexts/PreferencesContext";
 import { Trash2 } from "lucide-react";
 import { toast as sonnerToast } from "sonner";
 import { debug, info, warn, error } from '@/utils/logging'; // Import logging utility
+import { format } from 'date-fns'; // Import format from date-fns
 
 
 interface CustomCategory {
@@ -44,10 +45,12 @@ const CheckIn = () => {
     loadPreferences,
     setWeightUnit: updateWeightUnit,
     setMeasurementUnit: updateMeasurementUnit,
+    formatDateInUserTimezone, // Add formatDateInUserTimezone
+    parseDateInUserTimezone, // Add parseDateInUserTimezone
     loggingLevel // Get logging level
   } = usePreferences();
   debug(loggingLevel, "CheckIn component rendered.");
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState(formatDateInUserTimezone(new Date(), 'yyyy-MM-dd')); // Use formatDateInUserTimezone for initial date
   const [weight, setWeight] = useState("");
   const [neck, setNeck] = useState("");
   const [waist, setWaist] = useState("");
@@ -69,7 +72,7 @@ const CheckIn = () => {
       loadCustomCategories();
       fetchRecentMeasurements();
     }
-  }, [currentUserId, selectedDate]);
+  }, [currentUserId, selectedDate, formatDateInUserTimezone, parseDateInUserTimezone]); // Update dependency array
 
   const loadCustomCategories = async () => {
     debug(loggingLevel, "Loading custom categories.");
@@ -165,7 +168,7 @@ const CheckIn = () => {
         .from('check_in_measurements')
         .select('*')
         .eq('user_id', currentUserId)
-        .eq('entry_date', selectedDate)
+        .eq('entry_date', selectedDate) // Use selectedDate directly
         .maybeSingle();
 
       if (supabaseError && supabaseError.code !== 'PGRST116') {
@@ -195,7 +198,7 @@ const CheckIn = () => {
         .from('custom_measurements')
         .select('*')
         .eq('user_id', currentUserId)
-        .eq('entry_date', selectedDate);
+        .eq('entry_date', selectedDate); // Use selectedDate directly
 
       if (customError) {
         error(loggingLevel, 'Error loading custom measurements:', customError);
@@ -276,7 +279,7 @@ const CheckIn = () => {
       // Save standard check-in measurements
       const measurementData: any = {
         user_id: currentUserId,
-        entry_date: selectedDate,
+        entry_date: selectedDate, // Use selectedDate directly
       };
 
       // Only include fields that have values
@@ -329,7 +332,7 @@ const CheckIn = () => {
               user_id: currentUserId,
               category_id: categoryId,
               value: parseFloat(value),
-              entry_date: selectedDate,
+              entry_date: selectedDate, // Use selectedDate directly
               entry_hour: entryHour,
               entry_timestamp: entryTimestamp,
             };
@@ -388,10 +391,14 @@ const CheckIn = () => {
       <CheckInPreferences
         weightUnit={weightUnit}
         measurementUnit={measurementUnit}
-        selectedDate={selectedDate}
+        selectedDate={selectedDate} // Use selectedDate
         onWeightUnitChange={handleWeightUnitChange}
         onMeasurementUnitChange={handleMeasurementUnitChange}
-        onDateChange={setSelectedDate}
+        onDateChange={(dateString) => {
+          setSelectedDate(dateString);
+          // When date changes, reload existing data for the new date
+          // This will be triggered by the useEffect hook
+        }}
       />
 
       {/* Check-In Form */}
@@ -528,7 +535,7 @@ const CheckIn = () => {
                       {measurement.custom_categories.name}: {measurement.value} {measurement.custom_categories.measurement_type}
                     </div>
                     <div className="text-sm text-muted-foreground">
-                      {new Date(measurement.entry_date).toLocaleDateString()}
+                      {format(new Date(measurement.entry_date), 'PPP')} {/* Format date for display */}
                       {measurement.entry_hour !== null && (
                         <span> at {measurement.entry_hour.toString().padStart(2, '0')}:00</span>
                       )}

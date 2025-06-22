@@ -63,7 +63,7 @@ interface FoodDiaryProps {
 const FoodDiary = ({ selectedDate, onDateChange }: FoodDiaryProps) => {
   const { user } = useAuth();
   const { activeUserId } = useActiveUser();
-  const { formatDate, formatDateInUserTimezone, loggingLevel } = usePreferences(); // Call usePreferences here
+  const { formatDate, formatDateInUserTimezone, parseDateInUserTimezone, loggingLevel } = usePreferences(); // Call usePreferences here
   debug(loggingLevel, "FoodDiary component rendered for date:", selectedDate);
   const [date, setDate] = useState<Date>(new Date(selectedDate));
   const [refreshTrigger, setRefreshTrigger] = useState(0);
@@ -80,8 +80,10 @@ const FoodDiary = ({ selectedDate, onDateChange }: FoodDiaryProps) => {
 
   useEffect(() => {
     debug(loggingLevel, "selectedDate useEffect triggered:", selectedDate);
-    setDate(new Date(selectedDate));
-  }, [selectedDate]);
+    // Use parseDateInUserTimezone to correctly interpret the selectedDate string
+    // based on the user's timezone, ensuring the date object reflects the intended calendar day.
+    setDate(parseDateInUserTimezone(selectedDate));
+  }, [selectedDate, parseDateInUserTimezone]); // Add parseDateInUserTimezone to dependency array
 
   useEffect(() => {
     debug(loggingLevel, "currentUserId, selectedDate, refreshTrigger useEffect triggered.", { currentUserId, selectedDate, refreshTrigger });

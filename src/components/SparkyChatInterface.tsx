@@ -8,6 +8,7 @@ import { toast } from "@/hooks/use-toast";
 import SparkyNutritionCoach from './SparkyNutritionCoach';
 import { supabase } from '@/integrations/supabase/client';
 import { info, error, warn, UserLoggingLevel } from '@/utils/logging'; // Import logging utilities
+import { usePreferences } from '@/contexts/PreferencesContext'; // Import usePreferences
 
 interface Message {
   id: string;
@@ -22,6 +23,7 @@ interface SparkyChatInterfaceProps {
 }
 
 const SparkyChatInterface = ({ userId }: SparkyChatInterfaceProps) => {
+  const { timezone, formatDateInUserTimezone } = usePreferences(); // Get timezone and formatter from context
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -444,6 +446,8 @@ const SparkyChatInterface = ({ userId }: SparkyChatInterfaceProps) => {
         ref={coachRef}
         userId={userId}
         userLoggingLevel={userPreferences?.auto_clear_history || 'INFO'} // Pass logging level
+        timezone={timezone} // Pass timezone
+        formatDateInUserTimezone={formatDateInUserTimezone} // Pass formatter
       />
       
       <ScrollArea ref={scrollAreaRef} className="flex-1 p-4">
@@ -466,10 +470,7 @@ const SparkyChatInterface = ({ userId }: SparkyChatInterfaceProps) => {
                   }}
                 />
                 <div className="text-xs opacity-70 mt-1">
-                  {message.timestamp.toLocaleTimeString([], {
-                    hour: '2-digit',
-                    minute: '2-digit'
-                  })}
+                  {formatDateInUserTimezone(message.timestamp, 'p')} {/* Format time using user's timezone */}
                 </div>
               </div>
             </div>

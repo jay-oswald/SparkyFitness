@@ -10,12 +10,12 @@ import { processWaterInput } from '@/services/Chatbot/Chatbot_WaterHandler';
 import { processChatInput } from '@/services/Chatbot/Chatbot_ChatHandler';
 import { info, error, warn, UserLoggingLevel } from '@/utils/logging';
 
-const SparkyNutritionCoach = forwardRef<any, { userId: string; userLoggingLevel: UserLoggingLevel }>(({ userId, userLoggingLevel }, ref) => {
+const SparkyNutritionCoach = forwardRef<any, { userId: string; userLoggingLevel: UserLoggingLevel; timezone: string; formatDateInUserTimezone: (date: string | Date, formatStr?: string) => string }>(({ userId, userLoggingLevel, timezone, formatDateInUserTimezone }, ref) => {
 
   useImperativeHandle(ref, () => ({
     getTodaysNutrition,
     processUserInput,
-    addFoodOption: (optionIndex: number, originalMetadata: any) => addFoodOption(userId, optionIndex, originalMetadata), // Expose and bind userId
+    addFoodOption: (optionIndex: number, originalMetadata: any) => addFoodOption(userId, optionIndex, originalMetadata, formatDateInUserTimezone, userLoggingLevel), // Expose and bind userId, pass formatter
     saveMessageToHistory: (content: string, messageType: 'user' | 'assistant', metadata?: any) => saveMessageToHistory(userId, content, messageType, metadata), // Expose and bind userId
     clearHistory: (autoClearPreference: string) => clearHistory(userId, autoClearPreference) // Expose and bind userId
   }));
@@ -159,7 +159,7 @@ const SparkyNutritionCoach = forwardRef<any, { userId: string; userLoggingLevel:
      // Map AI intent to CoachResponse action and call appropriate handlers
      switch (parsedResponse.intent) {
        case 'log_food':
-         const foodResponse = await processFoodInput(userId, parsedResponse.data, determinedEntryDate); // Get response from food handler
+         const foodResponse = await processFoodInput(userId, parsedResponse.data, determinedEntryDate, formatDateInUserTimezone, userLoggingLevel); // Get response from food handler, pass formatter
 
          // Check if the food was not found in the database (fallback)
          if (foodResponse.action === 'none' && foodResponse.metadata?.is_fallback) {
@@ -202,11 +202,11 @@ const SparkyNutritionCoach = forwardRef<any, { userId: string; userLoggingLevel:
          }
 
        case 'log_exercise':
-         return await processExerciseInput(userId, parsedResponse.data, determinedEntryDate); // Pass determinedEntryDate
+         return await processExerciseInput(userId, parsedResponse.data, determinedEntryDate, formatDateInUserTimezone, userLoggingLevel); // Pass determinedEntryDate, pass formatter
        case 'log_measurement':
-         return await processMeasurementInput(userId, parsedResponse.data, determinedEntryDate); // Pass determinedEntryDate
+         return await processMeasurementInput(userId, parsedResponse.data, determinedEntryDate, formatDateInUserTimezone, userLoggingLevel); // Pass determinedEntryDate, pass formatter
        case 'log_water':
-         return await processWaterInput(userId, parsedResponse.data, determinedEntryDate); // Pass determinedEntryDate
+         return await processWaterInput(userId, parsedResponse.data, determinedEntryDate, formatDateInUserTimezone, userLoggingLevel); // Pass determinedEntryDate, pass formatter
        case 'ask_question':
        case 'chat':
          // For chat/ask_question, the response is already in parsedResponse.response

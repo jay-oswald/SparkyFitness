@@ -1,6 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
 import { CoachResponse, FoodOption } from './Chatbot_types'; // Import types
-import { debug, info, warn, error } from '@/utils/logging'; // Import logging utility
+import { debug, info, warn, error, UserLoggingLevel } from '@/utils/logging'; // Import logging utility
 
 import SparkyAIService from '@/components/SparkyAIService'; // Import SparkyAIService
 
@@ -29,9 +29,9 @@ export const processFoodInput = async (userId: string, data: {
   calcium?: number;
   iron?: number;
   foodOptions?: FoodOption[]; // Add foodOptions here
-}, entryDate?: string): Promise<CoachResponse> => {
+}, entryDate: string | undefined, formatDateInUserTimezone: (date: string | Date, formatStr?: string) => string, userLoggingLevel: UserLoggingLevel): Promise<CoachResponse> => {
   try {
-    debug('Processing food input with data:', data, 'and entryDate:', entryDate);
+    debug(userLoggingLevel, 'Processing food input with data:', data, 'and entryDate:', entryDate);
 
     const { food_name, quantity, unit, meal_type: raw_meal_type, foodOptions, ...nutritionData } = data; // Destructure, also check for foodOptions array
     // Standardize meal type: convert 'snack' to 'snacks' to match potential database constraint
@@ -40,7 +40,7 @@ export const processFoodInput = async (userId: string, data: {
 
     // Check if the data already contains food options from the AI
     if (foodOptions && Array.isArray(foodOptions) && foodOptions.length > 0) {
-      info('Received food options from AI:', foodOptions);
+      info(userLoggingLevel, 'Received food options from AI:', foodOptions);
       // Return food options to the user
       const optionsResponse = foodOptions.map((option: FoodOption, index: number) =>
         `${index + 1}. ${option.name} (~${Math.round(option.calories || 0)} calories per ${option.serving_size}${option.serving_unit})`
@@ -60,10 +60,10 @@ export const processFoodInput = async (userId: string, data: {
     }
 
     // If no food options array, proceed with database search
-    debug('No food options array received, searching database for:', food_name);
+    debug(userLoggingLevel, 'No food options array received, searching database for:', food_name);
 
     // Search for exact match first (case-insensitive)
-    debug('Searching for exact food match:', food_name);
+    debug(userLoggingLevel, 'Searching for exact food match:', food_name);
     const { data: exactFoods, error: exactError } = await supabase
       .from('foods')
       .select('*')
@@ -72,16 +72,16 @@ export const processFoodInput = async (userId: string, data: {
       .limit(1);
 
     if (exactError) {
-      error('❌ [Nutrition Coach] Error searching for exact food match:', exactError);
+      error(userLoggingLevel, '❌ [Nutrition Coach] Error searching for exact food match:', exactError);
     }
-    debug('Exact search results:', exactFoods);
+    debug(userLoggingLevel, 'Exact search results:', exactFoods);
 
     let existingFoods = exactFoods;
     let broadError = null;
 
     // If no exact match found, try a broader case-insensitive search
     if (!existingFoods || existingFoods.length === 0) {
-      debug('No exact match found, searching broadly for:', food_name);
+      debug(userLoggingLevel, 'No exact match found, searching broadly for:', food_name);
       const { data: broadFoods, error: currentBroadError } = await supabase
         .from('foods')
         .select('*')
@@ -90,31 +90,31 @@ export const processFoodInput = async (userId: string, data: {
         .limit(3);
 
       if (currentBroadError) {
-        error('❌ [Nutrition Coach] Error searching for broad food match:', currentBroadError);
+        error(userLoggingLevel, '❌ [Nutrition Coach] Error searching for broad food match:', currentBroadError);
         broadError = currentBroadError;
       }
-      debug('Broad search results:', broadFoods);
+      debug(userLoggingLevel, 'Broad search results:', broadFoods);
       existingFoods = broadFoods;
     }
 
     if (exactError || broadError) {
-      error('❌ [Nutrition Coach] Error during food search:', exactError || broadError);
+      error(userLoggingLevel, '❌ [Nutrition Coach] Error during food search:', exactError || broadError);
       return {
         action: 'none',
         response: 'Sorry, I had trouble accessing the food database. Please try again.'
       };
     }
 
-    debug('Final search results:', existingFoods);
+    debug(userLoggingLevel, 'Final search results:', existingFoods);
 
     if (existingFoods && existingFoods.length > 0) {
-      info('Food found in database.');
+      info(userLoggingLevel, 'Food found in database.');
       // Food exists, add it directly
       // Prioritize exact match if found, otherwise use the first broad match
       const food = exactFoods?.length > 0 ? exactFoods[0] : existingFoods[0];
-      debug('Using food:', food);
+      debug(userLoggingLevel, 'Using food:', food);
 
-      info('Inserting food entry...');
+      info(userLoggingLevel, 'Inserting food entry...');
       const { error: insertError } = await supabase
         .from('food_entries')
         .insert({
@@ -127,23 +127,23 @@ export const processFoodInput = async (userId: string, data: {
         });
 
       if (insertError) {
-        error('❌ [Nutrition Coach] Error adding food entry:', insertError);
+        error(userLoggingLevel, '❌ [Nutrition Coach] Error adding food entry:', insertError);
         return {
           action: 'none',
           response: 'Sorry, I couldn\'t add that to your diary. Please try again.'
         };
       }
 
-      info('Food entry inserted successfully.');
+      info(userLoggingLevel, 'Food entry inserted successfully.');
 
       const calories = Math.round((food.calories || 0) * (quantity / (food.serving_size || 100)));
 
       return {
         action: 'food_added',
-        response: `✅ **Added to your ${meal_type} on ${dateToUse}!**\n\n🍽️ ${food.name} (${quantity}${unit})\n📊 ~${calories} calories\n\n💡 Great choice! This adds ${Math.round(food.protein || 0)}g protein to your day.`
+        response: `✅ **Added to your ${meal_type} on ${formatDateInUserTimezone(dateToUse, 'PPP')}!**\n\n🍽️ ${food.name} (${quantity}${unit})\n📊 ~${calories} calories\n\n💡 Great choice! This adds ${Math.round(food.protein || 0)}g protein to your day.`
       };
     } else {
-      info('Food not found in database. Returning fallback data.');
+      info(userLoggingLevel, 'Food not found in database. Returning fallback data.');
       // Food not found, return a response indicating this,
       // and include the original data for the coach to request AI options.
       return {
@@ -160,8 +160,8 @@ export const processFoodInput = async (userId: string, data: {
       };
     }
  } catch (err) {
-    error('❌ [Nutrition Coach] Error processing food input:', err);
-    error('Full error details:', err);
+    error(userLoggingLevel, '❌ [Nutrition Coach] Error processing food input:', err);
+    error(userLoggingLevel, 'Full error details:', err);
     return {
       action: 'none',
       response: 'Sorry, I had trouble processing that. Could you try rephrasing what you ate?'
@@ -170,13 +170,13 @@ export const processFoodInput = async (userId: string, data: {
 };
 
 // Function to add a selected food option to the diary
-export const addFoodOption = async (userId: string, optionIndex: number, originalMetadata: any): Promise<CoachResponse> => {
+export const addFoodOption = async (userId: string, optionIndex: number, originalMetadata: any, formatDateInUserTimezone: (date: string | Date, formatStr?: string) => string, userLoggingLevel: UserLoggingLevel): Promise<CoachResponse> => {
   try {
     const { foodOptions, mealType, quantity, unit, entryDate } = originalMetadata; // Include unit and entryDate
     const selectedOption = foodOptions[optionIndex];
 
     if (!selectedOption) {
-      error('❌ [Nutrition Coach] Invalid option index:', optionIndex);
+      error(userLoggingLevel, '❌ [Nutrition Coach] Invalid option index:', optionIndex);
       return {
         action: 'none',
         response: 'Invalid option selected. Please try again.'
@@ -218,7 +218,7 @@ export const addFoodOption = async (userId: string, optionIndex: number, origina
       .single();
 
     if (foodCreateError) {
-      error('❌ [Nutrition Coach] Error creating food:', foodCreateError);
+      error(userLoggingLevel, '❌ [Nutrition Coach] Error creating food:', foodCreateError);
       return {
         action: 'none',
         response: 'Sorry, I couldn\'t create that food. Please try again.'
@@ -238,7 +238,7 @@ export const addFoodOption = async (userId: string, optionIndex: number, origina
       });
 
     if (entryError) {
-      error('❌ [Nutrition Coach] Error creating food entry:', entryError);
+      error(userLoggingLevel, '❌ [Nutrition Coach] Error creating food entry:', entryError);
       return {
         action: 'none',
         response: 'I created the food but couldn\'t add it to your diary. Please try again.'
@@ -249,11 +249,11 @@ export const addFoodOption = async (userId: string, optionIndex: number, origina
 
     return {
       action: 'food_added',
-      response: `✅ **Added to your ${mealType} on ${dateToUse}!**\n\n🍽️ ${selectedOption.name} (${quantity}${unit})\n📊 ~${calories} calories\n\n💡 Great choice! This adds ${Math.round(selectedOption.protein || 0)}g protein to your day.`
+      response: `✅ **Added to your ${mealType} on ${formatDateInUserTimezone(dateToUse, 'PPP')}!**\n\n🍽️ ${selectedOption.name} (${quantity}${unit})\n📊 ~${calories} calories\n\n💡 Great choice! This adds ${Math.round(selectedOption.protein || 0)}g protein to your day.`
     };
 
   } catch (err) {
-    error('❌ [Nutrition Coach] Error in addFoodOption:', err);
+    error(userLoggingLevel, '❌ [Nutrition Coach] Error in addFoodOption:', err);
     return {
       action: 'none',
       response: 'Sorry, I encountered an error adding that food. Please try again.'
