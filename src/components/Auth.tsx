@@ -111,6 +111,37 @@ const Auth = () => {
    debug(loggingLevel, "Auth: Sign in loading state set to false.");
  };
 
+ const handlePasswordReset = async (e: React.MouseEvent) => {
+   e.preventDefault();
+   info(loggingLevel, "Auth: Attempting password reset.");
+   if (!email) {
+     toast({
+       title: "Error",
+       description: "Please enter your email to reset password.",
+       variant: "destructive",
+     });
+     return;
+   }
+
+   setLoading(true);
+   const { error: supabaseError } = await supabase.auth.resetPasswordForEmail(email, {
+     redirectTo: `${window.location.origin}`, // Redirect to settings page after password reset
+   });
+
+   // Always show a success message to prevent email enumeration attacks
+   if (supabaseError) {
+     warn(loggingLevel, "Auth: Password reset failed (internal error, not shown to user):", supabaseError);
+   }
+   
+   info(loggingLevel, "Auth: Password reset email sent (or attempted).");
+   toast({
+     title: "Success",
+     description: "If an account with that email exists, a password reset link has been sent.",
+   });
+   
+   setLoading(false);
+ };
+
  return (
    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
      <Card className="w-full max-w-md">
@@ -161,6 +192,15 @@ const Auth = () => {
                    required
                    autoComplete="current-password"
                  />
+               </div>
+               <div className="text-right text-sm">
+                 <a
+                   href="#"
+                   onClick={handlePasswordReset}
+                   className="font-medium text-primary hover:underline"
+                 >
+                   Forgot password?
+                 </a>
                </div>
                <Button type="submit" className="w-full" disabled={loading}>
                  {loading ? "Signing in..." : "Sign In"}

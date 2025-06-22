@@ -18,7 +18,6 @@ import CustomCategoryManager from "./CustomCategoryManager";
 interface Profile {
   id: string;
   full_name: string | null;
-  email: string | null;
   phone: string | null;
   date_of_birth: string | null;
   bio: string | null;
@@ -60,7 +59,7 @@ const Settings = () => {
     new_password: '',
     confirm_password: ''
   });
-  const [newEmail, setNewEmail] = useState('');
+  const [newEmail, setNewEmail] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
 
@@ -69,6 +68,7 @@ const Settings = () => {
       loadProfile();
       loadPreferences();
       loadCustomCategories();
+      setNewEmail(user.email || ''); // Initialize newEmail here
     }
   }, [user]);
 
@@ -95,7 +95,7 @@ const Settings = () => {
 
     const { data, error } = await supabase
       .from('profiles')
-      .select('*')
+      .select('id, full_name, phone, date_of_birth, bio, avatar_url')
       .eq('id', user.id)
       .single();
 
@@ -110,7 +110,6 @@ const Settings = () => {
         date_of_birth: data.date_of_birth || '',
         bio: data.bio || ''
       });
-      setNewEmail(data.email || '');
     }
   };
 
@@ -132,7 +131,7 @@ const Settings = () => {
         date_format: data.date_format,
         default_weight_unit: data.default_weight_unit,
         default_measurement_unit: data.default_measurement_unit,
-        logging_level: data.logging_level || 'ERROR' // Load logging level, default to ERROR
+        logging_level: data.logging_level as 'DEBUG' | 'INFO' | 'WARN' | 'ERROR' | 'SILENT' || 'ERROR' // Load logging level, default to ERROR
       });
     }
   };
@@ -232,7 +231,7 @@ const Settings = () => {
   };
 
   const handleEmailChange = async () => {
-    if (!newEmail || newEmail === profile?.email) {
+    if (!newEmail || newEmail === user?.email) {
       toast.error('Please enter a new email address');
       return;
     }
