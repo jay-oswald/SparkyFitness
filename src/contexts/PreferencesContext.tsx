@@ -85,18 +85,16 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
         .eq('user_id', user.id)
         .maybeSingle();
 
-      if (supabaseError) {
+      if (supabaseError && supabaseError.code !== 'PGRST116') { // PGRST116 means no rows found
         error(loggingLevel, 'PreferencesContext: Error loading preferences from Supabase:', supabaseError);
-        // Create default preferences if they don't exist
-        info(loggingLevel, 'PreferencesContext: Attempting to create default preferences.');
-        await createDefaultPreferences();
+        throw supabaseError; // Re-throw other errors
       } else if (data) {
         debug(loggingLevel, 'PreferencesContext: Preferences data loaded:', data);
         setWeightUnitState(data.default_weight_unit as 'kg' | 'lbs');
         setMeasurementUnitState(data.default_measurement_unit as 'cm' | 'inches');
         setDateFormatState(data.date_format);
         setAutoClearHistoryState(data.auto_clear_history || 'never'); // Set auto_clear_history state
-        setLoggingLevelState(data.logging_level || 'INFO'); // Set logging level state
+        setLoggingLevelState((data.logging_level || 'INFO') as 'DEBUG' | 'INFO' | 'WARN' | 'ERROR' | 'SILENT'); // Set logging level state
         info(loggingLevel, 'PreferencesContext: Preferences states updated from database.');
       } else {
         info(loggingLevel, 'PreferencesContext: No preferences found, creating default preferences.');

@@ -10,6 +10,7 @@ import { toast } from "@/hooks/use-toast";
 import { Zap } from "lucide-react";
 import { usePreferences } from "@/contexts/PreferencesContext";
 import { debug, info, warn, error } from '@/utils/logging';
+import type { User } from '@supabase/supabase-js';
 
 const Auth = () => {
  const { loggingLevel } = usePreferences();
@@ -55,7 +56,7 @@ const Auth = () => {
 
    setLoading(true);
 
-   const { error: supabaseError } = await supabase.auth.signUp({
+   const { data, error: supabaseError } = await supabase.auth.signUp({
      email,
      password,
      options: {
@@ -84,12 +85,13 @@ const Auth = () => {
    debug(loggingLevel, "Auth: Sign up loading state set to false.");
  };
 
+
  const handleSignIn = async (e: React.FormEvent) => {
    e.preventDefault();
    info(loggingLevel, "Auth: Attempting sign in.");
    setLoading(true);
 
-   const { error: supabaseError } = await supabase.auth.signInWithPassword({
+   const { data, error: supabaseError } = await supabase.auth.signInWithPassword({
      email,
      password,
    });
