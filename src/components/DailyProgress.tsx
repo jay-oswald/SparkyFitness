@@ -197,7 +197,7 @@ const DailyProgress = ({ selectedDate, refreshTrigger }: DailyProgressProps) => 
 
  info(loggingLevel, "DailyProgress: Rendering daily progress card.");
  return (
-   <Card>
+   <Card className="h-full">
      <CardHeader className="pb-2">
        <CardTitle className="flex items-center space-x-2 text-base">
          <Target className="w-4 h-4 text-green-500" />

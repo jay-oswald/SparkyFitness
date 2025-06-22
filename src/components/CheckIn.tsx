@@ -72,7 +72,7 @@ const CheckIn = () => {
       loadCustomCategories();
       fetchRecentMeasurements();
     }
-  }, [currentUserId, selectedDate, formatDateInUserTimezone, parseDateInUserTimezone]); // Update dependency array
+  }, [currentUserId, selectedDate, loadPreferences, formatDateInUserTimezone, parseDateInUserTimezone]); // Update dependency array
 
   const loadCustomCategories = async () => {
     debug(loggingLevel, "Loading custom categories.");

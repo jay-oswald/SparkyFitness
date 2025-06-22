@@ -24,4 +24,12 @@ if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
 
-export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+let cachedSupabase: ReturnType<typeof createClient<Database>> | null = null;
+
+export const supabase = (() => {
+  if (cachedSupabase) {
+    return cachedSupabase;
+  }
+  cachedSupabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+  return cachedSupabase;
+})();

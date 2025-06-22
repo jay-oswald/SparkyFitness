@@ -124,48 +124,48 @@ const WaterIntake = ({ selectedDate }: WaterIntakeProps) => {
 
   return (
     <Card className="h-full flex flex-col">
-      <CardHeader className="pb-3">
-        <CardTitle className="flex items-center text-lg">
-          <Droplet className="w-5 h-5 mr-2" />
+      <CardHeader className="pb-2">
+        <CardTitle className="flex items-center text-base">
+          <Droplet className="w-4 h-4 mr-2" />
           Water Intake
         </CardTitle>
       </CardHeader>
-      <CardContent className="flex-1 flex flex-col justify-between p-4">
+      <CardContent className="flex-1 flex flex-col justify-between p-3">
         {/* Water count display */}
-        <div className="text-center mb-4">
-          <div className="text-2xl font-bold">
+        <div className="text-center mb-3">
+          <div className="text-xl font-bold">
             {waterGlasses} / {waterGoal}
           </div>
-          <div className="text-gray-500 text-sm">glasses of water</div>
+          <div className="text-gray-500 text-xs">glasses of water</div>
         </div>
         
         {/* Water Bottle Visualization - takes up most space */}
-        <div className="flex-1 flex items-center justify-center mb-4">
+        <div className="flex-1 flex items-center justify-center mb-3">
           <div className="relative flex flex-col items-center">
             {/* Bottle Cap */}
-            <div className="w-6 h-2 bg-blue-400 rounded-t-lg mb-1"></div>
+            <div className="w-5 h-1.5 bg-blue-400 rounded-t-sm mb-0.5"></div>
             
             {/* Bottle Neck */}
-            <div className="w-8 h-6 bg-gray-100 border-2 border-blue-400 rounded-sm mb-1"></div>
+            <div className="w-7 h-5 bg-gray-100 border-2 border-blue-400 rounded-sm mb-0.5"></div>
             
             {/* Main Bottle Body */}
-            <div className="relative w-20 h-40 border-3 border-blue-400 rounded-2xl bg-gray-50 overflow-hidden">
+            <div className="relative w-16 h-32 border-3 border-blue-400 rounded-xl bg-gray-50 overflow-hidden">
               {/* Water Fill */}
-              <div 
-                className="absolute bottom-0 w-full bg-gradient-to-t from-blue-500 via-blue-400 to-blue-300 transition-all duration-700 ease-out rounded-b-2xl"
+              <div
+                className="absolute bottom-0 w-full bg-gradient-to-t from-blue-500 via-blue-400 to-blue-300 transition-all duration-700 ease-out rounded-b-xl"
                 style={{ height: `${fillPercentage}%` }}
               >
                 {/* Water Surface Ripple Effect */}
                 {fillPercentage > 0 && (
-                  <div className="absolute top-0 w-full h-1 bg-blue-200 opacity-60 animate-pulse"></div>
+                  <div className="absolute top-0 w-full h-0.5 bg-blue-200 opacity-60 animate-pulse"></div>
                 )}
               </div>
               
               {/* Bottle Highlight */}
-              <div className="absolute top-4 left-3 w-3 h-12 bg-white opacity-30 rounded-full"></div>
+              <div className="absolute top-3 left-2 w-2.5 h-10 bg-white opacity-30 rounded-full"></div>
               
               {/* Water Level Lines */}
-              <div className="absolute inset-0 flex flex-col justify-between p-1">
+              <div className="absolute inset-0 flex flex-col justify-between p-0.5">
                 {[...Array(4)].map((_, i) => (
                   <div key={i} className="w-full h-px bg-blue-200 opacity-40"></div>
                 ))}
@@ -173,28 +173,28 @@ const WaterIntake = ({ selectedDate }: WaterIntakeProps) => {
             </div>
             
             {/* Progress Percentage */}
-            <div className="text-sm text-gray-600 mt-2 font-medium">
+            <div className="text-xs text-gray-600 mt-1.5 font-medium">
               {Math.round(fillPercentage)}%
             </div>
           </div>
         </div>
         
         {/* Water Control Buttons */}
-        <div className="flex justify-center space-x-3">
-          <Button 
-            variant="outline" 
+        <div className="flex justify-center space-x-2">
+          <Button
+            variant="outline"
             onClick={() => adjustWater(-1)}
             disabled={waterGlasses === 0 || loading}
             size="sm"
-            className="w-10 h-8 text-sm"
+            className="w-9 h-7 text-xs"
           >
             -1
           </Button>
-          <Button 
+          <Button
             onClick={() => adjustWater(1)}
             disabled={loading}
             size="sm"
-            className="w-10 h-8 text-sm"
+            className="w-9 h-7 text-xs"
           >
             +1
           </Button>

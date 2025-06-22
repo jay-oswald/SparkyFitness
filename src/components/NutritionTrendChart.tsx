@@ -169,10 +169,10 @@ const NutritionTrendChart = ({ selectedDate }: NutritionTrendChartProps) => {
           <span>14-Day Nutrition Trends</span>
         </CardTitle>
       </CardHeader>
-      <CardContent>
-        <div className="h-64">
+      <CardContent className="p-0">
+        <div className="h-[500px]">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+            <LineChart data={chartData} margin={{ top: 0, right: 30, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
               <XAxis 
                 dataKey="date" 
@@ -180,7 +180,7 @@ const NutritionTrendChart = ({ selectedDate }: NutritionTrendChartProps) => {
                 stroke="#6b7280"
                 fontSize={12}
               />
-              <YAxis stroke="#6b7280" fontSize={12} />
+              <YAxis stroke="#6b7280" fontSize={12} domain={[0, 'dataMax + (dataMax * 0.1)']} />
               <Tooltip 
                 labelFormatter={(value) => formatDate(value as string)}
                 formatter={(value: number, name: string) => {

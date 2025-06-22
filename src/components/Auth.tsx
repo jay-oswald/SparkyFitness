@@ -147,11 +147,11 @@ const Auth = () => {
      <Card className="w-full max-w-md">
        <CardHeader className="text-center">
          <div className="flex items-center justify-center mb-4">
-           <img src="/images/SparkyFitness.png?url" alt="SparkyFitness Logo" className="h-10 w-10 mr-2" />
+           <img src="/images/SparkyFitness.png" alt="SparkyFitness Logo" className="h-10 w-10 mr-2" />
            <CardTitle className="text-2xl font-bold text-gray-900">SparkyFitness</CardTitle>
          </div>
          <CardDescription>
-           Your AI-powered nutrition and fitness companion
+           Built for Families. Powered by AI. Track food, fitness, water, and health — together.
          </CardDescription>
        </CardHeader>
        <CardContent>

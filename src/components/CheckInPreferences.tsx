@@ -30,9 +30,9 @@ const CheckInPreferences = ({
   onMeasurementUnitChange,
   onDateChange
 }: CheckInPreferencesProps) => {
-  const { formatDate, loggingLevel } = usePreferences(); // Get logging level
+  const { formatDate, parseDateInUserTimezone, loggingLevel } = usePreferences(); // Get logging level and parseDateInUserTimezone
   debug(loggingLevel, "CheckInPreferences component rendered.", { selectedDate, weightUnit, measurementUnit });
-  const date = new Date(selectedDate);
+  const date = parseDateInUserTimezone(selectedDate); // Use parseDateInUserTimezone
 
   const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     debug(loggingLevel, "Handling date change from input:", e.target.value);
@@ -127,7 +127,7 @@ const CheckInPreferences = ({
                 <PopoverContent className="w-auto p-0">
                   <Calendar
                     mode="single"
-                    selected={new Date(selectedDate)} // Ensure selected date is a Date object
+                    selected={date} // Use the date object parsed in user's timezone
                     onSelect={handleDateSelect}
                     initialFocus
                   />

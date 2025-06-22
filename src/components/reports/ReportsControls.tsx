@@ -12,6 +12,8 @@ import { cn } from "@/lib/utils";
 import { debug, info, warn, error } from "@/utils/logging";
 import { format } from 'date-fns'; // Import format from date-fns
 
+
+
 interface ReportsControlsProps {
   startDate: string;
   endDate: string;
@@ -33,7 +35,7 @@ const ReportsControls = ({
   onWeightUnitToggle,
   onMeasurementUnitToggle,
 }: ReportsControlsProps) => {
-  const { formatDate, weightUnit, measurementUnit, loggingLevel } = usePreferences();
+  const { formatDate, parseDateInUserTimezone, weightUnit, measurementUnit, loggingLevel } = usePreferences();
   info(loggingLevel, 'ReportsControls: Rendering component.');
 
   // Set default units based on user preferences when component mounts
@@ -70,30 +72,30 @@ const ReportsControls = ({
 
   const handlePreviousStartDate = () => {
     debug(loggingLevel, 'ReportsControls: Handling previous start date.');
-    const previousDay = new Date(startDate);
+    const previousDay = parseDateInUserTimezone(startDate);
     previousDay.setDate(previousDay.getDate() - 1);
     handleStartDateSelect(previousDay);
   };
 
   const handleNextStartDate = () => {
     debug(loggingLevel, 'ReportsControls: Handling next start date.');
-    const nextDay = new Date(startDate);
+    const nextDay = parseDateInUserTimezone(startDate);
     nextDay.setDate(nextDay.getDate() + 1);
     handleStartDateSelect(nextDay);
   };
 
   const handlePreviousEndDate = () => {
     debug(loggingLevel, 'ReportsControls: Handling previous end date.');
-    const previousDay = new Date(endDate);
+    const previousDay = parseDateInUserTimezone(endDate);
     previousDay.setDate(previousDay.getDate() - 1);
     handleEndDateSelect(previousDay);
   };
 
   const handleNextEndDate = () => {
     debug(loggingLevel, 'ReportsControls: Handling next end date.');
-    const nextDay = new Date(endDate);
+    const nextDay = parseDateInUserTimezone(endDate);
     nextDay.setDate(nextDay.getDate() + 1);
-    handleEndDateSelect(nextDay); // Corrected from handleNextEndDate()
+    handleEndDateSelect(nextDay);
   };
 
   const handleWeightUnitChange = (checked: boolean) => {
@@ -152,8 +154,7 @@ const ReportsControls = ({
                   <Button
                     variant="outline"
                     className={cn(
-                      "justify-start text-left font-normal",
-                      "text-muted-foreground"
+                      "justify-start text-left font-normal"
                     )}
                   >
                     <CalendarIcon className="mr-2 h-4 w-4" />
@@ -163,7 +164,7 @@ const ReportsControls = ({
                 <PopoverContent className="w-auto p-0">
                   <Calendar
                     mode="single"
-                    selected={new Date(startDate)}
+                    selected={parseDateInUserTimezone(startDate)}
                     onSelect={handleStartDateSelect}
                     initialFocus
                     className={cn("p-3 pointer-events-auto")}
@@ -207,8 +208,7 @@ const ReportsControls = ({
                   <Button
                     variant="outline"
                     className={cn(
-                      "justify-start text-left font-normal",
-                      "text-muted-foreground"
+                      "justify-start text-left font-normal"
                     )}
                   >
                     <CalendarIcon className="mr-2 h-4 w-4" />
@@ -218,7 +218,7 @@ const ReportsControls = ({
                 <PopoverContent className="w-auto p-0">
                   <Calendar
                     mode="single"
-                    selected={new Date(endDate)}
+                    selected={parseDateInUserTimezone(endDate)}
                     onSelect={handleEndDateSelect}
                     initialFocus
                     className={cn("p-3 pointer-events-auto")}

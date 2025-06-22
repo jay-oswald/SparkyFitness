@@ -24,47 +24,47 @@ interface NutritionSummaryProps {
 const NutritionSummary = ({ dayTotals, goals, selectedDate }: NutritionSummaryProps) => {
   return (
     <Card className="h-full">
-      <CardHeader className="pb-3">
-        <CardTitle>Nutrition Summary</CardTitle>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base">Nutrition Summary</CardTitle>
       </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <CardContent className="pt-2 pb-3">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div className="text-center">
-            <div className="text-xl sm:text-2xl font-bold">{Math.round(dayTotals.calories)}</div>
-            <div className="text-xs sm:text-sm text-gray-500">of {goals.calories} cal</div>
-            <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
-              <div 
-                className="bg-green-500 h-2 rounded-full" 
+            <div className="text-lg sm:text-xl font-bold">{Math.round(dayTotals.calories)}</div>
+            <div className="text-xs text-gray-500">of {goals.calories} cal</div>
+            <div className="w-full bg-gray-200 rounded-full h-1.5 mt-1">
+              <div
+                className="bg-green-500 h-1.5 rounded-full"
                 style={{ width: `${Math.min((dayTotals.calories / goals.calories) * 100, 100)}%` }}
               />
             </div>
           </div>
           <div className="text-center">
-            <div className="text-xl sm:text-2xl font-bold text-blue-600">{dayTotals.protein.toFixed(1)}g</div>
-            <div className="text-xs sm:text-sm text-gray-500">of {goals.protein}g protein</div>
-            <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
-              <div 
-                className="bg-blue-500 h-2 rounded-full" 
+            <div className="text-lg sm:text-xl font-bold text-blue-600">{dayTotals.protein.toFixed(1)}g</div>
+            <div className="text-xs text-gray-500">of {goals.protein}g protein</div>
+            <div className="w-full bg-gray-200 rounded-full h-1.5 mt-1">
+              <div
+                className="bg-blue-500 h-1.5 rounded-full"
                 style={{ width: `${Math.min((dayTotals.protein / goals.protein) * 100, 100)}%` }}
               />
             </div>
           </div>
           <div className="text-center">
-            <div className="text-xl sm:text-2xl font-bold text-orange-600">{dayTotals.carbs.toFixed(1)}g</div>
-            <div className="text-xs sm:text-sm text-gray-500">of {goals.carbs}g carbs</div>
-            <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
-              <div 
-                className="bg-orange-500 h-2 rounded-full" 
+            <div className="text-lg sm:text-xl font-bold text-orange-600">{dayTotals.carbs.toFixed(1)}g</div>
+            <div className="text-xs text-gray-500">of {goals.carbs}g carbs</div>
+            <div className="w-full bg-gray-200 rounded-full h-1.5 mt-1">
+              <div
+                className="bg-orange-500 h-1.5 rounded-full"
                 style={{ width: `${Math.min((dayTotals.carbs / goals.carbs) * 100, 100)}%` }}
               />
             </div>
           </div>
           <div className="text-center">
-            <div className="text-xl sm:text-2xl font-bold text-yellow-600">{dayTotals.fat.toFixed(1)}g</div>
-            <div className="text-xs sm:text-sm text-gray-500">of {goals.fat}g fat</div>
-            <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
-              <div 
-                className="bg-yellow-500 h-2 rounded-full" 
+            <div className="text-lg sm:text-xl font-bold text-yellow-600">{dayTotals.fat.toFixed(1)}g</div>
+            <div className="text-xs text-gray-500">of {goals.fat}g fat</div>
+            <div className="w-full bg-gray-200 rounded-full h-1.5 mt-1">
+              <div
+                className="bg-yellow-500 h-1.5 rounded-full"
                 style={{ width: `${Math.min((dayTotals.fat / goals.fat) * 100, 100)}%` }}
               />
             </div>

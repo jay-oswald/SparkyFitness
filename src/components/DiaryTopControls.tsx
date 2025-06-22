@@ -44,7 +44,7 @@ const DiaryTopControls = ({
   return (
     <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
       {/* Left Column - Daily Calorie Goal (20% width) */}
-      <div className="lg:col-span-1 space-y-4">
+      <div className="lg:col-span-1 space-y-4 h-full">
         <DailyProgress
           selectedDate={selectedDate}
           refreshTrigger={refreshTrigger}
@@ -52,7 +52,7 @@ const DiaryTopControls = ({
       </div>
 
       {/* Middle Column - Nutrition Summary with Edit Goals and Micro Charts (60% width) */}
-      <div className="lg:col-span-3">
+      <div className="lg:col-span-3 h-full">
         <Card className="h-full">
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
@@ -112,7 +112,7 @@ const DiaryTopControls = ({
       </div>
 
       {/* Right Column - Water Intake (20% width) */}
-      <div className="lg:col-span-1">
+      <div className="lg:col-span-1 h-full">
         <WaterIntake selectedDate={selectedDate} />
       </div>
     </div>
