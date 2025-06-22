@@ -503,24 +503,12 @@ const Settings = () => {
             </div>
             <div>
               <Label htmlFor="timezone">Timezone</Label>
-              <Select
+              <Input
+                id="timezone"
                 value={preferences.timezone}
-                onValueChange={(value) => setPreferences(prev => ({ ...prev, timezone: value }))}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {/* Populate with common timezones or a library */}
-                  {/* For simplicity, adding a few examples. In a real app, use a comprehensive list. */}
-                  <SelectItem value="UTC">UTC</SelectItem>
-                  <SelectItem value="America/New_York">America/New_York</SelectItem>
-                  <SelectItem value="America/Los_Angeles">America/Los_Angeles</SelectItem>
-                  <SelectItem value="Europe/London">Europe/London</SelectItem>
-                  <SelectItem value="Asia/Tokyo">Asia/Tokyo</SelectItem>
-                  <SelectItem value="Australia/Sydney">Australia/Sydney</SelectItem>
-                </SelectContent>
-              </Select>
+                onChange={(e) => setPreferences(prev => ({ ...prev, timezone: e.target.value }))}
+                placeholder="e.g., Etc/UTC or America/New_York"
+              />
             </div>
           </div>
           <Button onClick={handlePreferencesUpdate} disabled={loading}>

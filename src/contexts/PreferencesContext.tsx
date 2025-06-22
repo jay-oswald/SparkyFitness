@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { debug, info, warn, error } from '@/utils/logging';
 import { formatInTimeZone } from 'date-fns-tz'; // Import formatInTimeZone
+import { parseISO } from 'date-fns'; // Import parseISO
 
 interface PreferencesContextType {
   weightUnit: 'kg' | 'lbs';
@@ -354,13 +355,34 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   const formatDateInUserTimezone = (date: string | Date, formatStr?: string) => {
     debug(loggingLevel, `PreferencesProvider: Formatting date in user timezone (${timezone}):`, date);
-    const dateToFormat = typeof date === 'string' ? new Date(date) : date;
+    let dateToFormat: Date;
+
+    if (typeof date === 'string') {
+      dateToFormat = parseISO(date); // Use parseISO for string dates
+    } else {
+      dateToFormat = date;
+    }
+
+    if (isNaN(dateToFormat.getTime())) {
+      error(loggingLevel, `PreferencesProvider: Invalid date value provided for formatting:`, date);
+      return ''; // Return empty string or a default value for invalid dates
+    }
+
     const formatString = formatStr || 'yyyy-MM-dd'; // Default to YYYY-MM-DD for consistency with DB date type
 
+    let effectiveTimezone = timezone;
     try {
-      return formatInTimeZone(dateToFormat, timezone, formatString);
+      // Validate timezone string
+      new Intl.DateTimeFormat(undefined, { timeZone: effectiveTimezone });
     } catch (e) {
-      error(loggingLevel, `PreferencesProvider: Error formatting date in timezone ${timezone}:`, e);
+      warn(loggingLevel, `PreferencesProvider: Invalid timezone string "${effectiveTimezone}" detected. Falling back to UTC.`, e);
+      effectiveTimezone = 'UTC';
+    }
+
+    try {
+      return formatInTimeZone(dateToFormat, effectiveTimezone, formatString);
+    } catch (e) {
+      error(loggingLevel, `PreferencesProvider: Error formatting date in timezone ${effectiveTimezone}:`, e);
       // Fallback to local date formatting if timezone formatting fails
       return formatDate(dateToFormat);
     }
