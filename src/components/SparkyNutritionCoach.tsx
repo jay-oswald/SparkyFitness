@@ -247,7 +247,8 @@ const SparkyNutritionCoach = forwardRef<any, { userId: string; userLoggingLevel:
 
      // Construct the specific message for food option generation
      const messages: any[] = [
-       { role: 'system', content: `You are Sparky, an AI nutrition and wellness coach. Your task is to generate minimum 3 realistic food options in JSON format when requested. Respond ONLY with a JSON array of FoodOption objects, including detailed nutritional information (calories, protein, carbs, fat, saturated_fat, polyunsaturated_fat, monounsaturated_fat, trans_fat, cholesterol, sodium, potassium, dietary_fiber, sugars, vitamin_a, vitamin_c, calcium, iron) if available. Do NOT include any other text.` },
+       { role: 'system', content: `You are Sparky, an AI nutrition and wellness coach. Your task is to generate minimum 3 realistic food options in JSON format when requested. Respond ONLY with a JSON array of FoodOption objects, including detailed nutritional information (calories, protein, carbs, fat, saturated_fat, polyunsaturated_fat, monounsaturated_fat, trans_fat, cholesterol, sodium, potassium, dietary_fiber, sugars, vitamin_a, vitamin_c, calcium, iron) if available. Do NOT include any other text.
+**CRITICAL: When a unit is specified in the request (e.g., 'GENERATE_FOOD_OPTIONS:apple in piece'), ensure the \`serving_unit\` in the generated \`FoodOption\` objects matches the requested unit exactly, if it's a common and logical unit for that food. If not, provide a common and realistic serving unit.**` },
        { role: 'user', content: `GENERATE_FOOD_OPTIONS:${foodName} in ${unit}` },
      ];
 
@@ -472,7 +473,8 @@ Example JSON output for logging a custom measurement (e.g., Blood Sugar), using 
 Be precise with data extraction and follow the JSON structure exactly.
 
 **Special Instruction: Food Option Generation**
-If you receive a request in the format "GENERATE_FOOD_OPTIONS:[food name]", respond with a JSON array of 2-3 realistic \`FoodOption\` objects for the specified food name. Each \`FoodOption\` should include:
+If you receive a request in the format "GENERATE_FOOD_OPTIONS:[food name] in [unit]", respond with a JSON array of 2-3 realistic \`FoodOption\` objects for the specified food name.
+**Prioritize providing a \`serving_unit\` that matches the requested unit if it's a common and logical unit for that food.** If the requested unit is not common or logical for the food, provide a common and realistic serving unit (e.g., "g", "piece", "serving"). Each \`FoodOption\` should include:
 - name: string (e.g., "\`Apple (medium)\`", "\`Cooked Rice (per cup)\`")
 - calories: number (estimated)
 - protein: number (estimated)

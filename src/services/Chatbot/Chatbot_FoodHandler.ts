@@ -134,6 +134,25 @@ export const processFoodInput = async (userId: string, data: {
         };
       }
 
+      // Add unit mismatch check
+      if (unit && food.serving_unit && unit.toLowerCase() !== food.serving_unit.toLowerCase()) {
+          warn(userLoggingLevel, `Unit mismatch: User requested '${quantity}${unit}' but database serving unit is '${food.serving_size}${food.serving_unit}'.`);
+          return {
+              action: 'none',
+              response: `I found "${food.name}" in the database, but its serving unit is "${food.serving_unit}" (e.g., ${food.serving_size} ${food.serving_unit}). You asked for "${quantity} ${unit}". Could you clarify how many ${food.serving_unit} are in ${quantity} ${unit}, or would you like to log ${quantity} ${food.serving_unit} instead?`,
+              metadata: {
+                  is_unit_mismatch: true,
+                  foodName: food_name,
+                  requestedQuantity: quantity,
+                  requestedUnit: unit,
+                  databaseServingSize: food.serving_size,
+                  databaseServingUnit: food.serving_unit,
+                  mealType: meal_type,
+                  entryDate: dateToUse
+              }
+          };
+      }
+
       info(userLoggingLevel, 'Food entry inserted successfully.');
 
       const calories = Math.round((food.calories || 0) * (quantity / (food.serving_size || 100)));
@@ -186,6 +205,24 @@ export const addFoodOption = async (userId: string, optionIndex: number, origina
     // Use the entryDate from original metadata if available, otherwise use today in user's timezone
     const dateToUse = entryDate || formatDateInUserTimezone(new Date(), 'yyyy-MM-dd');
 
+    // Add unit mismatch check for selected option
+    if (unit && selectedOption.serving_unit && unit.toLowerCase() !== selectedOption.serving_unit.toLowerCase()) {
+        warn(userLoggingLevel, `Unit mismatch in addFoodOption: User requested '${quantity}${unit}' but selected option serving unit is '${selectedOption.serving_size}${selectedOption.serving_unit}'.`);
+        return {
+            action: 'none',
+            response: `The selected food option's serving unit is "${selectedOption.serving_unit}" (e.g., ${selectedOption.serving_size} ${selectedOption.serving_unit}). You asked for "${quantity} ${unit}". Could you clarify how many ${selectedOption.serving_unit} are in ${quantity} ${unit}, or would you like to log ${quantity} ${selectedOption.serving_unit} instead?`,
+            metadata: {
+                is_unit_mismatch: true,
+                foodName: selectedOption.name,
+                requestedQuantity: quantity,
+                requestedUnit: unit,
+                databaseServingSize: selectedOption.serving_size,
+                databaseServingUnit: selectedOption.serving_unit,
+                mealType: mealType,
+                entryDate: dateToUse
+            }
+        };
+    }
 
     // First, create the food in the database
     const { data: newFood, error: foodCreateError } = await supabase
