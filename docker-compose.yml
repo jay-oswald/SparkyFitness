@@ -10,7 +10,8 @@ services:
       VITE_SUPABASE_URL: ${VITE_SUPABASE_URL}
       VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY}
       SUPABASE_PROJECT_REF: ${SUPABASE_PROJECT_REF}
-      VITE_SUPABASE_DB_PASSWORD: ${VITE_SUPABASE_DB_PASSWORD}
+      #Below variable is optional. needed only to enable ChatBOT
+      #VITE_SUPABASE_DB_PASSWORD: ${VITE_SUPABASE_DB_PASSWORD}
       TZ: Etc/UTC
     networks:
       - sparky-fitness-ipv6-net
