@@ -5,6 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Download } from "lucide-react";
 import { usePreferences } from "@/contexts/PreferencesContext";
 import { debug, info, warn, error } from "@/utils/logging";
+import { parseISO } from "date-fns";
 
 interface DailyFoodEntry {
   entry_date: string;
@@ -82,7 +83,7 @@ const ReportsTables = ({
   onExportBodyMeasurements,
   onExportCustomMeasurements,
 }: ReportsTablesProps) => {
-  const { loggingLevel } = usePreferences();
+  const { loggingLevel, dateFormat, formatDateInUserTimezone } = usePreferences();
   info(loggingLevel, 'ReportsTables: Rendering component.');
 
   // Sort tabular data by date descending, then by meal type
@@ -97,9 +98,17 @@ const ReportsTables = ({
 
   // Sort measurement data by date descending
   debug(loggingLevel, 'ReportsTables: Sorting measurement data.');
-  const sortedMeasurementData = [...measurementData].sort((a, b) =>
-    new Date(b.date).getTime() - new Date(a.date).getTime()
-  );
+  const sortedMeasurementData = [...measurementData]
+    .filter(measurement =>
+      measurement.weight !== undefined ||
+      measurement.neck !== undefined ||
+      measurement.waist !== undefined ||
+      measurement.hips !== undefined ||
+      measurement.steps !== undefined
+    )
+    .sort((a, b) =>
+      new Date(b.date).getTime() - new Date(a.date).getTime()
+    );
 
   // Group food entries by date and calculate daily totals
   debug(loggingLevel, 'ReportsTables: Grouping food data by date and calculating totals.');
@@ -237,7 +246,7 @@ const ReportsTables = ({
 
                   return (
                     <TableRow key={index} className={entry.isTotal ? "bg-gray-50 font-semibold border-t-2" : ""}>
-                      <TableCell>{new Date(entry.entry_date).toLocaleDateString()}</TableCell>
+                      <TableCell>{formatDateInUserTimezone(parseISO(entry.entry_date), dateFormat)}</TableCell>
                       <TableCell className="capitalize">{entry.meal_type}</TableCell>
                       <TableCell className="min-w-[250px]">
                         {!entry.isTotal && (
@@ -304,7 +313,7 @@ const ReportsTables = ({
               <TableBody>
                 {sortedMeasurementData.map((measurement, index) => (
                   <TableRow key={index}>
-                    <TableCell>{new Date(measurement.date).toLocaleDateString()}</TableCell>
+                    <TableCell>{formatDateInUserTimezone(parseISO(measurement.date), dateFormat)}</TableCell>
                     <TableCell>{measurement.weight ? measurement.weight.toFixed(1) : '-'}</TableCell>
                     <TableCell>{measurement.neck ? measurement.neck.toFixed(1) : '-'}</TableCell>
                     <TableCell>{measurement.waist ? measurement.waist.toFixed(1) : '-'}</TableCell>
@@ -354,13 +363,13 @@ const ReportsTables = ({
                   <TableBody>
                     {sortedData.map((measurement, index) => {
                       // Extract hour from timestamp
-                      const timestamp = new Date(measurement.timestamp);
+                      const timestamp = parseISO(measurement.timestamp);
                       const hour = timestamp.getHours();
                       const formattedHour = `${hour.toString().padStart(2, '0')}:00`;
                       
                       return (
                         <TableRow key={index}>
-                          <TableCell>{new Date(measurement.date).toLocaleDateString()}</TableCell>
+                          <TableCell>{formatDateInUserTimezone(parseISO(measurement.date), dateFormat)}</TableCell>
                           <TableCell>{formattedHour}</TableCell>
                           <TableCell>{measurement.value}</TableCell>
                         </TableRow>

@@ -5,6 +5,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useActiveUser } from "@/contexts/ActiveUserContext";
 import { TrendingUp } from "lucide-react";
+import { parseISO, subDays, addDays, format } from "date-fns"; // Import parseISO, subDays, addDays, format
+import { usePreferences } from "@/contexts/PreferencesContext"; // Import usePreferences
 
 interface NutritionTrendChartProps {
   selectedDate: string;
@@ -27,24 +29,24 @@ const NutritionTrendChart = ({ selectedDate }: NutritionTrendChartProps) => {
   const { activeUserId } = useActiveUser();
   const [chartData, setChartData] = useState<DayData[]>([]);
   const [loading, setLoading] = useState(true);
+  const { formatDateInUserTimezone } = usePreferences(); // Destructure formatDateInUserTimezone
 
   useEffect(() => {
     if (user && activeUserId) {
       loadTrendData();
     }
-  }, [user, activeUserId, selectedDate]);
+  }, [user, activeUserId, selectedDate, formatDateInUserTimezone]); // Add formatDateInUserTimezone to dependencies
 
   const loadTrendData = async () => {
     try {
       setLoading(true);
       
-      // Calculate date range (past 14 days from selected date)
-      const endDate = new Date(selectedDate);
-      const startDate = new Date(endDate);
-      startDate.setDate(startDate.getDate() - 13); // 14 days total including selected date
-      
-      const startDateStr = startDate.toISOString().split('T')[0];
-      const endDateStr = endDate.toISOString().split('T')[0];
+      // Calculate date range (past 14 days from selected date) in user's timezone
+      const endDate = parseISO(selectedDate); // Parse selectedDate as a calendar date
+      const startDate = subDays(endDate, 13); // 14 days total including selected date
+
+      const startDateStr = formatDateInUserTimezone(startDate, 'yyyy-MM-dd');
+      const endDateStr = formatDateInUserTimezone(endDate, 'yyyy-MM-dd');
 
       // Get food entries for the past 14 days - use activeUserId
       const { data: entriesData, error: entriesError } = await supabase
@@ -80,6 +82,7 @@ const NutritionTrendChart = ({ selectedDate }: NutritionTrendChartProps) => {
         console.error('Error loading nutrition trend data:', entriesError);
         return;
       }
+      console.log("DEBUG: NutritionTrendChart - Fetched entriesData:", entriesData); // New debug log
 
       // Group entries by date and calculate totals
       const dailyTotals: Record<string, { calories: number; protein: number; carbs: number; fat: number }> = {};
@@ -94,22 +97,25 @@ const NutritionTrendChart = ({ selectedDate }: NutritionTrendChartProps) => {
         const nutritionSource = entry.variant_id && entry.food_variants ? entry.food_variants : entry.foods;
         if (!nutritionSource) return;
 
-        const multiplier = entry.quantity;
+        const multiplier = entry.quantity / (nutritionSource.serving_size || 100); // Corrected calculation
         
         dailyTotals[date].calories += (nutritionSource.calories || 0) * multiplier;
         dailyTotals[date].protein += (nutritionSource.protein || 0) * multiplier;
         dailyTotals[date].carbs += (nutritionSource.carbs || 0) * multiplier;
         dailyTotals[date].fat += (nutritionSource.fat || 0) * multiplier;
       });
+      console.log("DEBUG: NutritionTrendChart - Aggregated dailyTotals:", dailyTotals); // New debug log
 
       // Get goals for each day in the range - use activeUserId
       const chartDataPromises = [];
-      for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
-        const dateStr = d.toISOString().split('T')[0];
+      // Iterate through the date range using the user's timezone
+      for (let i = 0; i < 14; i++) { // Iterate 14 times for 14 days
+        const currentDateForLoop = addDays(startDate, i); // Get the current date in the loop
+        const dateStr = formatDateInUserTimezone(currentDateForLoop, 'yyyy-MM-dd'); // Format date in user's timezone
         chartDataPromises.push(
           supabase.rpc('get_goals_for_date', {
             p_user_id: activeUserId,
-            p_date: dateStr
+            p_date: dateStr // Pass date in user's timezone
           }).then(({ data: goalsData }) => {
             const goals = goalsData?.[0] || { calories: 2000, protein: 150, carbs: 250, fat: 67 };
             const totals = dailyTotals[dateStr] || { calories: 0, protein: 0, carbs: 0, fat: 0 };
@@ -130,6 +136,7 @@ const NutritionTrendChart = ({ selectedDate }: NutritionTrendChartProps) => {
       }
 
       const resolvedChartData = await Promise.all(chartDataPromises);
+      console.log("DEBUG: NutritionTrendChart - Resolved chartData before setting state:", resolvedChartData); // New debug log
       setChartData(resolvedChartData);
     } catch (error) {
       console.error('Error loading trend data:', error);
@@ -138,9 +145,10 @@ const NutritionTrendChart = ({ selectedDate }: NutritionTrendChartProps) => {
     }
   };
 
-  const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const formatDateForChart = (dateStr: string) => {
+    // Use formatDateInUserTimezone to ensure the date is formatted according to user's preference
+    // This is for display on the chart axis
+    return formatDateInUserTimezone(parseISO(dateStr), 'MMM dd');
   };
 
   if (loading) {
@@ -175,14 +183,14 @@ const NutritionTrendChart = ({ selectedDate }: NutritionTrendChartProps) => {
             <LineChart data={chartData} margin={{ top: 0, right: 30, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
               <XAxis 
-                dataKey="date" 
-                tickFormatter={formatDate}
+                dataKey="date"
+                tickFormatter={formatDateForChart}
                 stroke="#6b7280"
                 fontSize={12}
               />
               <YAxis stroke="#6b7280" fontSize={12} domain={[0, 'dataMax + (dataMax * 0.1)']} />
-              <Tooltip 
-                labelFormatter={(value) => formatDate(value as string)}
+              <Tooltip
+                labelFormatter={(value) => formatDateForChart(value as string)}
                 formatter={(value: number, name: string) => {
                   const unit = name.includes('calorie') ? ' cal' : 'g';
                   return [`${value}${unit}`, name];

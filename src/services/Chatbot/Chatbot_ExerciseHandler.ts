@@ -8,7 +8,7 @@ export const processExerciseInput = async (userId: string, data: { exercise_name
     debug(userLoggingLevel, 'Processing exercise input with data:', data, 'and entryDate:', entryDate);
 
     const { exercise_name, duration_minutes, distance, distance_unit } = data;
-    const dateToUse = entryDate || new Date().toISOString().split('T')[0]; // Use provided date or today's date
+    const dateToUse = entryDate || formatDateInUserTimezone(new Date(), 'yyyy-MM-dd'); // Use provided date or today's date in user's timezone
     const duration = duration_minutes || 30; // Default to 30 minutes if not provided by AI
 
 

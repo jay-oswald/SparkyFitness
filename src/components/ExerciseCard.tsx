@@ -11,6 +11,7 @@ import { useActiveUser } from "@/contexts/ActiveUserContext";
 import EditExerciseEntryDialog from "./EditExerciseEntryDialog";
 import { usePreferences } from "@/contexts/PreferencesContext"; // Import usePreferences
 import { debug, info, warn, error } from '@/utils/logging'; // Import logging utility
+import { parseISO, addDays } from "date-fns"; // Import parseISO and addDays
 
 
 interface ExerciseEntry {
@@ -108,7 +109,8 @@ const ExerciseCard = ({ selectedDate, onExerciseChange }: ExerciseCardProps) => 
           )
         `)
         .eq('user_id', currentUserId)
-        .eq('entry_date', selectedDate);
+        .gte('entry_date', selectedDate) // Start of the selected day
+        .lt('entry_date', addDays(parseISO(selectedDate), 1).toISOString().split('T')[0]); // Start of the next day
 
       if (supabaseError) {
         error(loggingLevel, "Error fetching exercise entries:", supabaseError);

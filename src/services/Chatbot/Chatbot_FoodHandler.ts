@@ -36,7 +36,7 @@ export const processFoodInput = async (userId: string, data: {
     const { food_name, quantity, unit, meal_type: raw_meal_type, foodOptions, ...nutritionData } = data; // Destructure, also check for foodOptions array
     // Standardize meal type: convert 'snack' to 'snacks' to match potential database constraint
     const meal_type = raw_meal_type?.toLowerCase() === 'snack' ? 'snacks' : raw_meal_type;
-    const dateToUse = entryDate || new Date().toISOString().split('T')[0]; // Use provided date or today's date
+    const dateToUse = entryDate || formatDateInUserTimezone(new Date(), 'yyyy-MM-dd'); // Use provided date or today's date in user's timezone
 
     // Check if the data already contains food options from the AI
     if (foodOptions && Array.isArray(foodOptions) && foodOptions.length > 0) {
@@ -183,8 +183,8 @@ export const addFoodOption = async (userId: string, optionIndex: number, origina
       };
     }
 
-    // Use the entryDate from original metadata if available, otherwise use today
-    const dateToUse = entryDate || new Date().toISOString().split('T')[0];
+    // Use the entryDate from original metadata if available, otherwise use today in user's timezone
+    const dateToUse = entryDate || formatDateInUserTimezone(new Date(), 'yyyy-MM-dd');
 
 
     // First, create the food in the database

@@ -13,7 +13,6 @@ services:
       VITE_SUPABASE_DB_PASSWORD: ${VITE_SUPABASE_DB_PASSWORD}
       #Below variable is optional. needed only to enable ChatBOT
       SUPABASE_ACCESS_TOKEN: ${SUPABASE_ACCESS_TOKEN}
-      TZ: Etc/UTC
     networks:
       - sparky-fitness-ipv6-net
     restart: always

@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { format } from "date-fns";
+import { format, parseISO, addDays } from "date-fns"; // Import parseISO and addDays
 import { CalendarIcon, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -95,6 +95,7 @@ const FoodDiary = ({ selectedDate, onDateChange }: FoodDiaryProps) => {
 
   const loadFoodEntries = async () => {
     debug(loggingLevel, "Loading food entries for date:", selectedDate);
+    debug(loggingLevel, `Querying food_entries for user: ${currentUserId} and entry_date: ${selectedDate}`); // Added debug log
     try {
       const { data, error: supabaseError } = await supabase
         .from('food_entries')
@@ -103,7 +104,8 @@ const FoodDiary = ({ selectedDate, onDateChange }: FoodDiaryProps) => {
           foods (*)
         `)
         .eq('user_id', currentUserId)
-        .eq('entry_date', selectedDate);
+        .gte('entry_date', selectedDate) // Start of the selected day
+        .lt('entry_date', addDays(parseISO(selectedDate), 1).toISOString().split('T')[0]); // Start of the next day
 
       if (supabaseError) {
         error(loggingLevel, "Error loading food entries:", supabaseError);
@@ -214,7 +216,7 @@ const FoodDiary = ({ selectedDate, onDateChange }: FoodDiaryProps) => {
             quantity: quantity,
             unit: unit,
             variant_id: variantId,
-            entry_date: formatDateInUserTimezone(new Date(selectedDate), 'yyyy-MM-dd'), // Ensure date is in user's timezone
+            entry_date: formatDateInUserTimezone(parseDateInUserTimezone(selectedDate), 'yyyy-MM-dd'), // Ensure date is in user's timezone
           },
         ]);
 

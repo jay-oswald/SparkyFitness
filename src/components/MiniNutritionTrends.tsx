@@ -4,6 +4,8 @@ import { LineChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from "rec
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useActiveUser } from "@/contexts/ActiveUserContext";
+import { parseISO, subDays, addDays, format } from "date-fns"; // Import date-fns functions
+import { usePreferences } from "@/contexts/PreferencesContext"; // Import usePreferences
 
 interface MiniNutritionTrendsProps {
   selectedDate: string;
@@ -21,22 +23,22 @@ const MiniNutritionTrends = ({ selectedDate }: MiniNutritionTrendsProps) => {
   const { user } = useAuth();
   const { activeUserId } = useActiveUser();
   const [chartData, setChartData] = useState<DayData[]>([]);
+  const { formatDateInUserTimezone } = usePreferences(); // Destructure formatDateInUserTimezone
 
   useEffect(() => {
     if (user && activeUserId) {
       loadTrendData();
     }
-  }, [user, activeUserId, selectedDate]);
+  }, [user, activeUserId, selectedDate, formatDateInUserTimezone]); // Add formatDateInUserTimezone to dependencies
 
   const loadTrendData = async () => {
     try {
-      // Calculate date range (past 14 days from selected date for mini charts)
-      const endDate = new Date(selectedDate);
-      const startDate = new Date(endDate);
-      startDate.setDate(startDate.getDate() - 13); // 14 days total including selected date
+      // Calculate date range (past 14 days from selected date for mini charts) in user's timezone
+      const endDate = parseISO(selectedDate); // Parse selectedDate as a calendar date
+      const startDate = subDays(endDate, 13); // 14 days total including selected date
       
-      const startDateStr = startDate.toISOString().split('T')[0];
-      const endDateStr = endDate.toISOString().split('T')[0];
+      const startDateStr = formatDateInUserTimezone(startDate, 'yyyy-MM-dd');
+      const endDateStr = formatDateInUserTimezone(endDate, 'yyyy-MM-dd');
 
       // Get food entries for the past 14 days - use activeUserId
       const { data: entriesData, error: entriesError } = await supabase
@@ -86,7 +88,7 @@ const MiniNutritionTrends = ({ selectedDate }: MiniNutritionTrendsProps) => {
         const nutritionSource = entry.variant_id && entry.food_variants ? entry.food_variants : entry.foods;
         if (!nutritionSource) return;
 
-        const multiplier = entry.quantity;
+        const multiplier = entry.quantity / (nutritionSource.serving_size || 100); // Corrected calculation
         
         dailyTotals[date].calories += (nutritionSource.calories || 0) * multiplier;
         dailyTotals[date].protein += (nutritionSource.protein || 0) * multiplier;
@@ -96,20 +98,19 @@ const MiniNutritionTrends = ({ selectedDate }: MiniNutritionTrendsProps) => {
 
       // Create chart data for all dates in range
       const chartDataArray: DayData[] = [];
-      for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
-        const dateStr = d.toISOString().split('T')[0];
+      for (let i = 0; i < 14; i++) { // Iterate 14 times for 14 days
+        const currentDateForLoop = addDays(startDate, i); // Get the current date in the loop
+        const dateStr = formatDateInUserTimezone(currentDateForLoop, 'yyyy-MM-dd'); // Format date in user's timezone
         const totals = dailyTotals[dateStr] || { calories: 0, protein: 0, carbs: 0, fat: 0 };
         
-        // Only include dates that have some nutrition data
-        if (totals.calories > 0 || totals.protein > 0 || totals.carbs > 0 || totals.fat > 0) {
-          chartDataArray.push({
-            date: dateStr,
-            calories: Math.round(totals.calories),
-            protein: Math.round(totals.protein * 10) / 10,
-            carbs: Math.round(totals.carbs * 10) / 10,
-            fat: Math.round(totals.fat * 10) / 10,
-          });
-        }
+        // Always include all 14 days, even if no data, to ensure consistent chart axis
+        chartDataArray.push({
+          date: dateStr,
+          calories: Math.round(totals.calories),
+          protein: Math.round(totals.protein * 10) / 10,
+          carbs: Math.round(totals.carbs * 10) / 10,
+          fat: Math.round(totals.fat * 10) / 10,
+        });
       }
 
       setChartData(chartDataArray);
@@ -128,7 +129,7 @@ const MiniNutritionTrends = ({ selectedDate }: MiniNutritionTrendsProps) => {
       return (
         <div className="bg-white dark:bg-gray-800 p-2 border border-gray-200 dark:border-gray-700 rounded shadow-lg">
           <p className="text-xs font-medium text-gray-900 dark:text-gray-100">
-            {new Date(label).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+            {formatDateInUserTimezone(parseISO(label), 'MMM dd')}
           </p>
           <p className="text-xs text-gray-600 dark:text-gray-400">
             {nutrientName}: {nutrientValue}{unit}

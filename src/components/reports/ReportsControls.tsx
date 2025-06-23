@@ -10,7 +10,7 @@ import { usePreferences } from "@/contexts/PreferencesContext";
 import { useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { debug, info, warn, error } from "@/utils/logging";
-import { format } from 'date-fns'; // Import format from date-fns
+import { format, parseISO } from 'date-fns'; // Import format and parseISO from date-fns
 
 
 
@@ -35,7 +35,7 @@ const ReportsControls = ({
   onWeightUnitToggle,
   onMeasurementUnitToggle,
 }: ReportsControlsProps) => {
-  const { formatDate, parseDateInUserTimezone, weightUnit, measurementUnit, loggingLevel } = usePreferences();
+  const { formatDate, parseDateInUserTimezone, formatDateInUserTimezone, weightUnit, measurementUnit, loggingLevel } = usePreferences();
   info(loggingLevel, 'ReportsControls: Rendering component.');
 
   // Set default units based on user preferences when component mounts
@@ -52,7 +52,7 @@ const ReportsControls = ({
 
   const handleStartDateSelect = (newDate: Date | undefined) => {
     if (newDate) {
-      const dateString = format(newDate, 'yyyy-MM-dd'); // Format the date to YYYY-MM-DD using the local timezone
+      const dateString = formatDateInUserTimezone(newDate, 'yyyy-MM-dd'); // Format the date to YYYY-MM-DD using user's preferred timezone
       debug(loggingLevel, 'ReportsControls: Start date selected:', dateString);
       onStartDateChange(dateString);
     } else {
@@ -140,11 +140,11 @@ const ReportsControls = ({
           <div className="flex items-center gap-4">
             {/* Start Date Navigation */}
             <div className="flex items-center gap-2">
-              <Button 
-                variant="outline" 
-                size="icon"
+              <Button
+                variant="outline"
+                size="default" // Changed from "icon" to "default"
                 onClick={handlePreviousStartDate}
-                className="h-8 w-8"
+                className="h-8 w-auto px-2" // Adjusted width and padding
               >
                 <ChevronLeft className="h-4 w-4" />
               </Button>
@@ -154,7 +154,7 @@ const ReportsControls = ({
                   <Button
                     variant="outline"
                     className={cn(
-                      "justify-start text-left font-normal"
+                      "justify-start text-left font-normal w-fit px-3" // Added w-fit and adjusted padding
                     )}
                   >
                     <CalendarIcon className="mr-2 h-4 w-4" />
@@ -182,11 +182,11 @@ const ReportsControls = ({
                 </PopoverContent>
               </Popover>
 
-              <Button 
-                variant="outline" 
-                size="icon"
+              <Button
+                variant="outline"
+                size="default" // Changed from "icon" to "default"
                 onClick={handleNextStartDate}
-                className="h-8 w-8"
+                className="h-8 w-auto px-2" // Adjusted width and padding
               >
                 <ChevronRight className="h-4 w-4" />
               </Button>
@@ -194,11 +194,11 @@ const ReportsControls = ({
 
             {/* End Date Navigation */}
             <div className="flex items-center gap-2">
-              <Button 
-                variant="outline" 
-                size="icon"
+              <Button
+                variant="outline"
+                size="default" // Changed from "icon" to "default"
                 onClick={handlePreviousEndDate}
-                className="h-8 w-8"
+                className="h-8 w-auto px-2" // Adjusted width and padding
               >
                 <ChevronLeft className="h-4 w-4" />
               </Button>
@@ -208,7 +208,7 @@ const ReportsControls = ({
                   <Button
                     variant="outline"
                     className={cn(
-                      "justify-start text-left font-normal"
+                      "justify-start text-left font-normal w-fit px-3" // Added w-fit and adjusted padding
                     )}
                   >
                     <CalendarIcon className="mr-2 h-4 w-4" />
@@ -236,11 +236,11 @@ const ReportsControls = ({
                 </PopoverContent>
               </Popover>
 
-              <Button 
-                variant="outline" 
-                size="icon"
+              <Button
+                variant="outline"
+                size="default" // Changed from "icon" to "default"
                 onClick={handleNextEndDate}
-                className="h-8 w-8"
+                className="h-8 w-auto px-2" // Adjusted width and padding
               >
                 <ChevronRight className="h-4 w-4" />
               </Button>

@@ -14,7 +14,7 @@ import NutritionChartsGrid from "./reports/NutritionChartsGrid";
 import MeasurementChartsGrid from "./reports/MeasurementChartsGrid";
 import ReportsTables from "./reports/ReportsTables";
 import { log, debug, info, warn, error, UserLoggingLevel } from "@/utils/logging";
-import { format } from 'date-fns'; // Import format from date-fns
+import { format, parseISO, addDays } from 'date-fns'; // Import format, parseISO, addDays from date-fns
 
 interface NutritionData {
   date: string;
@@ -90,25 +90,42 @@ interface CustomMeasurementData {
   timestamp: string;
 }
 
+// At the very top of Reports.tsx, before the functional component definition
 const Reports = () => {
+  // At the very top of Reports.tsx, before the functional component definition
+  // These console.log statements were moved inside the component to access loggingLevel
   const { user } = useAuth();
   const { activeUserId } = useActiveUser();
-  const { weightUnit, measurementUnit, convertWeight, convertMeasurement, formatDateInUserTimezone, parseDateInUserTimezone, loggingLevel } = usePreferences();
+  const { weightUnit, measurementUnit, convertWeight, convertMeasurement, formatDateInUserTimezone, parseDateInUserTimezone, loggingLevel, timezone } = usePreferences();
   const [nutritionData, setNutritionData] = useState<NutritionData[]>([]);
   const [measurementData, setMeasurementData] = useState<MeasurementData[]>([]);
   const [tabularData, setTabularData] = useState<DailyFoodEntry[]>([]);
   const [customCategories, setCustomCategories] = useState<CustomCategory[]>([]);
   const [customMeasurementsData, setCustomMeasurementsData] = useState<Record<string, CustomMeasurementData[]>>({});
   const [loading, setLoading] = useState(true);
-  const [startDate, setStartDate] = useState(() => {
-    const date = new Date();
-    date.setDate(date.getDate() - 14); // Default to 2 weeks ago
-    return formatDateInUserTimezone(date, 'yyyy-MM-dd'); // Use formatDateInUserTimezone for initial date
-  });
-  const [endDate, setEndDate] = useState(formatDateInUserTimezone(new Date(), 'yyyy-MM-dd')); // Use formatDateInUserTimezone for initial date
+  const [startDate, setStartDate] = useState<string | null>(null);
+  const [endDate, setEndDate] = useState<string | null>(null);
   const [showWeightInKg, setShowWeightInKg] = useState(true);
   const [showMeasurementsInCm, setShowMeasurementsInCm] = useState(true);
 
+  // Effect to re-initialize startDate and endDate when timezone preference changes
+  useEffect(() => {
+    debug(loggingLevel, 'Reports: Timezone preference changed or component mounted, initializing/re-initializing default date range.');
+    const today = new Date();
+    const twoWeeksAgo = new Date();
+    twoWeeksAgo.setDate(today.getDate() - 14);
+    debug(loggingLevel, 'Reports: Inside date re-initialization useEffect - today:', today, 'twoWeeksAgo:', twoWeeksAgo);
+    debug(loggingLevel, 'Reports: Inside date re-initialization useEffect - formatted today:', formatDateInUserTimezone(today, 'yyyy-MM-dd'), 'formatted twoWeeksAgo:', formatDateInUserTimezone(twoWeeksAgo, 'yyyy-MM-dd'));
+    setStartDate(formatDateInUserTimezone(twoWeeksAgo, 'yyyy-MM-dd'));
+    setEndDate(formatDateInUserTimezone(today, 'yyyy-MM-dd'));
+
+    // Debug logs for new Date() and toISOString() moved here to access loggingLevel
+    debug(loggingLevel, "Reports.tsx - Raw new Date():", new Date());
+    debug(loggingLevel, "Reports.tsx - Raw new Date().toISOString():", new Date().toISOString());
+
+  }, [timezone, formatDateInUserTimezone, loggingLevel]); // Depend on timezone from usePreferences
+
+  // Effect to load reports when user, activeUser, or date range changes
   useEffect(() => {
     info(loggingLevel, 'Reports: Component mounted/updated with:', {
       user: !!user,
@@ -125,7 +142,7 @@ const Reports = () => {
     if (user && activeUserId) {
       loadReports();
     }
-  }, [user, activeUserId, startDate, endDate, loggingLevel, formatDateInUserTimezone, parseDateInUserTimezone]);
+  }, [user, activeUserId, startDate, endDate, loggingLevel, formatDateInUserTimezone, parseDateInUserTimezone, showWeightInKg, showMeasurementsInCm, weightUnit, measurementUnit]); // Added showWeightInKg, showMeasurementsInCm, weightUnit, measurementUnit to dependencies
 
   const loadReports = async () => {
     info(loggingLevel, 'Reports: Loading reports...');
@@ -457,7 +474,7 @@ const Reports = () => {
             const multiplier = entry.quantity / (food.serving_size || 100);
             
             csvRows.push([
-              formatDateInUserTimezone(entry.entry_date, 'MMM DD, YYYY'), // Format date for display
+              formatDateInUserTimezone(entry.entry_date, 'MMM dd, yyyy'), // Format date for display
               entry.meal_type,
               food.name,
               food.brand || '',
@@ -486,7 +503,7 @@ const Reports = () => {
           // Add total row
           const totals = calculateDayTotal(entries);
           csvRows.push([
-            formatDateInUserTimezone(date, 'MMM DD, YYYY'), // Format date for display
+            formatDateInUserTimezone(date, 'MMM dd, yyyy'), // Format date for display
             'Total',
             '',
             '',
@@ -531,8 +548,8 @@ const Reports = () => {
         title: "Success",
         description: "Food diary exported successfully",
       });
-    } catch (error) {
-      error(loggingLevel, 'Reports: Error exporting food diary:', error);
+    } catch (err) {
+      error(loggingLevel, 'Reports: Error exporting food diary:', err);
       toast({
         title: "Error",
         description: "Failed to export food diary",
@@ -579,14 +596,22 @@ const Reports = () => {
         'Steps'
       ];
 
-      const csvRows = measurements.map(measurement => [
-        formatDateInUserTimezone(measurement.entry_date, 'MMM DD, YYYY'), // Format date for display
-        measurement.weight ? convertWeight(measurement.weight, 'kg', showWeightInKg ? 'kg' : 'lbs').toFixed(1) : '',
-        measurement.neck ? convertMeasurement(measurement.neck, 'cm', showMeasurementsInCm ? 'cm' : 'inches').toFixed(1) : '',
-        measurement.waist ? convertMeasurement(measurement.waist, 'cm', showMeasurementsInCm ? 'cm' : 'inches').toFixed(1) : '',
-        measurement.hips ? convertMeasurement(measurement.hips, 'cm', showMeasurementsInCm ? 'cm' : 'inches').toFixed(1) : '',
-        measurement.steps || ''
-      ]);
+      const csvRows = measurements
+        .filter(measurement =>
+          measurement.weight ||
+          measurement.neck ||
+          measurement.waist ||
+          measurement.hips ||
+          measurement.steps
+        )
+        .map(measurement => [
+          formatDateInUserTimezone(measurement.entry_date, 'MMM dd, yyyy'), // Format date for display
+          measurement.weight ? convertWeight(measurement.weight, 'kg', showWeightInKg ? 'kg' : 'lbs').toFixed(1) : '',
+          measurement.neck ? convertMeasurement(measurement.neck, 'cm', showMeasurementsInCm ? 'cm' : 'inches').toFixed(1) : '',
+          measurement.waist ? convertMeasurement(measurement.waist, 'cm', showMeasurementsInCm ? 'cm' : 'inches').toFixed(1) : '',
+          measurement.hips ? convertMeasurement(measurement.hips, 'cm', showMeasurementsInCm ? 'cm' : 'inches').toFixed(1) : '',
+          measurement.steps || ''
+        ]);
 
       const csvContent = [csvHeaders, ...csvRows].map(row =>
         row.map(cell => `"${cell}"`).join(',')
@@ -607,8 +632,8 @@ const Reports = () => {
         title: "Success",
         description: "Body measurements exported successfully",
       });
-    } catch (error) {
-      error(loggingLevel, 'Reports: Error exporting body measurements:', error);
+    } catch (err) {
+      error(loggingLevel, 'Reports: Error exporting body measurements:', err);
       toast({
         title: "Error",
         description: "Failed to export body measurements",
@@ -645,7 +670,7 @@ const Reports = () => {
         const formattedHour = `${hour.toString().padStart(2, '0')}:00`;
         
         return [
-          formatDateInUserTimezone(measurement.date, 'MMM DD, YYYY'), // Format date for display
+          formatDateInUserTimezone(measurement.date, 'MMM dd, yyyy'), // Format date for display
           formattedHour,
           measurement.value.toString()
         ];
@@ -670,8 +695,8 @@ const Reports = () => {
         title: "Success",
         description: `${category.name} data exported successfully`,
       });
-    } catch (error) {
-      error(loggingLevel, `Reports: Error exporting custom measurements for category ${category.name}:`, error);
+    } catch (err) {
+      error(loggingLevel, `Reports: Error exporting custom measurements for category ${category.name}:`, err);
       toast({
         title: "Error",
         description: "Failed to export data",
@@ -745,16 +770,20 @@ const Reports = () => {
   info(loggingLevel, 'Reports: Rendering reports component.');
   return (
     <div className="space-y-6">
-      <ReportsControls
-        startDate={startDate}
-        endDate={endDate}
-        showWeightInKg={showWeightInKg}
-        showMeasurementsInCm={showMeasurementsInCm}
-        onStartDateChange={handleStartDateChange}
-        onEndDateChange={handleEndDateChange}
-        onWeightUnitToggle={handleWeightUnitToggle}
-        onMeasurementUnitToggle={handleMeasurementUnitToggle}
-      />
+      {startDate && endDate ? ( // Only render ReportsControls if dates are initialized
+        <ReportsControls
+          startDate={startDate}
+          endDate={endDate}
+          showWeightInKg={showWeightInKg}
+          showMeasurementsInCm={showMeasurementsInCm}
+          onStartDateChange={handleStartDateChange}
+          onEndDateChange={handleEndDateChange}
+          onWeightUnitToggle={handleWeightUnitToggle}
+          onMeasurementUnitToggle={handleMeasurementUnitToggle}
+        />
+      ) : (
+        <div>Loading date controls...</div> // Or a loading spinner
+      )}
 
       {loading ? (
         <div>Loading reports...</div>

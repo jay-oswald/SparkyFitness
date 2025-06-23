@@ -9,6 +9,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useActiveUser } from "@/contexts/ActiveUserContext";
 import { toast } from "sonner";
+import { usePreferences } from "@/contexts/PreferencesContext"; // Import usePreferences
+import { debug, info, warn, error } from '@/utils/logging'; // Import logging utility
 
 interface CustomCategory {
   id: string;
@@ -38,22 +40,26 @@ interface MeasurementValues {
 const CustomMeasurements = () => {
   const { user } = useAuth();
   const { activeUserId } = useActiveUser();
+  const { formatDateInUserTimezone, loggingLevel } = usePreferences(); // Use preferences for timezone
+  debug(loggingLevel, "CustomMeasurements component rendered.");
+
   const [categories, setCategories] = useState<CustomCategory[]>([]);
   const [measurements, setMeasurements] = useState<CustomMeasurement[]>([]);
   const [values, setValues] = useState<MeasurementValues>({});
   const [loadingStates, setLoadingStates] = useState<{[key: string]: boolean}>({});
 
-  // Get current date and time
-  const currentDate = new Date().toISOString().split('T')[0];
-  const currentHour = new Date().getHours();
+  // Get current date and time in user's timezone
+  const currentDate = formatDateInUserTimezone(new Date(), 'yyyy-MM-dd');
+  const currentHour = new Date().getHours(); // This is already local hour, which is fine for entry_hour
 
   useEffect(() => {
+    debug(loggingLevel, "User or activeUserId useEffect triggered.", { user, activeUserId });
     if (user && activeUserId) {
       fetchCategories();
       fetchMeasurements();
       loadTodayValues();
     }
-  }, [user, activeUserId]);
+  }, [user, activeUserId, formatDateInUserTimezone, loggingLevel]); // Add formatDateInUserTimezone and loggingLevel to dependencies
 
   const fetchCategories = async () => {
     if (!activeUserId) return;

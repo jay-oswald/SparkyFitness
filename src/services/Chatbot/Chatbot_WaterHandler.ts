@@ -9,7 +9,7 @@ export const processWaterInput = async (userId: string, data: { glasses_consumed
 
     const { glasses_consumed } = data;
     const glasses = glasses_consumed || 1; // Default to 1 glass if not provided by AI
-    const dateToUse = entryDate || new Date().toISOString().split('T')[0]; // Use provided date or today's date
+    const dateToUse = entryDate || formatDateInUserTimezone(new Date(), 'yyyy-MM-dd'); // Use provided date or today's date in user's timezone
 
 
     // Get current water intake

@@ -4,6 +4,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import ZoomableChart from "../ZoomableChart";
 import { usePreferences } from "@/contexts/PreferencesContext";
 import { debug, info, warn, error } from "@/utils/logging";
+import { parseISO } from "date-fns"; // Import parseISO
 
 interface NutritionData {
   date: string;
@@ -31,8 +32,12 @@ interface NutritionChartsGridProps {
 }
 
 const NutritionChartsGrid = ({ nutritionData }: NutritionChartsGridProps) => {
-  const { loggingLevel } = usePreferences();
+  const { loggingLevel, formatDateInUserTimezone } = usePreferences(); // Destructure formatDateInUserTimezone
   info(loggingLevel, 'NutritionChartsGrid: Rendering component.');
+
+  const formatDateForChart = (dateStr: string) => {
+    return formatDateInUserTimezone(parseISO(dateStr), 'MMM dd');
+  };
 
   const nutritionCharts = [
     { key: 'calories', label: 'Calories', color: '#8884d8', unit: 'cal' },
@@ -67,9 +72,15 @@ const NutritionChartsGrid = ({ nutritionData }: NutritionChartsGridProps) => {
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={nutritionData}>
                     <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="date" fontSize={10} />
+                    <XAxis
+                      dataKey="date"
+                      fontSize={10}
+                      tickFormatter={formatDateForChart} // Apply formatter
+                    />
                     <YAxis fontSize={10} />
-                    <Tooltip />
+                    <Tooltip
+                      labelFormatter={(value) => formatDateForChart(value as string)} // Apply formatter
+                    />
                     <Line
                       type="monotone"
                       dataKey={chart.key}

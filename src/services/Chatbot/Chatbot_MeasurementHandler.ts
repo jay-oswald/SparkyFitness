@@ -8,7 +8,7 @@ export const processMeasurementInput = async (userId: string, data: { measuremen
     debug(userLoggingLevel, 'Processing measurement input with data:', data, 'and entryDate:', entryDate);
 
     const { measurements } = data;
-    const dateToUse = entryDate || new Date().toISOString().split('T')[0]; // Use provided date or today's date
+    const dateToUse = entryDate || formatDateInUserTimezone(new Date(), 'yyyy-MM-dd'); // Use provided date or today's date in user's timezone
     let response = `📏 **Measurements updated for ${formatDateInUserTimezone(dateToUse, 'PPP')}!**\n\n`; // Include date here
     let measurementsLogged = false;
 

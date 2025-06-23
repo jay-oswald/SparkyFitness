@@ -535,7 +535,7 @@ const CheckIn = () => {
                       {measurement.custom_categories.name}: {measurement.value} {measurement.custom_categories.measurement_type}
                     </div>
                     <div className="text-sm text-muted-foreground">
-                      {format(new Date(measurement.entry_date), 'PPP')} {/* Format date for display */}
+                      {formatDateInUserTimezone(measurement.entry_date, 'PPP')} {/* Format date for display */}
                       {measurement.entry_hour !== null && (
                         <span> at {measurement.entry_hour.toString().padStart(2, '0')}:00</span>
                       )}

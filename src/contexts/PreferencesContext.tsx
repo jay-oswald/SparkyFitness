@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { debug, info, warn, error } from '@/utils/logging';
 import { formatInTimeZone, toZonedTime } from 'date-fns-tz'; // Import formatInTimeZone and toZonedTime
-import { parseISO, startOfDay } from 'date-fns'; // Import parseISO and startOfDay
+import { format, parseISO, startOfDay } from 'date-fns'; // Import format, parseISO and startOfDay
 
 interface PreferencesContextType {
   weightUnit: 'kg' | 'lbs';
@@ -40,7 +40,7 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const { user } = useAuth();
   const [weightUnit, setWeightUnitState] = useState<'kg' | 'lbs'>('kg');
   const [measurementUnit, setMeasurementUnitState] = useState<'cm' | 'inches'>('cm');
-  const [dateFormat, setDateFormatState] = useState<string>('MM/DD/YYYY');
+  const [dateFormat, setDateFormatState] = useState<string>('MM/dd/yyyy');
   const [autoClearHistory, setAutoClearHistoryState] = useState<string>('never'); // Add state for auto_clear_history
   const [loggingLevel, setLoggingLevelState] = useState<'DEBUG' | 'INFO' | 'WARN' | 'ERROR' | 'SILENT'>('SILENT'); // Add state for logging level
   const [timezone, setTimezoneState] = useState<string>(Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'); // Add state for timezone, default to browser's timezone
@@ -104,7 +104,7 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
         debug(loggingLevel, 'PreferencesContext: Preferences data loaded:', data);
         setWeightUnitState(data.default_weight_unit as 'kg' | 'lbs');
         setMeasurementUnitState(data.default_measurement_unit as 'cm' | 'inches');
-        setDateFormatState(data.date_format);
+        setDateFormatState(data.date_format.replace(/DD/g, 'dd').replace(/YYYY/g, 'yyyy'));
         setAutoClearHistoryState(data.auto_clear_history || 'never'); // Set auto_clear_history state
         setLoggingLevelState((data.logging_level || 'INFO') as 'DEBUG' | 'INFO' | 'WARN' | 'ERROR' | 'SILENT'); // Set logging level state
         setTimezoneState(data.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'); // Set timezone state
@@ -129,7 +129,7 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
       const defaultPrefs = {
         user_id: user.id,
-        date_format: 'MM/DD/YYYY',
+        date_format: 'MM/dd/yyyy',
         default_weight_unit: 'kg',
         default_measurement_unit: 'cm',
         system_prompt: 'You are Sparky, a helpful AI assistant for health and fitness tracking. Be friendly, encouraging, and provide accurate information about nutrition, exercise, and wellness.',
@@ -259,7 +259,7 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const setDateFormat = async (format: string) => {
     info(loggingLevel, "PreferencesProvider: Setting date format to:", format);
     try {
-      setDateFormatState(format);
+      setDateFormatState(format.replace(/DD/g, 'dd').replace(/YYYY/g, 'yyyy'));
       await updatePreferences({ date_format: format });
       info(loggingLevel, "PreferencesProvider: Date format updated successfully.");
     } catch (err) {
@@ -327,31 +327,10 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
   };
 
   const formatDate = (date: string | Date) => {
-    debug(loggingLevel, "PreferencesProvider: Formatting date:", date);
-    const dateObj = typeof date === 'string' ? new Date(date) : date;
-
-    const day = dateObj.getDate();
-    const month = dateObj.getMonth() + 1;
-    const year = dateObj.getFullYear();
-
-    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-                       'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    const monthNamesLong = ['January', 'February', 'March', 'April', 'May', 'June',
-                           'July', 'August', 'September', 'October', 'November', 'December'];
-
-    switch (dateFormat) {
-      case 'DD/MM/YYYY':
-        return `${day.toString().padStart(2, '0')}/${month.toString().padStart(2, '0')}/${year}`;
-      case 'DD-MMM-YYYY':
-        return `${day.toString().padStart(2, '0')}-${monthNames[month - 1]}-${year}`;
-      case 'YYYY-MM-DD':
-        return `${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
-      case 'MMM DD, YYYY':
-        return `${monthNames[month - 1]} ${day}, ${year}`;
-      case 'MM/DD/YYYY':
-      default:
-        return `${month.toString().padStart(2, '0')}/${day.toString().padStart(2, '0')}/${year}`;
-    }
+    debug(loggingLevel, "PreferencesProvider: Formatting date using user's timezone preference:", date);
+    // Use formatDateInUserTimezone for all formatting to ensure consistency with user's preference
+    // Pass the dateFormat from state as the formatStr
+    return formatDateInUserTimezone(date, dateFormat);
   };
 
   const formatDateInUserTimezone = (date: string | Date, formatStr?: string) => {
@@ -369,7 +348,7 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
       return ''; // Return empty string or a default value for invalid dates
     }
 
-    const formatString = formatStr || 'yyyy-MM-dd'; // Default to YYYY-MM-DD for consistency with DB date type
+    const formatString = formatStr || 'yyyy-MM-dd'; // Default to yyyy-MM-dd for consistency with DB date type
 
     let effectiveTimezone = timezone;
     try {
@@ -384,8 +363,9 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
       return formatInTimeZone(dateToFormat, effectiveTimezone, formatString);
     } catch (e) {
       error(loggingLevel, `PreferencesProvider: Error formatting date in timezone ${effectiveTimezone}:`, e);
-      // Fallback to local date formatting if timezone formatting fails
-      return formatDate(dateToFormat);
+      // Fallback to a standard format using date-fns's format, ignoring timezone issues for display
+      warn(loggingLevel, `PreferencesProvider: Falling back to local date format for display due to timezone error.`);
+      return format(dateToFormat, formatString); // Use format from date-fns
     }
   };
 
