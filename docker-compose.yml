@@ -1,12 +1,26 @@
-version: '3.8'
+version: "3.9"
+
+networks:
+  my-ipv6-net:
+    driver: bridge
+    enable_ipv6: true
+    ipam:
+      driver: default
+      config:
+        - subnet: "2001:db8:2::/64"
 
 services:
   sparkyfitness-frontend:
-    image: codewithcj/sparkyfitness:latest # Using a pre-built image
+    image: codewithcj/sparkyfitness:latest
     ports:
-      - "3000:3000"
+      - "3004:3000"
     environment:
       NODE_ENV: production
       VITE_SUPABASE_URL: ${VITE_SUPABASE_URL}
       VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY}
+      SUPABASE_PROJECT_REF: ${SUPABASE_PROJECT_REF}
+      VITE_SUPABASE_DB_PASSWORD: ${VITE_SUPABASE_DB_PASSWORD}
+      TZ: Etc/UTC
+    networks:
+      - my-ipv6-net
     restart: always

@@ -2,23 +2,19 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
+
+//Enable this line for docker image deployment
 let SUPABASE_URL = "__VITE_SUPABASE_URL__";
 let SUPABASE_PUBLISHABLE_KEY = "__VITE_SUPABASE_ANON_KEY__";
 
-// Check if the placeholders are still present (indicating local development)
-if (SUPABASE_URL.includes("__VITE_SUPABASE_URL__")) {
-  SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-}
-if (SUPABASE_PUBLISHABLE_KEY.includes("__VITE_SUPABASE_ANON_KEY__")) {
-  SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
-}
+// enable this line for local development
+//SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+//SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 // Ensure the variables are defined before creating the client
 if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
   console.error("Supabase URL or Publishable Key is not defined. Please check your environment variables.");
-  // Fallback to empty strings to prevent app crash, though functionality will be broken
-  SUPABASE_URL = SUPABASE_URL || "";
-  SUPABASE_PUBLISHABLE_KEY = SUPABASE_PUBLISHABLE_KEY || "";
+  throw new Error("Supabase URL or Publishable Key is missing.");
 }
 
 // Import the supabase client like this:
