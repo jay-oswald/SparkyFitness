@@ -8,8 +8,8 @@ let SUPABASE_URL = "__VITE_SUPABASE_URL__";
 let SUPABASE_PUBLISHABLE_KEY = "__VITE_SUPABASE_ANON_KEY__";
 
 // enable this line for local development
-//SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-//SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL ?? SUPABASE_URL;
+SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY ?? SUPABASE_PUBLISHABLE_KEY;
 
 // Ensure the variables are defined before creating the client
 if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
