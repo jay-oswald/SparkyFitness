@@ -1,14 +1,5 @@
 version: "3.9"
 
-networks:
-  my-ipv6-net:
-    driver: bridge
-    enable_ipv6: true
-    ipam:
-      driver: default
-      config:
-        - subnet: "2001:db8:2::/64"
-
 services:
   sparkyfitness-frontend:
     image: codewithcj/sparkyfitness:latest
@@ -22,5 +13,14 @@ services:
       VITE_SUPABASE_DB_PASSWORD: ${VITE_SUPABASE_DB_PASSWORD}
       TZ: Etc/UTC
     networks:
-      - my-ipv6-net
+      - sparky-fitness-ipv6-net
     restart: always
+
+networks:
+  sparky-fitness-ipv6-net:
+    driver: bridge
+    enable_ipv6: true
+    ipam:
+      driver: default
+      config:
+        - subnet: "2001:db8:3::/64"  
