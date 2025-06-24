@@ -258,12 +258,16 @@ const SparkyChatInterface = ({ userId }: SparkyChatInterfaceProps) => {
 
     setMessages(prev => [...prev, userMessage]);
     // Save user message to history
-    coachRef.current.saveMessageToHistory(userMessage.content, 'user'); // Corrected call
+    coachRef.current.saveMessageToHistory(userMessage.content, 'user');
     
     const currentInput = inputValue.trim();
     setInputValue('');
     setIsLoading(true);
     
+    // Generate a unique transaction ID for this message processing
+    const transactionId = `txn-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+    info(userPreferences?.logging_level || 'INFO', `[${transactionId}] Starting message processing for:`, currentInput);
+
     try {
       let response;
       
@@ -279,7 +283,7 @@ const SparkyChatInterface = ({ userId }: SparkyChatInterfaceProps) => {
         };
         setMessages(prev => [...prev, userMessageWithImage]);
         
-        response = await coachRef.current.processUserInput(inputValue.trim(), selectedImage);
+        response = await coachRef.current.processUserInput(inputValue.trim(), selectedImage, transactionId); // Pass transactionId
         setSelectedImage(null); // Clear the selected image after sending
         
       } else {
@@ -287,26 +291,26 @@ const SparkyChatInterface = ({ userId }: SparkyChatInterfaceProps) => {
         const numberMatch = currentInput.match(/^(\d+)$/);
         
         if (numberMatch) {
-          console.log('Numbered input detected:', numberMatch[1]);
+          info(userPreferences?.logging_level || 'INFO', `[${transactionId}] Numbered input detected:`, numberMatch[1]);
           // Handle numbered responses for food options
           const lastBotMessage = messages.slice().reverse().find(msg => !msg.isUser && msg.metadata);
-          console.log('Last bot message with metadata:', lastBotMessage);
+          info(userPreferences?.logging_level || 'INFO', `[${transactionId}] Last bot message with metadata:`, lastBotMessage);
           
           if (lastBotMessage?.metadata?.foodOptions) {
             const optionIndex = parseInt(numberMatch[1]) - 1;
-            info(userPreferences?.logging_level || 'INFO', 'Processing food option selection:', optionIndex, lastBotMessage.metadata);
-            response = await coachRef.current.addFoodOption(optionIndex, lastBotMessage.metadata);
+            info(userPreferences?.logging_level || 'INFO', `[${transactionId}] Processing food option selection:`, optionIndex, lastBotMessage.metadata);
+            response = await coachRef.current.addFoodOption(optionIndex, lastBotMessage.metadata, transactionId); // Pass transactionId
           } else {
-            info(userPreferences?.logging_level || 'INFO', 'No food options metadata found on last bot message, processing as new input.');
-            response = await coachRef.current.processUserInput(currentInput);
+            info(userPreferences?.logging_level || 'INFO', `[${transactionId}] No food options metadata found on last bot message, processing as new input.`);
+            response = await coachRef.current.processUserInput(currentInput, null, transactionId); // Pass transactionId
           }
         } else {
-          info(userPreferences?.logging_level || 'INFO', 'Processing input as new request:', currentInput);
-          response = await coachRef.current.processUserInput(currentInput);
+          info(userPreferences?.logging_level || 'INFO', `[${transactionId}] Processing input as new request:`, currentInput);
+          response = await coachRef.current.processUserInput(currentInput, null, transactionId); // Pass transactionId
         }
       }
       
-      info(userPreferences?.logging_level || 'INFO', 'Received response from coach:', response);
+      info(userPreferences?.logging_level || 'INFO', `[${transactionId}] Received response from coach:`, response);
       
       // Handle different response scenarios based on action type
       let botMessageContent = '';
@@ -322,6 +326,7 @@ const SparkyChatInterface = ({ userId }: SparkyChatInterfaceProps) => {
             // Trigger data refresh after a short delay
             setTimeout(async () => {
               try {
+                info(userPreferences?.logging_level || 'INFO', `[${transactionId}] Triggering data refresh after logging.`);
                 const today = new Date().toISOString().split('T')[0];
                 const nutritionData = await coachRef.current.getTodaysNutrition(today);
                 if (nutritionData && nutritionData.analysis) {
@@ -359,13 +364,13 @@ const SparkyChatInterface = ({ userId }: SparkyChatInterfaceProps) => {
             break;
           default:
             // Fallback for unexpected actions
-            warn(userPreferences?.logging_level || 'INFO', 'SparkyChatInterface: Unexpected response action:', response.action);
+            warn(userPreferences?.logging_level || 'INFO', `[${transactionId}] Unexpected response action:`, response.action);
             botMessageContent = response.response || 'An unexpected response was received.';
             break;
         }
       } else {
         // Handle case where response is null or undefined
-        warn(userPreferences?.logging_level || 'INFO', 'SparkyChatInterface: Received null or undefined response from coach');
+        warn(userPreferences?.logging_level || 'INFO', `[${transactionId}] Received null or undefined response from coach`);
         botMessageContent = 'Sorry, I did not receive a valid response.';
       }
       
@@ -381,11 +386,11 @@ const SparkyChatInterface = ({ userId }: SparkyChatInterfaceProps) => {
       // Always add the bot message after processing, regardless of whether an image was sent
       setMessages(prev => [...prev, botMessage]);
       // Save bot message to history
-      coachRef.current.saveMessageToHistory(botMessage.content, 'assistant', botMessage.metadata); // Corrected call
+      coachRef.current.saveMessageToHistory(botMessage.content, 'assistant', botMessage.metadata);
       
       
     } catch (err) {
-      error(userPreferences?.logging_level || 'INFO', 'SparkyChatInterface: Error processing message:', err);
+      error(userPreferences?.logging_level || 'INFO', `[${transactionId}] Error processing message:`, err);
       const errorMessage: Message = {
         id: `msg-${Date.now()}-error`,
         content: 'Sorry, I encountered an error. Please check that you have AI services configured in Settings. In the meantime, I can still provide general nutrition and wellness advice! 🌟',

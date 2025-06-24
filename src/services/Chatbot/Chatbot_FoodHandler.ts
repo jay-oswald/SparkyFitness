@@ -29,9 +29,9 @@ export const processFoodInput = async (userId: string, data: {
   calcium?: number;
   iron?: number;
   foodOptions?: FoodOption[]; // Add foodOptions here
-}, entryDate: string | undefined, formatDateInUserTimezone: (date: string | Date, formatStr?: string) => string, userLoggingLevel: UserLoggingLevel): Promise<CoachResponse> => {
+}, entryDate: string | undefined, formatDateInUserTimezone: (date: string | Date, formatStr?: string) => string, userLoggingLevel: UserLoggingLevel, transactionId: string): Promise<CoachResponse> => {
   try {
-    debug(userLoggingLevel, 'Processing food input with data:', data, 'and entryDate:', entryDate);
+    debug(userLoggingLevel, `[${transactionId}] Processing food input with data:`, data, 'and entryDate:', entryDate);
 
     const { food_name, quantity, unit, meal_type: raw_meal_type, foodOptions, ...nutritionData } = data; // Destructure, also check for foodOptions array
     // Standardize meal type: convert 'snack' to 'snacks' to match potential database constraint
@@ -114,6 +114,24 @@ export const processFoodInput = async (userId: string, data: {
       const food = exactFoods?.length > 0 ? exactFoods[0] : existingFoods[0];
       debug(userLoggingLevel, 'Using food:', food);
 
+      // Check unit mismatch first. If mismatch, return fallback without inserting.
+      if (unit && food.serving_unit && unit.toLowerCase() !== food.serving_unit.toLowerCase()) {
+          warn(userLoggingLevel, `Unit mismatch: User requested '${quantity}${unit}' but database serving unit is '${food.serving_size}${food.serving_unit}'. Triggering AI options.`);
+          return {
+              action: 'none', // Indicate that no food was added directly
+              response: `I found "${food.name}" in the database, but its primary serving unit is "${food.serving_unit}". I'll check for other options.`, // Provide feedback
+              metadata: {
+                  is_fallback: true, // Flag to indicate fallback to AI for options
+                  foodName: food_name, // Pass the food name
+                  unit: unit, // Pass the original unit
+                  mealType: meal_type, // Pass the meal type
+                  quantity: quantity, // Pass the quantity
+                  entryDate: dateToUse // Pass the determined date
+              }
+          };
+      }
+
+      // If no unit mismatch, proceed with insertion
       info(userLoggingLevel, 'Inserting food entry...');
       const { error: insertError } = await supabase
         .from('food_entries')
@@ -132,25 +150,6 @@ export const processFoodInput = async (userId: string, data: {
           action: 'none',
           response: 'Sorry, I couldn\'t add that to your diary. Please try again.'
         };
-      }
-
-      // Add unit mismatch check
-      if (unit && food.serving_unit && unit.toLowerCase() !== food.serving_unit.toLowerCase()) {
-          warn(userLoggingLevel, `Unit mismatch: User requested '${quantity}${unit}' but database serving unit is '${food.serving_size}${food.serving_unit}'.`);
-          return {
-              action: 'none',
-              response: `I found "${food.name}" in the database, but its serving unit is "${food.serving_unit}" (e.g., ${food.serving_size} ${food.serving_unit}). You asked for "${quantity} ${unit}". Could you clarify how many ${food.serving_unit} are in ${quantity} ${unit}, or would you like to log ${quantity} ${food.serving_unit} instead?`,
-              metadata: {
-                  is_unit_mismatch: true,
-                  foodName: food_name,
-                  requestedQuantity: quantity,
-                  requestedUnit: unit,
-                  databaseServingSize: food.serving_size,
-                  databaseServingUnit: food.serving_unit,
-                  mealType: meal_type,
-                  entryDate: dateToUse
-              }
-          };
       }
 
       info(userLoggingLevel, 'Food entry inserted successfully.');
@@ -189,108 +188,193 @@ export const processFoodInput = async (userId: string, data: {
 };
 
 // Function to add a selected food option to the diary
-export const addFoodOption = async (userId: string, optionIndex: number, originalMetadata: any, formatDateInUserTimezone: (date: string | Date, formatStr?: string) => string, userLoggingLevel: UserLoggingLevel): Promise<CoachResponse> => {
+export const addFoodOption = async (userId: string, optionIndex: number, originalMetadata: any, formatDateInUserTimezone: (date: string | Date, formatStr?: string) => string, userLoggingLevel: UserLoggingLevel, transactionId: string): Promise<CoachResponse> => {
   try {
-    const { foodOptions, mealType, quantity, unit, entryDate } = originalMetadata; // Include unit and entryDate
+    const { foodOptions, mealType, quantity, unit, entryDate } = originalMetadata;
     const selectedOption = foodOptions[optionIndex];
 
     if (!selectedOption) {
-      error(userLoggingLevel, '❌ [Nutrition Coach] Invalid option index:', optionIndex);
+      error(userLoggingLevel, `[${transactionId}] Invalid option index:`, optionIndex);
       return {
         action: 'none',
         response: 'Invalid option selected. Please try again.'
       };
     }
 
-    // Use the entryDate from original metadata if available, otherwise use today in user's timezone
     const dateToUse = entryDate || formatDateInUserTimezone(new Date(), 'yyyy-MM-dd');
 
-    // Add unit mismatch check for selected option
-    if (unit && selectedOption.serving_unit && unit.toLowerCase() !== selectedOption.serving_unit.toLowerCase()) {
-        warn(userLoggingLevel, `Unit mismatch in addFoodOption: User requested '${quantity}${unit}' but selected option serving unit is '${selectedOption.serving_size}${selectedOption.serving_unit}'.`);
+    let foodId: string;
+    let variantId: string | null = null;
+
+    // 1. Check if the food name already exists in the 'foods' table for the user
+    const { data: existingFoods, error: fetchFoodError } = await supabase
+        .from('foods')
+        .select('id, name, serving_unit, serving_size')
+        .eq('name', selectedOption.name)
+        .eq('user_id', userId) // Only check user's custom foods for variants
+        .limit(1);
+
+    if (fetchFoodError) {
+        error(userLoggingLevel, `[${transactionId}] Error fetching existing food:`, fetchFoodError);
         return {
             action: 'none',
-            response: `The selected food option's serving unit is "${selectedOption.serving_unit}" (e.g., ${selectedOption.serving_size} ${selectedOption.serving_unit}). You asked for "${quantity} ${unit}". Could you clarify how many ${selectedOption.serving_unit} are in ${quantity} ${unit}, or would you like to log ${quantity} ${selectedOption.serving_unit} instead?`,
-            metadata: {
-                is_unit_mismatch: true,
-                foodName: selectedOption.name,
-                requestedQuantity: quantity,
-                requestedUnit: unit,
-                databaseServingSize: selectedOption.serving_size,
-                databaseServingUnit: selectedOption.serving_unit,
-                mealType: mealType,
-                entryDate: dateToUse
-            }
+            response: 'Sorry, I had trouble checking for existing food. Please try again.'
         };
     }
 
-    // First, create the food in the database
-    const { data: newFood, error: foodCreateError } = await supabase
-      .from('foods')
-      .insert({
-        name: selectedOption.name,
-        calories: selectedOption.calories,
-        protein: selectedOption.protein,
-        carbs: selectedOption.carbs,
-        fat: selectedOption.fat,
-        serving_size: selectedOption.serving_size,
-        serving_unit: selectedOption.serving_unit,
-        saturated_fat: selectedOption.saturated_fat,
-        polyunsaturated_fat: selectedOption.polyunsaturated_fat,
-        monounsaturated_fat: selectedOption.monounsaturated_fat,
-        trans_fat: selectedOption.trans_fat,
-        cholesterol: selectedOption.cholesterol,
-        sodium: selectedOption.sodium,
-        potassium: selectedOption.potassium,
-        dietary_fiber: selectedOption.dietary_fiber,
-        sugars: selectedOption.sugars,
-        vitamin_a: selectedOption.vitamin_a,
-        vitamin_c: selectedOption.vitamin_c,
-        calcium: selectedOption.calcium,
-        iron: selectedOption.iron,
-        is_custom: true,
-        user_id: userId
-      })
-      .select()
-      .single();
+    let foodToUse = existingFoods && existingFoods.length > 0 ? existingFoods[0] : null;
 
-    if (foodCreateError) {
-      error(userLoggingLevel, '❌ [Nutrition Coach] Error creating food:', foodCreateError);
-      return {
-        action: 'none',
-        response: 'Sorry, I couldn\'t create that food. Please try again.'
-      };
+    if (foodToUse) {
+        foodId = foodToUse.id;
+        // Check if the selected option's unit is the same as the base food's unit
+        if (selectedOption.serving_unit.toLowerCase() === foodToUse.serving_unit.toLowerCase()) {
+            info(userLoggingLevel, `[${transactionId}] Selected option unit matches base food unit. Logging as base food.`);
+            variantId = null; // No variant needed for the base unit
+        } else {
+            // Selected option unit is different from base food unit, check/create variant
+            const { data: existingVariant, error: fetchVariantError } = await supabase
+                .from('food_variants')
+                .select('id')
+                .eq('food_id', foodId)
+                .eq('serving_unit', selectedOption.serving_unit)
+                .limit(1);
+
+            if (fetchVariantError) {
+                error(userLoggingLevel, `[${transactionId}] Error fetching existing variant:`, fetchVariantError);
+                return {
+                    action: 'none',
+                    response: 'Sorry, I had trouble checking for existing food variants. Please try again.'
+                };
+            }
+
+            if (existingVariant && existingVariant.length > 0) {
+                // Variant already exists, use its ID
+                variantId = existingVariant[0].id;
+                info(userLoggingLevel, `[${transactionId}] Existing food variant found:`, variantId);
+            } else {
+                // Food exists, but this specific variant does not. Create a new variant.
+                info(userLoggingLevel, `[${transactionId}] Creating new food variant for existing food:`, selectedOption.name);
+                const { data: newVariant, error: createVariantError } = await supabase
+                    .from('food_variants')
+                    .insert({
+                        food_id: foodId,
+                        serving_size: selectedOption.serving_size,
+                        serving_unit: selectedOption.serving_unit,
+                        calories: selectedOption.calories,
+                        protein: selectedOption.protein,
+                        carbs: selectedOption.carbs,
+                        fat: selectedOption.fat,
+                        saturated_fat: selectedOption.saturated_fat,
+                        polyunsaturated_fat: selectedOption.polyunsaturated_fat,
+                        monounsaturated_fat: selectedOption.monounsaturated_fat,
+                        trans_fat: selectedOption.trans_fat,
+                        cholesterol: selectedOption.cholesterol,
+                        sodium: selectedOption.sodium,
+                        potassium: selectedOption.potassium,
+                        dietary_fiber: selectedOption.dietary_fiber,
+                        sugars: selectedOption.sugars,
+                        vitamin_a: selectedOption.vitamin_a,
+                        vitamin_c: selectedOption.vitamin_c,
+                        calcium: selectedOption.calcium,
+                        iron: selectedOption.iron,
+                    })
+                    .select('id')
+                    .single();
+
+                if (createVariantError) {
+                    error(userLoggingLevel, `[${transactionId}] Error creating food variant:`, createVariantError);
+                    return {
+                        action: 'none',
+                        response: 'Sorry, I couldn\'t create that food variant. Please try again.'
+                    };
+                }
+                variantId = newVariant.id;
+            }
+        }
+    } else {
+        // Food does not exist in the 'foods' table. Create a new food entry.
+        info(userLoggingLevel, `[${transactionId}] Creating new food entry:`, selectedOption.name);
+        const { data: newFood, error: foodCreateError } = await supabase
+            .from('foods')
+            .insert({
+                name: selectedOption.name,
+                calories: selectedOption.calories,
+                protein: selectedOption.protein,
+                carbs: selectedOption.carbs,
+                fat: selectedOption.fat,
+                serving_size: selectedOption.serving_size, // This will be the base unit for the new food
+                serving_unit: selectedOption.serving_unit, // This will be the base unit for the new food
+                saturated_fat: selectedOption.saturated_fat,
+                polyunsaturated_fat: selectedOption.polyunsaturated_fat,
+                monounsaturated_fat: selectedOption.monounsaturated_fat,
+                trans_fat: selectedOption.trans_fat,
+                cholesterol: selectedOption.cholesterol,
+                sodium: selectedOption.sodium,
+                potassium: selectedOption.potassium,
+                dietary_fiber: selectedOption.dietary_fiber,
+                sugars: selectedOption.sugars,
+                vitamin_a: selectedOption.vitamin_a,
+                vitamin_c: selectedOption.vitamin_c,
+                calcium: selectedOption.calcium,
+                iron: selectedOption.iron,
+                is_custom: true,
+                user_id: userId
+            })
+            .select('id')
+            .single();
+
+        if (foodCreateError) {
+            error(userLoggingLevel, `[${transactionId}] Error creating food:`, foodCreateError);
+            return {
+                action: 'none',
+                response: 'Sorry, I couldn\'t create that food. Please try again.'
+            };
+        }
+        foodId = newFood.id;
+        // No variantId needed here, as the main food entry serves as the base unit.
     }
 
     // Then, add it to the diary
+    debug(userLoggingLevel, `[${transactionId}] Preparing to insert food entry. Selected Option:`, selectedOption);
+    debug(userLoggingLevel, `[${transactionId}] Food Entry Details:`, {
+        userId,
+        foodId,
+        mealType,
+        quantity,
+        unit,
+        entryDate: dateToUse,
+        variantId
+    });
     const { error: entryError } = await supabase
-      .from('food_entries')
-      .insert({
-        user_id: userId,
-        food_id: newFood.id,
-        meal_type: mealType,
-        quantity: quantity,
-        unit: unit, // Use the unit from original metadata
-        entry_date: dateToUse // Use the determined date
-      });
+        .from('food_entries')
+        .insert({
+            user_id: userId,
+            food_id: foodId,
+            meal_type: mealType,
+            quantity: quantity,
+            unit: selectedOption.serving_unit, // Use the serving_unit from the selected FoodOption
+            entry_date: dateToUse,
+            variant_id: variantId // Pass the variantId if applicable
+        });
 
     if (entryError) {
-      error(userLoggingLevel, '❌ [Nutrition Coach] Error creating food entry:', entryError);
-      return {
-        action: 'none',
-        response: 'I created the food but couldn\'t add it to your diary. Please try again.'
-      };
+        error(userLoggingLevel, `[${transactionId}] Error creating food entry:`, entryError);
+        return {
+            action: 'none',
+            response: 'I created the food/variant but couldn\'t add it to your diary. Please try again.'
+        };
     }
+    info(userLoggingLevel, `[${transactionId}] Food entry inserted successfully.`);
 
     const calories = Math.round((selectedOption.calories || 0) * (quantity / (selectedOption.serving_size || 100)));
 
     return {
-      action: 'food_added',
-      response: `✅ **Added to your ${mealType} on ${formatDateInUserTimezone(dateToUse, 'PPP')}!**\n\n🍽️ ${selectedOption.name} (${quantity}${unit})\n📊 ~${calories} calories\n\n💡 Great choice! This adds ${Math.round(selectedOption.protein || 0)}g protein to your day.`
+        action: 'food_added',
+        response: `✅ **Added to your ${mealType} on ${formatDateInUserTimezone(dateToUse, 'PPP')}!**\n\n🍽️ ${selectedOption.name} (${quantity}${unit})\n📊 ~${calories} calories\n\n💡 Great choice! This adds ${Math.round(selectedOption.protein || 0)}g protein to your day.`
     };
 
   } catch (err) {
-    error(userLoggingLevel, '❌ [Nutrition Coach] Error in addFoodOption:', err);
+    error(userLoggingLevel, `[${transactionId}] Error in addFoodOption:`, err);
     return {
       action: 'none',
       response: 'Sorry, I encountered an error adding that food. Please try again.'

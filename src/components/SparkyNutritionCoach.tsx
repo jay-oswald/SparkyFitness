@@ -4,18 +4,19 @@ import { supabase } from '@/integrations/supabase/client';
 import { NutritionData, CoachResponse, FoodOption } from '@/services/Chatbot/Chatbot_types';
 import { fileToBase64, saveMessageToHistory, clearHistory } from '@/services/Chatbot/Chatbot_utils';
 import { processFoodInput, addFoodOption } from '@/services/Chatbot/Chatbot_FoodHandler';
+import { processChatInput as processChatInputFromAI } from '@/services/Chatbot/Chatbot_ChatHandler'; // Renaming to avoid conflict
 import { processExerciseInput } from '@/services/Chatbot/Chatbot_ExerciseHandler';
 import { processMeasurementInput } from '@/services/Chatbot/Chatbot_MeasurementHandler';
 import { processWaterInput } from '@/services/Chatbot/Chatbot_WaterHandler';
 import { processChatInput } from '@/services/Chatbot/Chatbot_ChatHandler';
-import { info, error, warn, UserLoggingLevel } from '@/utils/logging';
+import { info, error, warn, debug, UserLoggingLevel } from '@/utils/logging';
 
 const SparkyNutritionCoach = forwardRef<any, { userId: string; userLoggingLevel: UserLoggingLevel; timezone: string; formatDateInUserTimezone: (date: string | Date, formatStr?: string) => string }>(({ userId, userLoggingLevel, timezone, formatDateInUserTimezone }, ref) => {
 
   useImperativeHandle(ref, () => ({
     getTodaysNutrition,
-    processUserInput,
-    addFoodOption: (optionIndex: number, originalMetadata: any) => addFoodOption(userId, optionIndex, originalMetadata, formatDateInUserTimezone, userLoggingLevel), // Expose and bind userId, pass formatter
+    processUserInput: (input, imageFile, transactionId) => handleUserInput(input, imageFile, transactionId),
+    addFoodOption: (optionIndex, originalMetadata, transactionId) => addFoodOption(userId, optionIndex, originalMetadata, formatDateInUserTimezone, userLoggingLevel, transactionId),
     saveMessageToHistory: (content: string, messageType: 'user' | 'assistant', metadata?: any) => saveMessageToHistory(userId, content, messageType, metadata), // Expose and bind userId
     clearHistory: (autoClearPreference: string) => clearHistory(userId, autoClearPreference) // Expose and bind userId
   }));
@@ -125,14 +126,14 @@ const SparkyNutritionCoach = forwardRef<any, { userId: string; userLoggingLevel:
     }
   };
 
-  const processUserInput = async (input: string, imageFile: File | null = null): Promise<CoachResponse> => {
+  const handleUserInput = async (input: string, imageFile: File | null = null, transactionId: string): Promise<CoachResponse> => {
     try {
       let imageData = null;
       if (imageFile) {
         imageData = await fileToBase64(imageFile);
       }
 
-      const aiResponse = await getAIResponse(input, imageData);
+      const aiResponse = await getAIResponse(input, imageData, transactionId);
 
      let parsedResponse: { intent: string; data: any; response?: string; entryDate?: string };
      try {
@@ -159,7 +160,7 @@ const SparkyNutritionCoach = forwardRef<any, { userId: string; userLoggingLevel:
      // Map AI intent to CoachResponse action and call appropriate handlers
      switch (parsedResponse.intent) {
        case 'log_food':
-         const foodResponse = await processFoodInput(userId, parsedResponse.data, determinedEntryDate, formatDateInUserTimezone, userLoggingLevel); // Get response from food handler, pass formatter
+         const foodResponse = await processFoodInput(userId, parsedResponse.data, determinedEntryDate, formatDateInUserTimezone, userLoggingLevel, transactionId); // Get response from food handler, pass formatter
 
          // Check if the food was not found in the database (fallback)
          if (foodResponse.action === 'none' && foodResponse.metadata?.is_fallback) {
@@ -286,15 +287,15 @@ const SparkyNutritionCoach = forwardRef<any, { userId: string; userLoggingLevel:
 
        // Map the raw AI response to the FoodOption interface
        const foodOptions: FoodOption[] = (Array.isArray(rawFoodOptions) ? rawFoodOptions : []).map((rawOption: any) => {
-         info(userLoggingLevel, 'Raw AI food option:', rawOption); // Log raw option
+         debug(userLoggingLevel, 'Raw AI food option received:', rawOption); // Changed to debug for more detailed info
          const mappedOption: FoodOption = {
-           name: rawOption.food_name || 'Unknown Food', // Map food_name to name
+           name: rawOption.food_name || rawOption.name || 'Unknown Food', // Map food_name or name to name
            calories: rawOption.calories || 0,
-           protein: rawOption.macros?.protein || rawOption.protein || 0, // Handle both macros.protein and top-level protein
-           carbs: rawOption.macros?.carbs || rawOption.carbs || 0,     // Handle both macros.carbs and top-level carbs
-           fat: rawOption.macros?.fat || rawOption.fat || 0,         // Handle both macros.fat and top-level fat
-           serving_size: parseFloat(rawOption.serving_size) || 1, // Attempt to parse serving_size as number, default to 1
-           serving_unit: rawOption.serving_unit || 'serving', // Use serving_unit directly, default to 'serving'
+           protein: rawOption.macros?.protein || rawOption.protein || 0,
+           carbs: rawOption.macros?.carbs || rawOption.carbs || 0,
+           fat: rawOption.macros?.fat || rawOption.fat || 0,
+           serving_size: parseFloat(rawOption.serving_size) || 1,
+           serving_unit: rawOption.serving_unit || 'serving',
            saturated_fat: rawOption.macros?.saturated_fat || rawOption.saturated_fat,
            polyunsaturated_fat: rawOption.macros?.polyunsaturated_fat || rawOption.polyunsaturated_fat,
            monounsaturated_fat: rawOption.macros?.monounsaturated_fat || rawOption.monounsaturated_fat,
@@ -309,7 +310,7 @@ const SparkyNutritionCoach = forwardRef<any, { userId: string; userLoggingLevel:
            calcium: rawOption.calcium,
            iron: rawOption.iron,
           };
-          info(userLoggingLevel, 'Mapped food option:', mappedOption); // Log mapped option
+          debug(userLoggingLevel, 'Mapped food option:', mappedOption); // Changed to debug
           return mappedOption;
         });
 
@@ -352,8 +353,9 @@ const SparkyNutritionCoach = forwardRef<any, { userId: string; userLoggingLevel:
    }
  };
 
-  const getAIResponse = async (input: string, imageData: string | null = null): Promise<CoachResponse> => {
+  const getAIResponse = async (input: string, imageData: string | null = null, transactionId: string): Promise<CoachResponse> => {
     try {
+      debug(userLoggingLevel, `[${transactionId}] Calling getAIResponse with input:`, input);
       const today = new Date().toISOString().split('T')[0]; // Get today's date
 
       // Fetch user's custom categories to provide context to the AI
@@ -480,8 +482,8 @@ If you receive a request in the format "GENERATE_FOOD_OPTIONS:[food name] in [un
 - protein: number (estimated)
 - carbs: number (estimated)
 - fat: number (estimated)
-- serving_size: number (e.g., 1, 100, 0.5)
-- serving_unit: string (e.g., "\`piece\`", "\`g\`", "\`cup\`", "\`oz\`")
+- serving_size: number (e.g., 1, 100, 0.5) - This MUST be a numeric value representing the quantity.
+- serving_unit: string (e.g., "\`piece\`", "\`g\`", "\`cup\`", "\`oz\`") - This MUST be the unit string only, without any numeric quantity.
 
 Example JSON output for "GENERATE_FOOD_OPTIONS:apple":
 [
@@ -499,7 +501,7 @@ Example JSON output for "GENERATE_FOOD_OPTIONS:apple":
         .limit(5);
 
       if (historyError) {
-        error(userLoggingLevel, '❌ [Nutrition Coach] Error fetching chat history:', historyError);
+        error(userLoggingLevel, `[${transactionId}] ❌ [Nutrition Coach] Error fetching chat history:`, historyError);
         // Continue without history if there's an error
       }
 
@@ -541,7 +543,7 @@ Example JSON output for "GENERATE_FOOD_OPTIONS:apple":
         .single();
 
       if (configError || !serviceConfigData) {
-        error(userLoggingLevel, '❌ [Nutrition Coach] Error fetching AI service config or config not found:', configError);
+        error(userLoggingLevel, `[${transactionId}] ❌ [Nutrition Coach] Error fetching AI service config or config not found:`, configError);
         return {
           action: 'none',
           response: 'Sorry, I can\'t connect to the AI service. Please check your AI settings.'
@@ -571,7 +573,7 @@ Example JSON output for "GENERATE_FOOD_OPTIONS:apple":
             errorMessage = edgeFunctionError.message;
           }
         }
-        error(userLoggingLevel, '❌ [Nutrition Coach] Error calling Edge Function:', edgeFunctionError);
+        error(userLoggingLevel, `[${transactionId}] ❌ [Nutrition Coach] Error calling Edge Function:`, edgeFunctionError);
         return {
           action: 'none',
           response: errorMessage
@@ -588,7 +590,7 @@ Example JSON output for "GENERATE_FOOD_OPTIONS:apple":
       };
 
     } catch (err) {
-      error(userLoggingLevel, '❌ [Nutrition Coach] Error in getAIResponse:', err);
+      error(userLoggingLevel, `[${transactionId}] ❌ [Nutrition Coach] Error in getAIResponse:`, err);
       return {
         action: 'none',
         response: 'An unexpected error occurred while trying to get an AI response.'
