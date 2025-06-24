@@ -129,7 +129,11 @@ const FoodUnitSelector = ({ food, open, onOpenChange, onSelect }: FoodUnitSelect
       // This ensures the calculation in other components is correct
       const totalQuantity = quantity * selectedVariant.serving_size;
 
-      onSelect(food, totalQuantity, selectedVariant.serving_unit, selectedVariant.id); // Always pass selectedVariant.id
+      // If the selected variant is the primary food unit (identified by food.id), pass null for variantId
+      // Otherwise, pass the actual variant.id
+      const variantIdToPass = selectedVariant.id === food.id ? null : selectedVariant.id;
+
+      onSelect(food, totalQuantity, selectedVariant.serving_unit, variantIdToPass);
       onOpenChange(false);
       setQuantity(1);
     } else {
@@ -149,21 +153,39 @@ const FoodUnitSelector = ({ food, open, onOpenChange, onSelect }: FoodUnitSelect
       quantity
     });
 
-    // Fix: Use the food's base nutrition values and calculate based on the actual serving
-    // The selectedVariant represents one unit (e.g., 100g), so we multiply by quantity
-    const baseFoodServingSize = food.serving_size || 100;
-    const variantServingSize = selectedVariant.serving_size;
+    let caloriesPerServing = food.calories || 0;
+    let proteinPerServing = food.protein || 0;
+    let carbsPerServing = food.carbs || 0;
+    let fatPerServing = food.fat || 0;
 
-    // Calculate ratio: how much of the base food serving does this variant represent?
-    const variantRatio = variantServingSize / baseFoodServingSize;
-    debug(loggingLevel, "Calculated variant ratio:", variantRatio);
+    // If the selected variant has its own explicit nutrient values, use them
+    // Otherwise, scale the base food's nutrients by the variant's serving size relative to the base food's serving size
+    if (selectedVariant.calories !== null && selectedVariant.calories !== undefined &&
+        selectedVariant.protein !== null && selectedVariant.protein !== undefined &&
+        selectedVariant.carbs !== null && selectedVariant.carbs !== undefined &&
+        selectedVariant.fat !== null && selectedVariant.fat !== undefined) {
+      // Use variant's explicit nutrients
+      caloriesPerServing = selectedVariant.calories;
+      proteinPerServing = selectedVariant.protein;
+      carbsPerServing = selectedVariant.carbs;
+      fatPerServing = selectedVariant.fat;
+    } else {
+      // Scale base food nutrients by variant's serving size
+      const variantServingSize = selectedVariant.serving_size;
+      const ratio = variantServingSize / (food.serving_size || 100); // Ratio of variant serving to base food serving
 
-    // Then multiply by quantity to get total nutrition
+      caloriesPerServing = (food.calories || 0) * ratio;
+      proteinPerServing = (food.protein || 0) * ratio;
+      carbsPerServing = (food.carbs || 0) * ratio;
+      fatPerServing = (food.fat || 0) * ratio;
+    }
+
+    // Total nutrition is (nutrition per serving) * quantity
     const result = {
-      calories: (food.calories * variantRatio * quantity) || 0,
-      protein: (food.protein * variantRatio * quantity) || 0,
-      carbs: (food.carbs * variantRatio * quantity) || 0,
-      fat: (food.fat * variantRatio * quantity) || 0,
+      calories: caloriesPerServing * quantity,
+      protein: proteinPerServing * quantity,
+      carbs: carbsPerServing * quantity,
+      fat: fatPerServing * quantity,
     };
     debug(loggingLevel, "Calculated nutrition result:", result);
 
