@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Plus, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { TablesInsert, TablesUpdate } from "@/integrations/supabase/types"; // Import TablesInsert and TablesUpdate
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "@/hooks/use-toast";
 
@@ -15,6 +15,8 @@ interface Food {
   id?: string;
   name: string;
   brand?: string;
+  user_id?: string; // Make user_id optional
+  is_custom?: boolean; // Make is_custom optional
   calories?: number;
   protein?: number;
   carbs?: number;
@@ -86,35 +88,36 @@ const EnhancedCustomFoodForm = ({ onSave, food }: EnhancedCustomFoodFormProps) =
         brand: food.brand || "",
       });
       
+      // Initialize variants with the primary food unit
+      const primaryFoodUnit: FoodVariant = {
+        id: food.id, // Use food.id as the ID for the primary unit in the UI
+        serving_size: food.serving_size || 100,
+        serving_unit: food.serving_unit || "g",
+        calories: food.calories || 0,
+        protein: food.protein || 0,
+        carbs: food.carbs || 0,
+        fat: food.fat || 0,
+        saturated_fat: food.saturated_fat || 0,
+        polyunsaturated_fat: food.polyunsaturated_fat || 0,
+        monounsaturated_fat: food.monounsaturated_fat || 0,
+        trans_fat: food.trans_fat || 0,
+        cholesterol: food.cholesterol || 0,
+        sodium: food.sodium || 0,
+        potassium: food.potassium || 0,
+        dietary_fiber: food.dietary_fiber || 0,
+        sugars: food.sugars || 0,
+        vitamin_a: food.vitamin_a || 0,
+        vitamin_c: food.vitamin_c || 0,
+        calcium: food.calcium || 0,
+        iron: food.iron || 0,
+      };
+      setVariants([primaryFoodUnit]);
+
       if (food.id) {
         loadExistingVariants();
-      } else {
-        // For new foods from OpenFoodFacts, use the passed food data
-        const initialVariant = {
-          serving_size: food.serving_size || 100,
-          serving_unit: food.serving_unit || "g",
-          calories: food.calories || 0,
-          protein: food.protein || 0,
-          carbs: food.carbs || 0,
-          fat: food.fat || 0,
-          saturated_fat: food.saturated_fat || 0,
-          polyunsaturated_fat: food.polyunsaturated_fat || 0,
-          monounsaturated_fat: food.monounsaturated_fat || 0,
-          trans_fat: food.trans_fat || 0,
-          cholesterol: food.cholesterol || 0,
-          sodium: food.sodium || 0,
-          potassium: food.potassium || 0,
-          dietary_fiber: food.dietary_fiber || 0,
-          sugars: food.sugars || 0,
-          vitamin_a: food.vitamin_a || 0,
-          vitamin_c: food.vitamin_c || 0,
-          calcium: food.calcium || 0,
-          iron: food.iron || 0,
-        };
-        setVariants([initialVariant]);
       }
     } else {
-      // Initialize with default variant for completely new foods
+      // For completely new foods, initialize with a default empty variant
       setVariants([{
         serving_size: 100,
         serving_unit: "g",
@@ -154,8 +157,10 @@ const EnhancedCustomFoodForm = ({ onSave, food }: EnhancedCustomFoodFormProps) =
       }
 
       if (data && data.length > 0) {
-        // Load variants with their specific nutrition values from the database
-        const variantsWithNutrition = data.map(variant => ({
+        // Filter out any variants that are identical to the primary food unit
+        const filteredVariants = data.filter(variant => 
+          !(variant.serving_size === food.serving_size && variant.serving_unit === food.serving_unit)
+        ).map(variant => ({
           id: variant.id,
           serving_size: variant.serving_size,
           serving_unit: variant.serving_unit,
@@ -177,30 +182,9 @@ const EnhancedCustomFoodForm = ({ onSave, food }: EnhancedCustomFoodFormProps) =
           calcium: variant.calcium || 0,
           iron: variant.iron || 0,
         }));
-        setVariants(variantsWithNutrition);
-      } else {
-        // If no variants exist, create one from the main food data
-        setVariants([{
-          serving_size: food.serving_size || 100,
-          serving_unit: food.serving_unit || "g",
-          calories: food.calories || 0,
-          protein: food.protein || 0,
-          carbs: food.carbs || 0,
-          fat: food.fat || 0,
-          saturated_fat: food.saturated_fat || 0,
-          polyunsaturated_fat: food.polyunsaturated_fat || 0,
-          monounsaturated_fat: food.monounsaturated_fat || 0,
-          trans_fat: food.trans_fat || 0,
-          cholesterol: food.cholesterol || 0,
-          sodium: food.sodium || 0,
-          potassium: food.potassium || 0,
-          dietary_fiber: food.dietary_fiber || 0,
-          sugars: food.sugars || 0,
-          vitamin_a: food.vitamin_a || 0,
-          vitamin_c: food.vitamin_c || 0,
-          calcium: food.calcium || 0,
-          iron: food.iron || 0,
-        }]);
+        
+        // Prepend the primary food unit to the variants list
+        setVariants(prevVariants => [prevVariants[0], ...filteredVariants]);
       }
     } catch (error) {
       console.error('Error:', error);
@@ -232,9 +216,16 @@ const EnhancedCustomFoodForm = ({ onSave, food }: EnhancedCustomFoodFormProps) =
   };
 
   const removeVariant = (index: number) => {
-    if (variants.length > 1) {
-      setVariants(variants.filter((_, i) => i !== index));
+    // Prevent removing the primary unit (index 0)
+    if (index === 0) {
+      toast({
+        title: "Cannot remove primary unit",
+        description: "The first unit represents the food's primary serving and cannot be removed.",
+        variant: "destructive",
+      });
+      return;
     }
+    setVariants(variants.filter((_, i) => i !== index));
   };
 
   const updateVariant = (index: number, field: keyof FoodVariant, value: string | number) => {
@@ -249,33 +240,35 @@ const EnhancedCustomFoodForm = ({ onSave, food }: EnhancedCustomFoodFormProps) =
 
     setLoading(true);
     try {
-      // Use the first variant as the base nutrition values for the food
-      const baseVariant = variants[0];
-      const foodData = {
+      // The first variant in the array is always the primary unit for the food
+      const primaryVariant = variants[0];
+
+      const foodData: TablesInsert<'foods'> = {
         name: formData.name,
         brand: formData.brand,
         user_id: user.id,
         is_custom: true,
-        serving_size: baseVariant.serving_size,
-        serving_unit: baseVariant.serving_unit,
-        calories: baseVariant.calories,
-        protein: baseVariant.protein,
-        carbs: baseVariant.carbs,
-        fat: baseVariant.fat,
-        saturated_fat: baseVariant.saturated_fat,
-        polyunsaturated_fat: baseVariant.polyunsaturated_fat,
-        monounsaturated_fat: baseVariant.monounsaturated_fat,
-        trans_fat: baseVariant.trans_fat,
-        cholesterol: baseVariant.cholesterol,
-        sodium: baseVariant.sodium,
-        potassium: baseVariant.potassium,
-        dietary_fiber: baseVariant.dietary_fiber,
-        sugars: baseVariant.sugars,
-        vitamin_a: baseVariant.vitamin_a,
-        vitamin_c: baseVariant.vitamin_c,
-        calcium: baseVariant.calcium,
-        iron: baseVariant.iron,
+        serving_size: primaryVariant.serving_size,
+        serving_unit: primaryVariant.serving_unit,
+        calories: primaryVariant.calories,
+        protein: primaryVariant.protein,
+        carbs: primaryVariant.carbs,
+        fat: primaryVariant.fat,
+        saturated_fat: primaryVariant.saturated_fat,
+        polyunsaturated_fat: primaryVariant.polyunsaturated_fat,
+        monounsaturated_fat: primaryVariant.monounsaturated_fat,
+        trans_fat: primaryVariant.trans_fat,
+        cholesterol: primaryVariant.cholesterol,
+        sodium: primaryVariant.sodium,
+        potassium: primaryVariant.potassium,
+        dietary_fiber: primaryVariant.dietary_fiber,
+        sugars: primaryVariant.sugars,
+        vitamin_a: primaryVariant.vitamin_a,
+        vitamin_c: primaryVariant.vitamin_c,
+        calcium: primaryVariant.calcium,
+        iron: primaryVariant.iron,
       };
+
 
       let foodId = food?.id;
       let savedFood;
@@ -284,23 +277,30 @@ const EnhancedCustomFoodForm = ({ onSave, food }: EnhancedCustomFoodFormProps) =
         // Update existing food
         const { error: updateError } = await supabase
           .from('foods')
-          .update(foodData)
+          .update(foodData as TablesUpdate<'foods'>) // Cast to TablesUpdate<'foods'>
           .eq('id', food.id);
         
         if (updateError) throw updateError;
         savedFood = { ...foodData, id: food.id };
 
-        // Update variants - first get existing variants to handle updates properly
-        const { data: existingVariants } = await supabase
+        // Fetch existing variants to determine what to update/delete/insert
+        const { data: existingVariants, error: fetchVariantsError } = await supabase
           .from('food_variants')
-          .select('id, serving_unit')
+          .select('id, serving_unit, serving_size')
           .eq('food_id', food.id);
 
-        const existingVariantMap = new Map(existingVariants?.map(v => [v.serving_unit, v.id]) || []);
+        if (fetchVariantsError) throw fetchVariantsError;
 
-        // Process each variant
-        for (const variant of variants) {
-          const variantData = {
+        // Map existing variants by serving_unit for quick lookup
+        const existingVariantMap = new Map(existingVariants?.map(v => [v.serving_unit, v.id]) || []);
+        const currentVariantUnits = new Set<string>();
+
+        // Process each variant from the form (skip the primary unit as it's handled in the foods table)
+        for (let i = 1; i < variants.length; i++) {
+          const variant = variants[i];
+          currentVariantUnits.add(variant.serving_unit);
+
+          const variantData: TablesInsert<'food_variants'> = {
             food_id: food.id,
             serving_size: variant.serving_size,
             serving_unit: variant.serving_unit,
@@ -323,12 +323,13 @@ const EnhancedCustomFoodForm = ({ onSave, food }: EnhancedCustomFoodFormProps) =
             iron: variant.iron,
           };
 
-          if (variant.id) {
+          if (existingVariantMap.has(variant.serving_unit)) {
             // Update existing variant
+            const variantIdToUpdate = existingVariantMap.get(variant.serving_unit);
             const { error } = await supabase
               .from('food_variants')
               .update(variantData)
-              .eq('id', variant.id);
+              .eq('id', variantIdToUpdate);
             if (error) throw error;
           } else {
             // Insert new variant
@@ -340,9 +341,8 @@ const EnhancedCustomFoodForm = ({ onSave, food }: EnhancedCustomFoodFormProps) =
         }
 
         // Remove any variants that were deleted (existed before but not in current variants)
-        const currentVariantIds = variants.filter(v => v.id).map(v => v.id);
         if (existingVariants) {
-          const variantsToDelete = existingVariants.filter(ev => !currentVariantIds.includes(ev.id));
+          const variantsToDelete = existingVariants.filter(ev => !currentVariantUnits.has(ev.serving_unit));
           for (const variantToDelete of variantsToDelete) {
             const { error } = await supabase
               .from('food_variants')
@@ -363,8 +363,10 @@ const EnhancedCustomFoodForm = ({ onSave, food }: EnhancedCustomFoodFormProps) =
         foodId = newFood.id;
         savedFood = newFood;
 
-        // Insert new variants
-        const variantsToInsert = variants.map(variant => ({
+        // Insert new variants (only if there are any, and they are not the primary unit)
+        const variantsToInsert = variants.filter(variant => 
+          !(variant.serving_size === foodData.serving_size && variant.serving_unit === foodData.serving_unit)
+        ).map(variant => ({
           food_id: foodId,
           serving_size: variant.serving_size,
           serving_unit: variant.serving_unit,
@@ -387,11 +389,13 @@ const EnhancedCustomFoodForm = ({ onSave, food }: EnhancedCustomFoodFormProps) =
           iron: variant.iron,
         }));
 
-        const { error: variantsError } = await supabase
-          .from('food_variants')
-          .insert(variantsToInsert);
+        if (variantsToInsert.length > 0) {
+          const { error: variantsError } = await supabase
+            .from('food_variants')
+            .insert(variantsToInsert);
 
-        if (variantsError) throw variantsError;
+          if (variantsError) throw variantsError;
+        }
       }
 
       toast({
@@ -404,6 +408,7 @@ const EnhancedCustomFoodForm = ({ onSave, food }: EnhancedCustomFoodFormProps) =
           name: "",
           brand: "",
         });
+        // When creating a new food, reset variants to include only the primary unit
         setVariants([{
           serving_size: 100,
           serving_unit: "g",
@@ -474,7 +479,6 @@ const EnhancedCustomFoodForm = ({ onSave, food }: EnhancedCustomFoodFormProps) =
               />
             </div>
           </div>
-
           {/* Unit Variants with Individual Nutrition */}
           <div className="space-y-4">
             <div className="flex items-center justify-between">
@@ -516,7 +520,7 @@ const EnhancedCustomFoodForm = ({ onSave, food }: EnhancedCustomFoodFormProps) =
                       {index === 0 && (
                         <Badge variant="secondary" className="text-xs">Primary Unit</Badge>
                       )}
-                      {variants.length > 1 && index > 0 && (
+                      {index > 0 && ( // Only allow removing non-primary units
                         <Button
                           type="button"
                           variant="ghost"

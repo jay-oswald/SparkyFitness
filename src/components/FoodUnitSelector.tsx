@@ -71,10 +71,10 @@ const FoodUnitSelector = ({ food, open, onOpenChange, onSelect }: FoodUnitSelect
         setVariants(variantsWithNutrition);
         setSelectedVariant(variantsWithNutrition[0]);
       } else {
-        info(loggingLevel, "No variants found, falling back to default food unit.");
-        // Fallback to default food unit
-        const defaultVariant = {
-          id: '',
+        info(loggingLevel, "No variants found, using primary food unit.");
+        // If no variants exist, use the primary food unit from the food object
+        const primaryUnit = {
+          id: food.id, // Use food.id as the variant ID for the primary unit
           serving_size: food.serving_size || 100,
           serving_unit: food.serving_unit || 'g',
           calories: food.calories || 0,
@@ -82,14 +82,14 @@ const FoodUnitSelector = ({ food, open, onOpenChange, onSelect }: FoodUnitSelect
           carbs: food.carbs || 0,
           fat: food.fat || 0
         };
-        setVariants([defaultVariant]);
-        setSelectedVariant(defaultVariant);
+        setVariants([primaryUnit]);
+        setSelectedVariant(primaryUnit);
       }
     } catch (err) {
       error(loggingLevel, 'Error loading variants:', err);
-      // Fallback to default food unit on error
-      const defaultVariant = {
-        id: '',
+      // Fallback to primary food unit on error
+      const primaryUnit = {
+        id: food.id, // Use food.id as the variant ID for the primary unit
         serving_size: food.serving_size || 100,
         serving_unit: food.serving_unit || 'g',
         calories: food.calories || 0,
@@ -97,8 +97,8 @@ const FoodUnitSelector = ({ food, open, onOpenChange, onSelect }: FoodUnitSelect
         carbs: food.carbs || 0,
         fat: food.fat || 0
       };
-      setVariants([defaultVariant]);
-      setSelectedVariant(defaultVariant);
+      setVariants([primaryUnit]);
+      setSelectedVariant(primaryUnit);
     } finally {
       setLoading(false);
     }
@@ -118,7 +118,7 @@ const FoodUnitSelector = ({ food, open, onOpenChange, onSelect }: FoodUnitSelect
       // This ensures the calculation in other components is correct
       const totalQuantity = quantity * selectedVariant.serving_size;
 
-      onSelect(food, totalQuantity, selectedVariant.serving_unit, selectedVariant.id || undefined);
+      onSelect(food, totalQuantity, selectedVariant.serving_unit, selectedVariant.id); // Always pass selectedVariant.id
       onOpenChange(false);
       setQuantity(1);
     } else {
@@ -191,10 +191,10 @@ const FoodUnitSelector = ({ food, open, onOpenChange, onSelect }: FoodUnitSelect
               <div>
                 <Label htmlFor="unit">Unit</Label>
                 <Select
-                  value={selectedVariant?.id || 'default'}
+                  value={selectedVariant?.id || ''} // Use empty string for default if no ID
                   onValueChange={(value) => {
                     debug(loggingLevel, "Unit selected:", value);
-                    const variant = variants.find(v => (v.id || 'default') === value);
+                    const variant = variants.find(v => v.id === value); // Match by actual ID
                     setSelectedVariant(variant || null);
                   }}
                 >
@@ -203,7 +203,7 @@ const FoodUnitSelector = ({ food, open, onOpenChange, onSelect }: FoodUnitSelect
                   </SelectTrigger>
                   <SelectContent>
                     {variants.map((variant) => (
-                      <SelectItem key={variant.id || 'default'} value={variant.id || 'default'}>
+                      <SelectItem key={variant.id} value={variant.id}> {/* Use actual ID as key and value */}
                         {variant.serving_size} {variant.serving_unit}
                       </SelectItem>
                     ))}
