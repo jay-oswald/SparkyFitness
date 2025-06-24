@@ -105,9 +105,9 @@ const EditFoodEntryDialog = ({ entry, open, onOpenChange, onSave }: EditFoodEntr
 
       if (supabaseError) {
         error(loggingLevel, 'Error loading variants:', supabaseError);
-        // Fallback to default food unit
-        const defaultVariant = {
-id: 'default-variant',
+        // Fallback to primary food unit on error
+        const primaryUnit: FoodVariant = {
+          id: entry.foods.id, // Use food.id as the variant ID for the primary unit
           serving_size: entry.foods.serving_size || 100,
           serving_unit: entry.foods.serving_unit || 'g',
           calories: entry.foods.calories,
@@ -128,14 +128,40 @@ id: 'default-variant',
           calcium: entry.foods.calcium,
           iron: entry.foods.iron
         };
-        setVariants([defaultVariant]);
-        setSelectedVariant(defaultVariant);
+        setVariants([primaryUnit]);
+        setSelectedVariant(primaryUnit);
         return;
       }
 
+      // Always include the primary food unit as the first option
+      const primaryUnit: FoodVariant = {
+        id: entry.foods.id, // Use food.id as the variant ID for the primary unit
+        serving_size: entry.foods.serving_size || 100,
+        serving_unit: entry.foods.serving_unit || 'g',
+        calories: entry.foods.calories,
+        protein: entry.foods.protein,
+        carbs: entry.foods.carbs,
+        fat: entry.foods.fat,
+        saturated_fat: entry.foods.saturated_fat,
+        polyunsaturated_fat: entry.foods.polyunsaturated_fat,
+        monounsaturated_fat: entry.foods.monounsaturated_fat,
+        trans_fat: entry.foods.trans_fat,
+        cholesterol: entry.foods.cholesterol,
+        sodium: entry.foods.sodium,
+        potassium: entry.foods.potassium,
+        dietary_fiber: entry.foods.dietary_fiber,
+        sugars: entry.foods.sugars,
+        vitamin_a: entry.foods.vitamin_a,
+        vitamin_c: entry.foods.vitamin_c,
+        calcium: entry.foods.calcium,
+        iron: entry.foods.iron
+      };
+
+      let combinedVariants: FoodVariant[] = [primaryUnit];
+
       if (data && data.length > 0) {
         info(loggingLevel, "Food variants loaded successfully:", data);
-        const variantsWithNutrition = data.map(variant => ({
+        const variantsFromDb = data.map(variant => ({
           id: variant.id,
           serving_size: variant.serving_size,
           serving_unit: variant.serving_unit,
@@ -157,42 +183,26 @@ id: 'default-variant',
           calcium: variant.calcium || 0,
           iron: variant.iron || 0
         }));
-        setVariants(variantsWithNutrition);
 
-        // Find the variant that matches the entry's unit, or use the first one
-        const matchingVariant = variantsWithNutrition.find(v =>
-          v.serving_unit === entry.unit || (entry.variant_id && v.id === entry.variant_id)
+        // Filter out any variants from DB that are identical to the primary unit
+        const filteredVariants = variantsFromDb.filter(variant =>
+          !(variant.serving_size === primaryUnit.serving_size && variant.serving_unit === primaryUnit.serving_unit)
         );
-        setSelectedVariant(matchingVariant || variantsWithNutrition[0]);
-        debug(loggingLevel, "Selected variant:", matchingVariant || variantsWithNutrition[0]);
+        
+        combinedVariants = [primaryUnit, ...filteredVariants];
       } else {
-        info(loggingLevel, "No variants found, falling back to default food unit.");
-        // Fallback to default food unit
-        const defaultVariant = {
-id: 'default-variant',
-          serving_size: entry.foods.serving_size || 100,
-          serving_unit: entry.foods.serving_unit || 'g',
-          calories: entry.foods.calories,
-          protein: entry.foods.protein,
-          carbs: entry.foods.carbs,
-          fat: entry.foods.fat,
-          saturated_fat: entry.foods.saturated_fat,
-          polyunsaturated_fat: entry.foods.polyunsaturated_fat,
-          monounsaturated_fat: entry.foods.monounsaturated_fat,
-          trans_fat: entry.foods.trans_fat,
-          cholesterol: entry.foods.cholesterol,
-          sodium: entry.foods.sodium,
-          potassium: entry.foods.potassium,
-          dietary_fiber: entry.foods.dietary_fiber,
-          sugars: entry.foods.sugars,
-          vitamin_a: entry.foods.vitamin_a,
-          vitamin_c: entry.foods.vitamin_c,
-          calcium: entry.foods.calcium,
-          iron: entry.foods.iron
-        };
-        setVariants([defaultVariant]);
-        setSelectedVariant(defaultVariant);
+        info(loggingLevel, "No additional variants found, using primary food unit only.");
       }
+      
+      setVariants(combinedVariants);
+
+      // Set selected variant based on entry.variant_id or entry.unit, or default to primaryUnit
+      const initialSelectedVariant = combinedVariants.find(v =>
+        (entry.variant_id && v.id === entry.variant_id) ||
+        (!entry.variant_id && v.serving_unit === entry.unit && v.serving_size === entry.foods.serving_size)
+      ) || primaryUnit;
+      setSelectedVariant(initialSelectedVariant);
+      debug(loggingLevel, "Selected variant:", initialSelectedVariant);
     } catch (err) {
       error(loggingLevel, 'Error loading variants:', err);
     } finally {
@@ -257,31 +267,29 @@ id: 'default-variant',
       return null;
     }
 
-    // Fix: Use the same calculation logic as other screens
-    // Calculate the ratio based on quantity vs serving size
-    const servingSize = selectedVariant.serving_size;
-    const ratio = quantity / servingSize;
+    // Calculate the ratio based on quantity vs serving size of the selected variant
+    const ratio = quantity / selectedVariant.serving_size;
     debug(loggingLevel, "Calculated ratio for edit dialog:", ratio);
 
-    // Apply the ratio to the base food nutrition values
+    // Apply the ratio to the selected variant's nutrition values
     const nutrition = {
-      calories: (entry.foods.calories * ratio) || 0,
-      protein: (entry.foods.protein * ratio) || 0,
-      carbs: (entry.foods.carbs * ratio) || 0,
-      fat: (entry.foods.fat * ratio) || 0,
-      saturated_fat: (entry.foods.saturated_fat * ratio) || 0,
-      polyunsaturated_fat: (entry.foods.polyunsaturated_fat * ratio) || 0,
-      monounsaturated_fat: (entry.foods.monounsaturated_fat * ratio) || 0,
-      trans_fat: (entry.foods.trans_fat * ratio) || 0,
-      cholesterol: (entry.foods.cholesterol * ratio) || 0,
-      sodium: (entry.foods.sodium * ratio) || 0,
-      potassium: (entry.foods.potassium * ratio) || 0,
-      dietary_fiber: (entry.foods.dietary_fiber * ratio) || 0,
-      sugars: (entry.foods.sugars * ratio) || 0,
-      vitamin_a: (entry.foods.vitamin_a * ratio) || 0,
-      vitamin_c: (entry.foods.vitamin_c * ratio) || 0,
-      calcium: (entry.foods.calcium * ratio) || 0,
-      iron: (entry.foods.iron * ratio) || 0,
+      calories: (selectedVariant.calories * ratio) || 0,
+      protein: (selectedVariant.protein * ratio) || 0,
+      carbs: (selectedVariant.carbs * ratio) || 0,
+      fat: (selectedVariant.fat * ratio) || 0,
+      saturated_fat: (selectedVariant.saturated_fat * ratio) || 0,
+      polyunsaturated_fat: (selectedVariant.polyunsaturated_fat * ratio) || 0,
+      monounsaturated_fat: (selectedVariant.monounsaturated_fat * ratio) || 0,
+      trans_fat: (selectedVariant.trans_fat * ratio) || 0,
+      cholesterol: (selectedVariant.cholesterol * ratio) || 0,
+      sodium: (selectedVariant.sodium * ratio) || 0,
+      potassium: (selectedVariant.potassium * ratio) || 0,
+      dietary_fiber: (selectedVariant.dietary_fiber * ratio) || 0,
+      sugars: (selectedVariant.sugars * ratio) || 0,
+      vitamin_a: (selectedVariant.vitamin_a * ratio) || 0,
+      vitamin_c: (selectedVariant.vitamin_c * ratio) || 0,
+      calcium: (selectedVariant.calcium * ratio) || 0,
+      iron: (selectedVariant.iron * ratio) || 0,
     };
     debug(loggingLevel, "Calculated nutrition for edit dialog:", nutrition);
     return nutrition;
@@ -342,7 +350,7 @@ id: 'default-variant',
                     </SelectTrigger>
                     <SelectContent>
                       {variants.map((variant) => (
-                        <SelectItem key={variant.id || 'default'} value={variant.id || 'default'}>
+                        <SelectItem key={variant.id} value={variant.id}>
                           {variant.serving_size} {variant.serving_unit}
                         </SelectItem>
                       ))}

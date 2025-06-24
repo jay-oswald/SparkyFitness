@@ -38,7 +38,7 @@ const FoodUnitSelector = ({ food, open, onOpenChange, onSelect }: FoodUnitSelect
     debug(loggingLevel, "FoodUnitSelector open/food useEffect triggered.", { open, food });
     if (open && food) {
       loadVariants();
-      setQuantity(1); // Reset quantity when dialog opens
+      setQuantity(1); // Reset quantity to 1 when dialog opens
     }
   }, [open, food]);
 
@@ -94,6 +94,7 @@ const FoodUnitSelector = ({ food, open, onOpenChange, onSelect }: FoodUnitSelect
       
       setVariants(combinedVariants);
       setSelectedVariant(combinedVariants[0]); // Select the primary unit by default
+      // Do NOT pre-populate quantity with serving_size. Quantity should default to 1.
     } catch (err) {
       error(loggingLevel, 'Error loading variants:', err);
       // Fallback to primary food unit on error
@@ -108,6 +109,7 @@ const FoodUnitSelector = ({ food, open, onOpenChange, onSelect }: FoodUnitSelect
       };
       setVariants([primaryUnit]);
       setSelectedVariant(primaryUnit);
+      // Do NOT pre-populate quantity with serving_size. Quantity should default to 1.
     } finally {
       setLoading(false);
     }
