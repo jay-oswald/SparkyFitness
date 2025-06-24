@@ -57,9 +57,22 @@ const FoodUnitSelector = ({ food, open, onOpenChange, onSelect }: FoodUnitSelect
       }
 
 
+      // Always include the primary food unit as the first option
+      const primaryUnit: FoodVariant = {
+        id: food.id, // Use food.id as the variant ID for the primary unit
+        serving_size: food.serving_size || 100,
+        serving_unit: food.serving_unit || 'g',
+        calories: food.calories || 0,
+        protein: food.protein || 0,
+        carbs: food.carbs || 0,
+        fat: food.fat || 0
+      };
+
+      let combinedVariants: FoodVariant[] = [primaryUnit];
+
       if (data && data.length > 0) {
         info(loggingLevel, "Food variants loaded successfully:", data);
-        const variantsWithNutrition = data.map(variant => ({
+        const variantsFromDb = data.map(variant => ({
           id: variant.id,
           serving_size: variant.serving_size,
           serving_unit: variant.serving_unit,
@@ -68,27 +81,23 @@ const FoodUnitSelector = ({ food, open, onOpenChange, onSelect }: FoodUnitSelect
           carbs: variant.carbs || 0,
           fat: variant.fat || 0
         }));
-        setVariants(variantsWithNutrition);
-        setSelectedVariant(variantsWithNutrition[0]);
+
+        // Filter out any variants from DB that are identical to the primary unit
+        const filteredVariants = variantsFromDb.filter(variant =>
+          !(variant.serving_size === primaryUnit.serving_size && variant.serving_unit === primaryUnit.serving_unit)
+        );
+        
+        combinedVariants = [primaryUnit, ...filteredVariants];
       } else {
-        info(loggingLevel, "No variants found, using primary food unit.");
-        // If no variants exist, use the primary food unit from the food object
-        const primaryUnit = {
-          id: food.id, // Use food.id as the variant ID for the primary unit
-          serving_size: food.serving_size || 100,
-          serving_unit: food.serving_unit || 'g',
-          calories: food.calories || 0,
-          protein: food.protein || 0,
-          carbs: food.carbs || 0,
-          fat: food.fat || 0
-        };
-        setVariants([primaryUnit]);
-        setSelectedVariant(primaryUnit);
+        info(loggingLevel, "No additional variants found, using primary food unit only.");
       }
+      
+      setVariants(combinedVariants);
+      setSelectedVariant(combinedVariants[0]); // Select the primary unit by default
     } catch (err) {
       error(loggingLevel, 'Error loading variants:', err);
       // Fallback to primary food unit on error
-      const primaryUnit = {
+      const primaryUnit: FoodVariant = {
         id: food.id, // Use food.id as the variant ID for the primary unit
         serving_size: food.serving_size || 100,
         serving_unit: food.serving_unit || 'g',
