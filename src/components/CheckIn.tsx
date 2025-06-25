@@ -72,6 +72,18 @@ const CheckIn = () => {
       loadCustomCategories();
       fetchRecentMeasurements();
     }
+
+    const handleRefresh = () => {
+      info(loggingLevel, "CheckIn: Received measurementsRefresh event, triggering data reload.");
+      loadExistingData();
+      fetchRecentMeasurements();
+    };
+
+    window.addEventListener('measurementsRefresh', handleRefresh);
+
+    return () => {
+      window.removeEventListener('measurementsRefresh', handleRefresh);
+    };
   }, [currentUserId, selectedDate, loadPreferences, formatDateInUserTimezone, parseDateInUserTimezone]); // Update dependency array
 
   const loadCustomCategories = async () => {

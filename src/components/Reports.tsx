@@ -148,7 +148,7 @@ const Reports = () => {
 
   }, [timezone, formatDateInUserTimezone, loggingLevel]); // Depend on timezone from usePreferences
 
-  // Effect to load reports when user, activeUser, or date range changes
+  // Effect to load reports when user, activeUser, date range changes, or refresh events are triggered
   useEffect(() => {
     info(loggingLevel, 'Reports: Component mounted/updated with:', {
       user: !!user,
@@ -165,6 +165,19 @@ const Reports = () => {
     if (user && activeUserId) {
       loadReports();
     }
+
+    const handleRefresh = () => {
+      info(loggingLevel, "Reports: Received refresh event, triggering data reload.");
+      loadReports();
+    };
+
+    window.addEventListener('foodDiaryRefresh', handleRefresh);
+    window.addEventListener('measurementsRefresh', handleRefresh);
+
+    return () => {
+      window.removeEventListener('foodDiaryRefresh', handleRefresh);
+      window.removeEventListener('measurementsRefresh', handleRefresh);
+    };
   }, [user, activeUserId, startDate, endDate, loggingLevel, formatDateInUserTimezone, parseDateInUserTimezone, showWeightInKg, showMeasurementsInCm, weightUnit, measurementUnit]); // Added showWeightInKg, showMeasurementsInCm, weightUnit, measurementUnit to dependencies
 
   const loadReports = async () => {

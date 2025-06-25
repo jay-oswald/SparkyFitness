@@ -21,6 +21,18 @@ const WaterIntake = ({ selectedDate }: WaterIntakeProps) => {
     if (user) {
       loadWaterData();
     }
+
+    const handleRefresh = () => {
+      loadWaterData();
+    };
+
+    window.addEventListener('measurementsRefresh', handleRefresh);
+    window.addEventListener('foodDiaryRefresh', handleRefresh); // Also listen for food diary refresh as it impacts overall progress
+
+    return () => {
+      window.removeEventListener('measurementsRefresh', handleRefresh);
+      window.removeEventListener('foodDiaryRefresh', handleRefresh);
+    };
   }, [user, selectedDate]);
 
   const loadWaterData = async () => {
@@ -68,20 +80,15 @@ const WaterIntake = ({ selectedDate }: WaterIntakeProps) => {
     try {
       setLoading(true);
 
-      // First, delete any existing records for this day to avoid duplicates
-      await supabase
-        .from('water_intake')
-        .delete()
-        .eq('user_id', user.id)
-        .eq('entry_date', selectedDate);
-
-      // Then insert the new total
+      // Use upsert for atomic update/insert
       const { error } = await supabase
         .from('water_intake')
-        .insert({
+        .upsert({
           user_id: user.id,
           entry_date: selectedDate,
           glasses_consumed: newGlasses,
+        }, {
+          onConflict: 'user_id,entry_date'
         });
 
       if (error) {

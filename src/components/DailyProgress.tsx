@@ -47,6 +47,19 @@ const DailyProgress = ({ selectedDate, refreshTrigger }: DailyProgressProps) => 
    if (currentUserId) {
      loadGoalsAndIntake();
    }
+
+   const handleRefresh = () => {
+     info(loggingLevel, "DailyProgress: Received refresh event, triggering data reload.");
+     loadGoalsAndIntake();
+   };
+
+   window.addEventListener('foodDiaryRefresh', handleRefresh);
+   window.addEventListener('measurementsRefresh', handleRefresh);
+
+   return () => {
+     window.removeEventListener('foodDiaryRefresh', handleRefresh);
+     window.removeEventListener('measurementsRefresh', handleRefresh);
+   };
  }, [currentUserId, selectedDate, refreshTrigger, loggingLevel]);
 
  // Convert steps to calories (roughly 0.04 calories per step for average person)

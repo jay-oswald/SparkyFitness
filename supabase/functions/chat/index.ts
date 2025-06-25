@@ -24,7 +24,7 @@ async function encrypt(text: string, key: string): Promise<{ encryptedText: stri
     );
   } catch (e: any) {
     console.error('Error importing encryption key:', e);
-    throw new Error(`Failed to import encryption key: ${e.message}`);
+    throw new Error(`Failed to import encryption key.`);
   }
 
   let encryptedBuffer;
@@ -32,7 +32,7 @@ async function encrypt(text: string, key: string): Promise<{ encryptedText: stri
     encryptedBuffer = await crypto.subtle.encrypt(alg, cryptoKey, encodedText);
   } catch (e: any) {
     console.error('Error encrypting data:', e);
-    throw new Error(`Failed to encrypt data: ${e.message}`);
+    throw new Error(`Failed to encrypt data.`);
   }
   
   const encryptedText = btoa(String.fromCharCode(...new Uint8Array(encryptedBuffer)));
@@ -56,7 +56,7 @@ async function decrypt(encryptedText: string, ivString: string, key: string): Pr
     );
   } catch (e: any) {
     console.error('Error importing decryption key:', e);
-    throw new Error(`Failed to import decryption key: ${e.message}`);
+    throw new Error(`Failed to import decryption key.`);
   }
 
   let decryptedBuffer;
@@ -64,7 +64,7 @@ async function decrypt(encryptedText: string, ivString: string, key: string): Pr
     decryptedBuffer = await crypto.subtle.decrypt(alg, cryptoKey, decodedEncryptedText);
   } catch (e: any) {
     console.error('Error decrypting data:', e);
-    throw new Error(`Failed to decrypt data: ${e.message}`);
+    throw new Error(`Failed to decrypt data.`);
   }
   
   return new TextDecoder().decode(decryptedBuffer);
@@ -72,7 +72,14 @@ async function decrypt(encryptedText: string, ivString: string, key: string): Pr
 
 serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, {
+      status: 200,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+        'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      },
+    });
   }
 
   try {
@@ -129,7 +136,7 @@ serve(async (req: Request) => {
           upsertData.api_key_iv = iv;
         } catch (e: any) {
           console.error('Error during encryption:', e);
-          throw new Error(`Encryption failed: ${e.message}`);
+          throw new Error(`Encryption failed.`);
         }
       } else if (!id) { // If it's a new service (no ID) and no API key, throw error
         console.error('New service creation attempted without API key.');
@@ -154,7 +161,7 @@ serve(async (req: Request) => {
 
       if (error) {
         console.error('Error saving AI service settings:', error);
-        throw new Error(`Failed to save AI service settings: ${error.message}`);
+        throw new Error(`Failed to save AI service settings.`);
       }
 
       return new Response(JSON.stringify({ message: 'AI service settings saved successfully.' }), {
@@ -165,7 +172,7 @@ serve(async (req: Request) => {
     // Validate messages structure for multimodal input for chat requests
     if (!Array.isArray(messages) || messages.length === 0) {
        console.error('Invalid messages format received');
-       throw new Error('Invalid messages format');
+       throw new Error('Invalid messages format.');
     }
 
     if (!service_config || !service_config.id) {
@@ -182,7 +189,7 @@ serve(async (req: Request) => {
 
     if (fetchError || !aiService) {
       console.error('Error fetching AI service settings:', fetchError);
-      throw new Error(`Failed to retrieve AI service configuration: ${fetchError?.message || 'Service not found'}`);
+      throw new Error(`Failed to retrieve AI service configuration.`);
     }
 
     if (!aiService.encrypted_api_key || !aiService.api_key_iv) {
@@ -195,7 +202,7 @@ serve(async (req: Request) => {
       decryptedApiKey = await decrypt(aiService.encrypted_api_key, aiService.api_key_iv, ENCRYPTION_KEY);
     } catch (e: any) {
       console.error('Error during decryption:', e);
-      throw new Error(`Decryption failed: ${e.message}`);
+      throw new Error(`Decryption failed.`);
     }
 
     let response;
@@ -458,7 +465,7 @@ serve(async (req: Request) => {
 
   } catch (error: any) { // Explicitly type error as any
     console.error('Caught error in chat function:', error);
-    return new Response(JSON.stringify({ error: error.message || String(error) || 'An unknown error occurred in the Edge Function.' }), {
+    return new Response(JSON.stringify({ error: 'An unexpected error occurred in the Edge Function.' }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

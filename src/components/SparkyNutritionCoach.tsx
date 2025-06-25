@@ -4,11 +4,10 @@ import { supabase } from '@/integrations/supabase/client';
 import { NutritionData, CoachResponse, FoodOption } from '@/services/Chatbot/Chatbot_types';
 import { fileToBase64, saveMessageToHistory, clearHistory } from '@/services/Chatbot/Chatbot_utils';
 import { processFoodInput, addFoodOption } from '@/services/Chatbot/Chatbot_FoodHandler';
-import { processChatInput as processChatInputFromAI } from '@/services/Chatbot/Chatbot_ChatHandler'; // Renaming to avoid conflict
+import { processChatInput } from '@/services/Chatbot/Chatbot_ChatHandler';
 import { processExerciseInput } from '@/services/Chatbot/Chatbot_ExerciseHandler';
 import { processMeasurementInput } from '@/services/Chatbot/Chatbot_MeasurementHandler';
 import { processWaterInput } from '@/services/Chatbot/Chatbot_WaterHandler';
-import { processChatInput } from '@/services/Chatbot/Chatbot_ChatHandler';
 import { info, error, warn, debug, UserLoggingLevel } from '@/utils/logging';
 
 const SparkyNutritionCoach = forwardRef<any, { userId: string; userLoggingLevel: UserLoggingLevel; timezone: string; formatDateInUserTimezone: (date: string | Date, formatStr?: string) => string }>(({ userId, userLoggingLevel, timezone, formatDateInUserTimezone }, ref) => {
@@ -213,7 +212,7 @@ const SparkyNutritionCoach = forwardRef<any, { userId: string; userLoggingLevel:
          // For chat/ask_question, the response is already in parsedResponse.response
          // We should ensure data is an empty object if not provided by AI
          // processChatInput returns a CoachResponse with action 'advice' or 'chat'
-         return await processChatInput(parsedResponse.data || {}, parsedResponse.response); // Chat doesn't need entryDate
+         return await processChatInput(parsedResponse.data || {}, parsedResponse.response, userLoggingLevel); // Chat doesn't need entryDate
        default:
          warn(userLoggingLevel, '⚠️ [Nutrition Coach] Unrecognized AI intent:', parsedResponse.intent);
          // For unrecognized intent, return a CoachResponse with action 'none'
@@ -561,7 +560,10 @@ Example JSON output for "GENERATE_FOOD_OPTIONS:apple":
 
       if (edgeFunctionError) {
         let errorMessage = 'Sorry, I had trouble getting a response from the AI. Please try again later.';
+        let detailedError = '';
+
         if (edgeFunctionError.message) {
+          detailedError = edgeFunctionError.message;
           try {
             const parsedError = JSON.parse(edgeFunctionError.message);
             if (parsedError.error) {
@@ -570,10 +572,12 @@ Example JSON output for "GENERATE_FOOD_OPTIONS:apple":
               errorMessage = edgeFunctionError.message;
             }
           } catch (e) {
+            // If parsing fails, use the raw message
             errorMessage = edgeFunctionError.message;
           }
         }
-        error(userLoggingLevel, `[${transactionId}] ❌ [Nutrition Coach] Error calling Edge Function:`, edgeFunctionError);
+        // Log the full error object for debugging
+        error(userLoggingLevel, `[${transactionId}] ❌ [Nutrition Coach] Error calling Edge Function:`, edgeFunctionError, `Raw message: ${detailedError}`);
         return {
           action: 'none',
           response: errorMessage

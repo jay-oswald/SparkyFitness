@@ -450,7 +450,7 @@ const SparkyChatInterface = ({ userId }: SparkyChatInterfaceProps) => {
       <SparkyNutritionCoach
         ref={coachRef}
         userId={userId}
-        userLoggingLevel={userPreferences?.auto_clear_history || 'INFO'} // Pass logging level
+        userLoggingLevel={userPreferences?.logging_level || 'INFO'} // Pass logging level
         timezone={timezone} // Pass timezone
         formatDateInUserTimezone={formatDateInUserTimezone} // Pass formatter
       />
