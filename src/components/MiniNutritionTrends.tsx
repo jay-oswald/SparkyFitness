@@ -6,6 +6,41 @@ import { useAuth } from "@/hooks/useAuth";
 import { useActiveUser } from "@/contexts/ActiveUserContext";
 import { parseISO, subDays, addDays, format } from "date-fns"; // Import date-fns functions
 import { usePreferences } from "@/contexts/PreferencesContext"; // Import usePreferences
+import { calculateFoodEntryNutrition } from '@/utils/nutritionCalculations'; // Import the new utility function
+
+interface Food {
+  id: string;
+  name: string;
+  brand?: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  serving_size: number;
+  serving_unit: string;
+  user_id?: string;
+}
+
+interface FoodVariant {
+  id: string;
+  serving_size: number;
+  serving_unit: string;
+  calories?: number;
+  protein?: number;
+  carbs?: number;
+  fat?: number;
+}
+
+interface FoodEntry {
+  id: string;
+  food_id: string;
+  meal_type: string;
+  quantity: number;
+  unit: string;
+  variant_id?: string;
+  foods: Food;
+  food_variants?: FoodVariant;
+}
 
 interface MiniNutritionTrendsProps {
   selectedDate: string;
@@ -44,26 +79,9 @@ const MiniNutritionTrends = ({ selectedDate }: MiniNutritionTrendsProps) => {
       const { data: entriesData, error: entriesError } = await supabase
         .from('food_entries')
         .select(`
-          entry_date,
-          quantity,
-          unit,
-          variant_id,
-          foods (
-            calories,
-            protein,
-            carbs,
-            fat,
-            serving_size,
-            serving_unit
-          ),
-          food_variants (
-            calories,
-            protein,
-            carbs,
-            fat,
-            serving_size,
-            serving_unit
-          )
+          *,
+          foods (*),
+          food_variants (*)
         `)
         .eq('user_id', activeUserId)
         .gte('entry_date', startDateStr)
@@ -84,16 +102,12 @@ const MiniNutritionTrends = ({ selectedDate }: MiniNutritionTrendsProps) => {
           dailyTotals[date] = { calories: 0, protein: 0, carbs: 0, fat: 0 };
         }
 
-        // Use variant nutrition if available, otherwise use base food nutrition
-        const nutritionSource = entry.variant_id && entry.food_variants ? entry.food_variants : entry.foods;
-        if (!nutritionSource) return;
-
-        const multiplier = entry.quantity / (nutritionSource.serving_size || 100); // Corrected calculation
+        const nutrition = calculateFoodEntryNutrition(entry as FoodEntry); // Cast to FoodEntry
         
-        dailyTotals[date].calories += (nutritionSource.calories || 0) * multiplier;
-        dailyTotals[date].protein += (nutritionSource.protein || 0) * multiplier;
-        dailyTotals[date].carbs += (nutritionSource.carbs || 0) * multiplier;
-        dailyTotals[date].fat += (nutritionSource.fat || 0) * multiplier;
+        dailyTotals[date].calories += nutrition.calories;
+        dailyTotals[date].protein += nutrition.protein;
+        dailyTotals[date].carbs += nutrition.carbs;
+        dailyTotals[date].fat += nutrition.fat;
       });
 
       // Create chart data for all dates in range

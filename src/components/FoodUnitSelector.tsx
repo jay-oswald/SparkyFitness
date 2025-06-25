@@ -38,7 +38,12 @@ const FoodUnitSelector = ({ food, open, onOpenChange, onSelect }: FoodUnitSelect
     debug(loggingLevel, "FoodUnitSelector open/food useEffect triggered.", { open, food });
     if (open && food) {
       loadVariants();
-      setQuantity(1); // Reset quantity to 1 when dialog opens
+      // Set quantity to the serving_size of the initially selected variant (primary unit)
+      if (food) {
+        setQuantity(food.serving_size || 1);
+      } else {
+        setQuantity(1); // Fallback if food is not available
+      }
     }
   }, [open, food]);
 
@@ -125,15 +130,12 @@ const FoodUnitSelector = ({ food, open, onOpenChange, onSelect }: FoodUnitSelect
         variantId: selectedVariant.id || undefined
       });
 
-      // Fix: Pass the total quantity (quantity * serving_size) as the quantity
-      // This ensures the calculation in other components is correct
-      const totalQuantity = quantity * selectedVariant.serving_size;
-
+      // Pass the user-entered quantity directly, as it now represents the number of servings.
       // If the selected variant is the primary food unit (identified by food.id), pass null for variantId
       // Otherwise, pass the actual variant.id
       const variantIdToPass = selectedVariant.id === food.id ? null : selectedVariant.id;
 
-      onSelect(food, totalQuantity, selectedVariant.serving_unit, variantIdToPass);
+      onSelect(food, quantity, selectedVariant.serving_unit, variantIdToPass);
       onOpenChange(false);
       setQuantity(1);
     } else {
@@ -153,39 +155,49 @@ const FoodUnitSelector = ({ food, open, onOpenChange, onSelect }: FoodUnitSelect
       quantity
     });
 
-    let caloriesPerServing = food.calories || 0;
-    let proteinPerServing = food.protein || 0;
-    let carbsPerServing = food.carbs || 0;
-    let fatPerServing = food.fat || 0;
+    let nutrientValuesPerReferenceSize = {
+      calories: food.calories || 0,
+      protein: food.protein || 0,
+      carbs: food.carbs || 0,
+      fat: food.fat || 0,
+    };
+    let effectiveReferenceSize = food.serving_size || 100;
 
-    // If the selected variant has its own explicit nutrient values, use them
-    // Otherwise, scale the base food's nutrients by the variant's serving size relative to the base food's serving size
-    if (selectedVariant.calories !== null && selectedVariant.calories !== undefined &&
-        selectedVariant.protein !== null && selectedVariant.protein !== undefined &&
-        selectedVariant.carbs !== null && selectedVariant.carbs !== undefined &&
-        selectedVariant.fat !== null && selectedVariant.fat !== undefined) {
-      // Use variant's explicit nutrients
-      caloriesPerServing = selectedVariant.calories;
-      proteinPerServing = selectedVariant.protein;
-      carbsPerServing = selectedVariant.carbs;
-      fatPerServing = selectedVariant.fat;
-    } else {
-      // Scale base food nutrients by variant's serving size
-      const variantServingSize = selectedVariant.serving_size;
-      const ratio = variantServingSize / (food.serving_size || 100); // Ratio of variant serving to base food serving
+    if (selectedVariant) {
+      if (selectedVariant.calories !== null && selectedVariant.calories !== undefined &&
+          selectedVariant.protein !== null && selectedVariant.protein !== undefined &&
+          selectedVariant.carbs !== null && selectedVariant.carbs !== undefined &&
+          selectedVariant.fat !== null && selectedVariant.fat !== undefined) {
+        // Use variant's explicit nutrient values per its serving_size
+        nutrientValuesPerReferenceSize = {
+          calories: selectedVariant.calories,
+          protein: selectedVariant.protein,
+          carbs: selectedVariant.carbs,
+          fat: selectedVariant.fat,
+        };
+        effectiveReferenceSize = selectedVariant.serving_size;
+      } else {
+        // If variant doesn't have explicit nutrients, scale base food nutrients to the variant's serving size
+        const variantServingSize = selectedVariant.serving_size;
+        const baseFoodServingSize = food.serving_size || 100;
+        const ratio = variantServingSize / baseFoodServingSize;
 
-      caloriesPerServing = (food.calories || 0) * ratio;
-      proteinPerServing = (food.protein || 0) * ratio;
-      carbsPerServing = (food.carbs || 0) * ratio;
-      fatPerServing = (food.fat || 0) * ratio;
+        nutrientValuesPerReferenceSize = {
+          calories: (food.calories || 0) * ratio,
+          protein: (food.protein || 0) * ratio,
+          carbs: (food.carbs || 0) * ratio,
+          fat: (food.fat || 0) * ratio,
+        };
+        effectiveReferenceSize = variantServingSize;
+      }
     }
 
-    // Total nutrition is (nutrition per serving) * quantity
+    // Calculate total nutrition: (nutrient_value_per_reference_size / effective_reference_size) * quantity_consumed
     const result = {
-      calories: caloriesPerServing * quantity,
-      protein: proteinPerServing * quantity,
-      carbs: carbsPerServing * quantity,
-      fat: fatPerServing * quantity,
+      calories: (nutrientValuesPerReferenceSize.calories / effectiveReferenceSize) * quantity,
+      protein: (nutrientValuesPerReferenceSize.protein / effectiveReferenceSize) * quantity,
+      carbs: (nutrientValuesPerReferenceSize.carbs / effectiveReferenceSize) * quantity,
+      fat: (nutrientValuesPerReferenceSize.fat / effectiveReferenceSize) * quantity,
     };
     debug(loggingLevel, "Calculated nutrition result:", result);
 
@@ -229,6 +241,9 @@ const FoodUnitSelector = ({ food, open, onOpenChange, onSelect }: FoodUnitSelect
                     debug(loggingLevel, "Unit selected:", value);
                     const variant = variants.find(v => v.id === value); // Match by actual ID
                     setSelectedVariant(variant || null);
+                    if (variant) {
+                      setQuantity(variant.serving_size); // Update quantity to the new variant's serving size
+                    }
                   }}
                 >
                   <SelectTrigger>
@@ -237,7 +252,7 @@ const FoodUnitSelector = ({ food, open, onOpenChange, onSelect }: FoodUnitSelect
                   <SelectContent>
                     {variants.map((variant) => (
                       <SelectItem key={variant.id} value={variant.id}> {/* Use actual ID as key and value */}
-                        {variant.serving_size} {variant.serving_unit}
+                        {variant.serving_unit}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -247,7 +262,7 @@ const FoodUnitSelector = ({ food, open, onOpenChange, onSelect }: FoodUnitSelect
 
             {nutrition && selectedVariant && (
               <div className="bg-gray-50 p-3 rounded-lg">
-                <h4 className="font-medium mb-2">Nutrition for {quantity} × {selectedVariant.serving_size} {selectedVariant.serving_unit}:</h4>
+                <h4 className="font-medium mb-2">Nutrition for {quantity} {selectedVariant.serving_unit}:</h4>
                 <div className="grid grid-cols-2 gap-2 text-sm">
                   <div>{nutrition.calories.toFixed(1)} calories</div>
                   <div>{nutrition.protein.toFixed(1)}g protein</div>

@@ -9,6 +9,7 @@ import { useActiveUser } from "@/contexts/ActiveUserContext";
 import { usePreferences } from "@/contexts/PreferencesContext";
 import { debug, info, warn, error } from '@/utils/logging';
 import { format, parseISO, addDays } from 'date-fns'; // Import format, parseISO, and addDays from date-fns
+import { calculateFoodEntryNutrition } from '@/utils/nutritionCalculations'; // Import the new utility function
 
 interface DailyProgressProps {
   selectedDate: string;
@@ -86,24 +87,9 @@ const DailyProgress = ({ selectedDate, refreshTrigger }: DailyProgressProps) => 
      const { data: entriesData, error: entriesError } = await supabase
        .from('food_entries')
        .select(`
-         quantity,
-         unit,
-         foods (
-           calories,
-           protein,
-           carbs,
-           fat,
-           serving_size,
-           serving_unit
-         ),
-         food_variants (
-           calories,
-           protein,
-           carbs,
-           fat,
-           serving_size,
-           serving_unit
-         )
+         *,
+         foods (*),
+         food_variants (*)
        `)
        .eq('user_id', currentUserId)
        .gte('entry_date', selectedDate) // Start of the selected day
@@ -114,47 +100,11 @@ const DailyProgress = ({ selectedDate, refreshTrigger }: DailyProgressProps) => 
      } else if (entriesData) {
        info(loggingLevel, `DailyProgress: Fetched ${entriesData.length} food entries for intake.`);
        const totals = entriesData.reduce((acc, entry) => {
-         const food = entry.foods;
-         const variant = entry.food_variants;
-
-         if (!food) {
-           warn(loggingLevel, "DailyProgress: Missing food data for intake entry:", entry);
-           return acc;
-         }
-
-         let caloriesPerUnit = food.calories || 0;
-         let proteinPerUnit = food.protein || 0;
-         let carbsPerUnit = food.carbs || 0;
-         let fatPerUnit = food.fat || 0;
-         let baseServingSize = food.serving_size || 100;
-
-         if (variant) {
-           if (variant.calories !== null && variant.calories !== undefined &&
-               variant.protein !== null && variant.protein !== undefined &&
-               variant.carbs !== null && variant.carbs !== undefined &&
-               variant.fat !== null && variant.fat !== undefined) {
-             caloriesPerUnit = variant.calories;
-             proteinPerUnit = variant.protein;
-             carbsPerUnit = variant.carbs;
-             fatPerUnit = variant.fat;
-             baseServingSize = variant.serving_size;
-           } else {
-             const ratio = variant.serving_size / (food.serving_size || 100);
-             caloriesPerUnit = (food.calories || 0) * ratio;
-             proteinPerUnit = (food.protein || 0) * ratio;
-             carbsPerUnit = (food.carbs || 0) * ratio;
-             fatPerUnit = (food.fat || 0) * ratio;
-             baseServingSize = variant.serving_size;
-           }
-         }
-
-         const ratio = entry.quantity / baseServingSize;
-
-         acc.calories += caloriesPerUnit * ratio;
-         acc.protein += proteinPerUnit * ratio;
-         acc.carbs += carbsPerUnit * ratio;
-         acc.fat += fatPerUnit * ratio;
-
+         const nutrition = calculateFoodEntryNutrition(entry);
+         acc.calories += nutrition.calories;
+         acc.protein += nutrition.protein;
+         acc.carbs += nutrition.carbs;
+         acc.fat += nutrition.fat;
          return acc;
        }, { calories: 0, protein: 0, carbs: 0, fat: 0 });
 

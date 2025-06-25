@@ -17,6 +17,7 @@ import EditFoodEntryDialog from "./EditFoodEntryDialog";
 import EnhancedCustomFoodForm from "./EnhancedCustomFoodForm";
 import FoodUnitSelector from "./FoodUnitSelector";
 import { debug, info, warn, error } from '@/utils/logging'; // Import logging utility
+import { calculateFoodEntryNutrition } from '@/utils/nutritionCalculations'; // Import the new utility function
 
 interface Food {
   id: string;
@@ -219,7 +220,7 @@ const FoodDiary = ({ selectedDate, onDateChange }: FoodDiaryProps) => {
             user_id: currentUserId,
             food_id: food.id,
             meal_type: selectedMealType,
-            quantity: quantity,
+            quantity: quantity, // quantity now represents total amount consumed
             unit: unit,
             variant_id: variantId,
             entry_date: formatDateInUserTimezone(parseDateInUserTimezone(selectedDate), 'yyyy-MM-dd'), // Ensure date is in user's timezone
@@ -264,52 +265,7 @@ const FoodDiary = ({ selectedDate, onDateChange }: FoodDiaryProps) => {
 
   const getEntryNutrition = (entry: FoodEntry): MealTotals => {
     debug(loggingLevel, "Calculating entry nutrition for entry:", entry);
-    const food = entry.foods;
-    const variant = entry.food_variants; // Get the associated food variant
-
-    if (!food) {
-      warn(loggingLevel, "Food data missing for entry:", entry);
-      return { calories: 0, protein: 0, carbs: 0, fat: 0 };
-    }
-
-    let caloriesPerUnit = food.calories || 0;
-    let proteinPerUnit = food.protein || 0;
-    let carbsPerUnit = food.carbs || 0;
-    let fatPerUnit = food.fat || 0;
-    let baseServingSize = food.serving_size || 100;
-
-    if (variant) {
-      // If a variant exists and has its own explicit nutrient values, use them
-      if (variant.calories !== null && variant.calories !== undefined &&
-          variant.protein !== null && variant.protein !== undefined &&
-          variant.carbs !== null && variant.carbs !== undefined &&
-          variant.fat !== null && variant.fat !== undefined) {
-        caloriesPerUnit = variant.calories;
-        proteinPerUnit = variant.protein;
-        carbsPerUnit = variant.carbs;
-        fatPerUnit = variant.fat;
-        baseServingSize = variant.serving_size; // Use variant's serving size as the base for calculation
-      } else {
-        // If variant exists but doesn't have explicit nutrients, scale base food nutrients by variant's serving size
-        const ratio = variant.serving_size / (food.serving_size || 100);
-        caloriesPerUnit = (food.calories || 0) * ratio;
-        proteinPerUnit = (food.protein || 0) * ratio;
-        carbsPerUnit = (food.carbs || 0) * ratio;
-        fatPerUnit = (food.fat || 0) * ratio;
-        baseServingSize = variant.serving_size; // Use variant's serving size as the base for calculation
-      }
-    }
-
-    // Calculate ratio based on the entry's quantity and the effective base serving size
-    const ratio = entry.quantity / baseServingSize;
-    debug(loggingLevel, "Calculated ratio:", ratio);
-
-    const nutrition = {
-      calories: caloriesPerUnit * ratio,
-      protein: proteinPerUnit * ratio,
-      carbs: carbsPerUnit * ratio,
-      fat: fatPerUnit * ratio,
-    };
+    const nutrition = calculateFoodEntryNutrition(entry);
     debug(loggingLevel, "Calculated nutrition for entry:", nutrition);
     return nutrition;
   };
