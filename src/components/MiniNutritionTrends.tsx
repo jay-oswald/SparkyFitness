@@ -44,6 +44,7 @@ interface FoodEntry {
 
 interface MiniNutritionTrendsProps {
   selectedDate: string;
+  refreshTrigger?: number; // Add refreshTrigger to props
 }
 
 interface DayData {
@@ -54,7 +55,7 @@ interface DayData {
   fat: number;
 }
 
-const MiniNutritionTrends = ({ selectedDate }: MiniNutritionTrendsProps) => {
+const MiniNutritionTrends = ({ selectedDate, refreshTrigger }: MiniNutritionTrendsProps) => {
   const { user } = useAuth();
   const { activeUserId } = useActiveUser();
   const [chartData, setChartData] = useState<DayData[]>([]);
@@ -64,7 +65,7 @@ const MiniNutritionTrends = ({ selectedDate }: MiniNutritionTrendsProps) => {
     if (user && activeUserId) {
       loadTrendData();
     }
-  }, [user, activeUserId, selectedDate, formatDateInUserTimezone]); // Add formatDateInUserTimezone to dependencies
+  }, [user, activeUserId, selectedDate, formatDateInUserTimezone, refreshTrigger]); // Add refreshTrigger to dependencies
 
   const loadTrendData = async () => {
     try {

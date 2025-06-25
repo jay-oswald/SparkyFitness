@@ -106,7 +106,7 @@ const DiaryTopControls = ({
                 </div>
               </div>
             </div>
-            <MiniNutritionTrends selectedDate={selectedDate} />
+            <MiniNutritionTrends selectedDate={selectedDate} refreshTrigger={refreshTrigger} />
           </CardContent>
         </Card>
       </div>
