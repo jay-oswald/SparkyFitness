@@ -10,7 +10,7 @@ import { Separator } from "@/components/ui/separator";
 import { Save, Upload, User, Settings as SettingsIcon, Lock, Camera } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { toast } from "sonner";
+import { toast } from "@/hooks/use-toast";
 import FamilyAccessManager from "./FamilyAccessManager";
 import AIServiceSettings from "./AIServiceSettings";
 import CustomCategoryManager from "./CustomCategoryManager";
@@ -105,7 +105,11 @@ const Settings = () => {
 
     if (error) {
       console.error('Error loading profile:', error);
-      toast.error('Failed to load profile');
+      toast({
+        title: "Error",
+        description: "Failed to load profile",
+        variant: "destructive",
+      });
     } else {
       setProfile(data);
       setProfileForm({
@@ -176,9 +180,16 @@ const Settings = () => {
 
     if (error) {
       console.error('Error updating profile:', error);
-      toast.error('Failed to update profile');
+      toast({
+        title: "Error",
+        description: "Failed to update profile",
+        variant: "destructive",
+      });
     } else {
-      toast.success('Profile updated successfully');
+      toast({
+        title: "Success",
+        description: "Profile updated successfully",
+      });
       loadProfile();
     }
     setLoading(false);
@@ -201,21 +212,36 @@ const Settings = () => {
 
     if (error) {
       console.error('Error updating preferences:', error);
-      toast.error('Failed to update preferences');
+      toast({
+        title: "Error",
+        description: "Failed to update preferences",
+        variant: "destructive",
+      });
     } else {
-      toast.success('Preferences updated successfully');
+      toast({
+        title: "Success",
+        description: "Preferences updated successfully",
+      });
     }
     setLoading(false);
   };
 
   const handlePasswordChange = async () => {
     if (passwordForm.new_password !== passwordForm.confirm_password) {
-      toast.error('New passwords do not match');
+      toast({
+        title: "Error",
+        description: "New passwords do not match",
+        variant: "destructive",
+      });
       return;
     }
 
     if (passwordForm.new_password.length < 6) {
-      toast.error('Password must be at least 6 characters long');
+      toast({
+        title: "Error",
+        description: "Password must be at least 6 characters long",
+        variant: "destructive",
+      });
       return;
     }
 
@@ -226,9 +252,16 @@ const Settings = () => {
 
     if (error) {
       console.error('Error updating password:', error);
-      toast.error('Failed to update password');
+      toast({
+        title: "Error",
+        description: "Failed to update password",
+        variant: "destructive",
+      });
     } else {
-      toast.success('Password updated successfully');
+      toast({
+        title: "Success",
+        description: "Password updated successfully",
+      });
       setPasswordForm({
         current_password: '',
         new_password: '',
@@ -240,7 +273,11 @@ const Settings = () => {
 
   const handleEmailChange = async () => {
     if (!newEmail || newEmail === user?.email) {
-      toast.error('Please enter a new email address');
+      toast({
+        title: "Error",
+        description: "Please enter a new email address",
+        variant: "destructive",
+      });
       return;
     }
 
@@ -251,9 +288,16 @@ const Settings = () => {
 
     if (error) {
       console.error('Error updating email:', error);
-      toast.error('Failed to update email');
+      toast({
+        title: "Error",
+        description: "Failed to update email",
+        variant: "destructive",
+      });
     } else {
-      toast.success('Email update initiated. Please check your new email for confirmation.');
+      toast({
+        title: "Success",
+        description: "Email update initiated. Please check your new email for confirmation.",
+      });
     }
     setLoading(false);
   };
@@ -265,13 +309,21 @@ const Settings = () => {
     
     // Validate file type
     if (!file.type.startsWith('image/')) {
-      toast.error('Please select an image file');
+      toast({
+        title: "Error",
+        description: "Please select an image file",
+        variant: "destructive",
+      });
       return;
     }
 
     // Validate file size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
-      toast.error('Image must be less than 5MB');
+      toast({
+        title: "Error",
+        description: "Image must be less than 5MB",
+        variant: "destructive",
+      });
       return;
     }
 
@@ -312,11 +364,18 @@ const Settings = () => {
         throw updateError;
       }
 
-      toast.success('Profile picture updated successfully');
+      toast({
+        title: "Success",
+        description: "Profile picture updated successfully",
+      });
       loadProfile();
     } catch (error) {
       console.error('Error uploading image:', error);
-      toast.error('Failed to upload profile picture');
+      toast({
+        title: "Error",
+        description: "Failed to upload profile picture",
+        variant: "destructive",
+      });
     } finally {
       setUploadingImage(false);
     }

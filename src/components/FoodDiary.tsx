@@ -18,6 +18,7 @@ import EnhancedCustomFoodForm from "./EnhancedCustomFoodForm";
 import FoodUnitSelector from "./FoodUnitSelector";
 import { debug, info, warn, error } from '@/utils/logging'; // Import logging utility
 import { calculateFoodEntryNutrition } from '@/utils/nutritionCalculations'; // Import the new utility function
+import { toast } from "@/hooks/use-toast"; // Import toast
 
 interface Food {
   id: string;
@@ -229,8 +230,17 @@ const FoodDiary = ({ selectedDate, onDateChange }: FoodDiaryProps) => {
 
       if (supabaseError) {
         error(loggingLevel, "Error adding food entry:", supabaseError);
+        toast({
+          title: "Error",
+          description: "Failed to add food entry",
+          variant: "destructive",
+        });
       } else {
         info(loggingLevel, "Food entry added successfully.");
+        toast({
+          title: "Success",
+          description: "Food entry added successfully",
+        });
         handleDataChange();
       }
     } catch (err) {
@@ -248,8 +258,17 @@ const FoodDiary = ({ selectedDate, onDateChange }: FoodDiaryProps) => {
 
       if (supabaseError) {
         error(loggingLevel, "Error removing food entry:", supabaseError);
+        toast({
+          title: "Error",
+          description: "Failed to remove food entry",
+          variant: "destructive",
+        });
       } else {
         info(loggingLevel, "Food entry removed successfully.");
+        toast({
+          title: "Success",
+          description: "Food entry removed successfully",
+        });
         handleDataChange();
       }
     } catch (err) {

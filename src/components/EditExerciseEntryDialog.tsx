@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "@/hooks/use-toast"; // Import toast
 import { usePreferences } from "@/contexts/PreferencesContext";
 import { debug, info, warn, error } from '@/utils/logging';
 
@@ -77,13 +78,27 @@ const EditExerciseEntryDialog = ({ entry, open, onOpenChange, onSave }: EditExer
 
      if (supabaseError) {
        error(loggingLevel, "EditExerciseEntryDialog: Error updating exercise entry:", supabaseError);
+       toast({
+         title: "Error",
+         description: "Failed to update exercise entry.",
+         variant: "destructive",
+       });
      } else {
        info(loggingLevel, "EditExerciseEntryDialog: Exercise entry updated successfully:", entry.id);
+       toast({
+         title: "Success",
+         description: "Exercise entry updated successfully.",
+       });
        onSave();
        onOpenChange(false);
      }
-   } catch (error) {
-     error(loggingLevel, "EditExerciseEntryDialog: Error updating exercise entry:", error);
+   } catch (err) {
+     error(loggingLevel, "EditExerciseEntryDialog: Error updating exercise entry:", err);
+     toast({
+       title: "Error",
+       description: "Failed to update exercise entry.",
+       variant: "destructive",
+     });
    } finally {
      setLoading(false);
      debug(loggingLevel, "EditExerciseEntryDialog: Loading state set to false.");

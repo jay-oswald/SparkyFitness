@@ -12,6 +12,7 @@ import EditExerciseEntryDialog from "./EditExerciseEntryDialog";
 import { usePreferences } from "@/contexts/PreferencesContext"; // Import usePreferences
 import { debug, info, warn, error } from '@/utils/logging'; // Import logging utility
 import { parseISO, addDays } from "date-fns"; // Import parseISO and addDays
+import { toast } from "@/hooks/use-toast"; // Import toast
 
 
 interface ExerciseEntry {
@@ -195,14 +196,22 @@ const ExerciseCard = ({ selectedDate, onExerciseChange }: ExerciseCardProps) => 
     debug(loggingLevel, "Handling submit add exercise.");
     if (!selectedExerciseId) {
       warn(loggingLevel, "Submit called with no exercise selected.");
-      alert("Please select an exercise.");
+      toast({
+        title: "Error",
+        description: "Please select an exercise.",
+        variant: "destructive",
+      });
       return;
     }
 
     const selectedExercise = exercises.find(ex => ex.id === selectedExerciseId);
     if (!selectedExercise) {
       error(loggingLevel, "Selected exercise not found in state:", selectedExerciseId);
-      alert("Exercise not found.");
+      toast({
+        title: "Error",
+        description: "Exercise not found.",
+        variant: "destructive",
+      });
       return;
     }
 
@@ -226,16 +235,28 @@ const ExerciseCard = ({ selectedDate, onExerciseChange }: ExerciseCardProps) => 
 
       if (supabaseError) {
         error(loggingLevel, "Error adding exercise entry:", supabaseError);
-        alert("Failed to add exercise entry.");
+        toast({
+          title: "Error",
+          description: "Failed to add exercise entry.",
+          variant: "destructive",
+        });
       } else {
         info(loggingLevel, "Exercise entry added successfully.");
+        toast({
+          title: "Success",
+          description: "Exercise entry added successfully.",
+        });
         fetchExerciseEntries();
         onExerciseChange();
         handleCloseAddDialog();
       }
     } catch (err) {
       error(loggingLevel, "Error adding exercise entry:", err);
-      alert("Failed to add exercise entry.");
+      toast({
+        title: "Error",
+        description: "Failed to add exercise entry.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -249,15 +270,27 @@ const ExerciseCard = ({ selectedDate, onExerciseChange }: ExerciseCardProps) => 
 
       if (supabaseError) {
         error(loggingLevel, "Error deleting exercise entry:", supabaseError);
-        alert("Failed to delete exercise entry.");
+        toast({
+          title: "Error",
+          description: "Failed to delete exercise entry.",
+          variant: "destructive",
+        });
       } else {
         info(loggingLevel, "Exercise entry deleted successfully:", entryId);
+        toast({
+          title: "Success",
+          description: "Exercise entry deleted successfully.",
+        });
         fetchExerciseEntries();
         onExerciseChange();
       }
     } catch (err) {
       error(loggingLevel, "Error deleting exercise entry:", err);
-      alert("Failed to delete exercise entry.");
+      toast({
+        title: "Error",
+        description: "Failed to delete exercise entry.",
+        variant: "destructive",
+      });
     }
   };
 

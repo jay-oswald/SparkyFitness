@@ -211,6 +211,9 @@ const FoodUnitSelector = ({ food, open, onOpenChange, onSelect }: FoodUnitSelect
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Add {food?.name} to Meal</DialogTitle>
+          <DialogDescription>
+            Select the quantity and unit for your food entry.
+          </DialogDescription>
         </DialogHeader>
 
         {loading ? (

@@ -351,7 +351,7 @@ const EditFoodEntryDialog = ({ entry, open, onOpenChange, onSave }: EditFoodEntr
                     <SelectContent>
                       {variants.map((variant) => (
                         <SelectItem key={variant.id} value={variant.id}>
-                          {variant.serving_size} {variant.serving_unit}
+                          {variant.serving_unit}
                         </SelectItem>
                       ))}
                     </SelectContent>
