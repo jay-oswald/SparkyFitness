@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import { parseISO } from 'date-fns'; // Import parseISO
 import { CoachResponse, FoodOption } from './Chatbot_types'; // Import types
 import { debug, info, warn, error, UserLoggingLevel } from '@/utils/logging'; // Import logging utility
 
@@ -36,7 +37,9 @@ export const processFoodInput = async (userId: string, data: {
     const { food_name, quantity, unit, meal_type: raw_meal_type, foodOptions, ...nutritionData } = data; // Destructure, also check for foodOptions array
     // Standardize meal type: convert 'snack' to 'snacks' to match potential database constraint
     const meal_type = raw_meal_type?.toLowerCase() === 'snack' ? 'snacks' : raw_meal_type;
-    const dateToUse = entryDate || formatDateInUserTimezone(new Date(), 'yyyy-MM-dd'); // Use provided date or today's date in user's timezone
+    // Parse the entryDate string into a Date object in the user's timezone, then format it back to YYYY-MM-DD for DB insertion
+    // If entryDate is not provided by AI, use today's date in user's timezone
+    const dateToUse = formatDateInUserTimezone(entryDate ? parseISO(entryDate) : new Date(), 'yyyy-MM-dd');
 
     // Check if the data already contains food options from the AI
     if (foodOptions && Array.isArray(foodOptions) && foodOptions.length > 0) {
@@ -201,7 +204,8 @@ export const addFoodOption = async (userId: string, optionIndex: number, origina
       };
     }
 
-    const dateToUse = entryDate || formatDateInUserTimezone(new Date(), 'yyyy-MM-dd');
+    // Parse the entryDate string from originalMetadata into a Date object in the user's timezone, then format it back to YYYY-MM-DD for DB insertion
+    const dateToUse = formatDateInUserTimezone(entryDate ? parseISO(entryDate) : new Date(), 'yyyy-MM-dd');
 
     let foodId: string;
     let variantId: string | null = null;

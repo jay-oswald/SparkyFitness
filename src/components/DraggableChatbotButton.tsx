@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Button } from "@/components/ui/button";
 import { MessageSquare } from 'lucide-react';
 import { useChatbotVisibility } from '@/contexts/ChatbotVisibilityContext';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 const DraggableChatbotButton: React.FC = () => {
   const { toggleChat } = useChatbotVisibility();
@@ -25,29 +26,19 @@ const DraggableChatbotButton: React.FC = () => {
     // }
   }, []);
 
-  const handleMouseDown = (e: React.MouseEvent) => {
-    if (buttonRef.current) {
-      setIsDragging(true);
-      hasDragged.current = false; // Reset drag flag on mouse down
-      dragOffset.current = {
-        x: e.clientX - buttonRef.current.getBoundingClientRect().left,
-        y: e.clientY - buttonRef.current.getBoundingClientRect().top,
-      };
-      e.preventDefault(); // Prevent default drag behavior
-    }
-  };
+  const isMobile = useIsMobile();
 
-  const handleMouseMove = (e: MouseEvent) => {
+  const updatePosition = useCallback((clientX: number, clientY: number) => {
     if (!isDragging) return;
 
     // If mouse moves significantly, it's a drag
-    if (Math.abs(e.clientX - (position.x + dragOffset.current.x)) > 5 ||
-        Math.abs(e.clientY - (position.y + dragOffset.current.y)) > 5) {
+    if (Math.abs(clientX - (position.x + dragOffset.current.x)) > 5 ||
+        Math.abs(clientY - (position.y + dragOffset.current.y)) > 5) {
       hasDragged.current = true;
     }
 
-    let newX = e.clientX - dragOffset.current.x;
-    let newY = e.clientY - dragOffset.current.y;
+    let newX = clientX - dragOffset.current.x;
+    let newY = clientY - dragOffset.current.y;
 
     // Constrain to viewport
     if (buttonRef.current) {
@@ -59,15 +50,56 @@ const DraggableChatbotButton: React.FC = () => {
     }
 
     setPosition({ x: newX, y: newY });
+  }, [isDragging, position]);
+
+  const handleInteractionStart = (clientX: number, clientY: number) => {
+    if (buttonRef.current) {
+      setIsDragging(true);
+      hasDragged.current = false; // Reset drag flag on interaction start
+      dragOffset.current = {
+        x: clientX - buttonRef.current.getBoundingClientRect().left,
+        y: clientY - buttonRef.current.getBoundingClientRect().top,
+      };
+    }
   };
 
-  const handleMouseUp = () => {
+  const handleInteractionEnd = () => {
     setIsDragging(false);
     // Save position to local storage
     localStorage.setItem(STORAGE_KEY, JSON.stringify(position));
   };
 
-  const handleClick = (e: React.MouseEvent) => {
+  const handleMouseDown = (e: React.MouseEvent) => {
+    handleInteractionStart(e.clientX, e.clientY);
+    e.preventDefault(); // Prevent default drag behavior
+  };
+
+  const handleMouseMove = (e: MouseEvent) => {
+    updatePosition(e.clientX, e.clientY);
+  };
+
+  const handleMouseUp = () => {
+    handleInteractionEnd();
+  };
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length === 1) {
+      handleInteractionStart(e.touches[0].clientX, e.touches[0].clientY);
+      e.preventDefault(); // Prevent scrolling while dragging
+    }
+  };
+
+  const handleTouchMove = (e: TouchEvent) => {
+    if (e.touches.length === 1) {
+      updatePosition(e.touches[0].clientX, e.touches[0].clientY);
+    }
+  };
+
+  const handleTouchEnd = () => {
+    handleInteractionEnd();
+  };
+
+  const handleClick = (e: React.MouseEvent | React.TouchEvent) => {
     // Only open chat if no significant drag occurred
     if (!hasDragged.current) {
       toggleChat();
@@ -76,22 +108,33 @@ const DraggableChatbotButton: React.FC = () => {
   };
 
   useEffect(() => {
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', handleMouseUp);
+    if (isMobile) {
+      window.addEventListener('touchmove', handleTouchMove, { passive: false });
+      window.addEventListener('touchend', handleTouchEnd);
+    } else {
+      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mouseup', handleMouseUp);
+    }
 
     return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
+      if (isMobile) {
+        window.removeEventListener('touchmove', handleTouchMove);
+        window.removeEventListener('touchend', handleTouchEnd);
+      } else {
+        window.removeEventListener('mousemove', handleMouseMove);
+        window.removeEventListener('mouseup', handleMouseUp);
+      }
     };
-  }, [isDragging, position]); // Re-run effect if dragging state or position changes
+  }, [isDragging, position, isMobile, updatePosition]); // Re-run effect if dragging state, position, or mobile state changes
 
   return (
     <>
       <Button
         ref={buttonRef}
         className="fixed z-50 rounded-full w-14 h-14 shadow-lg hover:shadow-xl transition-all duration-200 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 flex items-center justify-center overflow-hidden"
-        style={{ left: position.x, top: position.y, cursor: isDragging ? 'grabbing' : 'grab' }}
-        onMouseDown={handleMouseDown}
+        style={{ left: position.x, top: position.y, cursor: isDragging ? 'grabbing' : (isMobile ? 'grab' : 'grab') }}
+        onMouseDown={isMobile ? undefined : handleMouseDown}
+        onTouchStart={isMobile ? handleTouchStart : undefined}
         onClick={handleClick}
         size="lg"
       >

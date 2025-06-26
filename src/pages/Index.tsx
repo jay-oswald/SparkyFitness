@@ -207,16 +207,15 @@ const Index = () => {
            </TabsList>
  
            {/* Mobile Navigation - Increased icon sizes */}
-           <TabsList className={`grid w-full gap-1 fixed bottom-0 left-0 right-0 sm:hidden bg-background border-t p-2 z-50 ${gridClass}`}>
+           <TabsList className={`grid w-full gap-1 fixed bottom-0 left-0 right-0 sm:hidden bg-background border-t py-2 px-2 h-14 z-50 ${gridClass}`}>
              {availableTabs.map(({ value, label, icon: Icon }) => (
-               <TabsTrigger key={value} value={value} className="flex flex-col items-center gap-1 text-xs py-3">
-                 <Icon className="h-6 w-6" />
-                 <span className="text-xs">{label}</span>
+               <TabsTrigger key={value} value={value} className="flex flex-col items-center gap-1 py-2">
+                 <Icon className="h-8 w-8" />
                </TabsTrigger>
              ))}
            </TabsList>
  
-           <div className="pb-20 sm:pb-0">
+           <div className="pb-16 sm:pb-0">
              {availableTabs.map(({ value, component: Component }) => (
                <TabsContent key={value} value={value} className="space-y-6">
                  {value === "home" ? (

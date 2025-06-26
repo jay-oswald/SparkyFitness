@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import { parseISO } from 'date-fns'; // Import parseISO
 import { CoachResponse } from './Chatbot_types'; // Import types
 import { debug, info, warn, error, UserLoggingLevel } from '@/utils/logging'; // Import logging utility
 
@@ -10,7 +11,9 @@ export const processWaterInput = async (userId: string, data: { glasses_consumed
 
     const { glasses_consumed } = data;
     const glasses = glasses_consumed || 1; // Default to 1 glass if not provided by AI
-    const dateToUse = entryDate || formatDateInUserTimezone(new Date(), 'yyyy-MM-dd'); // Use provided date or today's date in user's timezone
+    // Parse the entryDate string into a Date object in the user's timezone, then format it back to YYYY-MM-DD for DB insertion
+    // If entryDate is not provided by AI, use today's date in user's timezone
+    const dateToUse = formatDateInUserTimezone(entryDate ? parseISO(entryDate) : new Date(), 'yyyy-MM-dd');
 
     // Get current water intake
     const { data: currentWater, error: fetchError } = await supabase

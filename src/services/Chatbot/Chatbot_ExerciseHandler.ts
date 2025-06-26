@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import { parseISO } from 'date-fns'; // Import parseISO
 import { CoachResponse } from './Chatbot_types'; // Import types
 import { debug, info, warn, error, UserLoggingLevel } from '@/utils/logging'; // Import logging utility
 
@@ -8,7 +9,9 @@ export const processExerciseInput = async (userId: string, data: { exercise_name
     debug(userLoggingLevel, 'Processing exercise input with data:', data, 'and entryDate:', entryDate);
 
     const { exercise_name, duration_minutes, distance, distance_unit } = data;
-    const dateToUse = entryDate || formatDateInUserTimezone(new Date(), 'yyyy-MM-dd'); // Use provided date or today's date in user's timezone
+    // Parse the entryDate string into a Date object in the user's timezone, then format it back to YYYY-MM-DD for DB insertion
+    // If entryDate is not provided by AI, use today's date in user's timezone
+    const dateToUse = formatDateInUserTimezone(entryDate ? parseISO(entryDate) : new Date(), 'yyyy-MM-dd');
     const duration = duration_minutes || 30; // Default to 30 minutes if not provided by AI
 
 
