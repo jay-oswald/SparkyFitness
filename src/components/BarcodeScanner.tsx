@@ -1,9 +1,11 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { BrowserMultiFormatReader, NotFoundException, Result } from '@zxing/library';
-import { Scan, Camera, Flashlight, FlashlightOff, Keyboard } from 'lucide-react';
+import { Scan, Camera, Flashlight, FlashlightOff, Keyboard, Sparkles, Eye } from 'lucide-react';
 import { toast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import Quagga from 'quagga';
+import jsQR from 'jsqr';
 
 interface BarcodeScannerProps {
   onBarcodeDetected: (barcode: string) => void;
@@ -28,10 +30,11 @@ isActive,
   const [scanLine, setScanLine] = useState(false);
   const [torchEnabled, setTorchEnabled] = useState(false);
   const [torchSupported, setTorchSupported] = useState(false);
-  const [showInstructions, setShowInstructions] = useState(true);
+  const [showInstructions, setShowInstructions] = useState(false);
   const [scanFeedback, setScanFeedback] = useState<string | null>(null); // New state for scan feedback
   const [enableImageEnhancement, setEnableImageEnhancement] = useState(false); // New state for image enhancement toggle, default to false
-  const [enableClarityCheck, setEnableClarityCheck] = useState(true); // New state for clarity check toggle, default to true
+  const [enableClarityCheck, setEnableClarityCheck] = useState(false); // New state for clarity check toggle, default to true
+  const [isLoadingCamera, setIsLoadingCamera] = useState(false); // New state for camera loading
   const [scanAreaSize, setScanAreaSize] = useState(() => {
     try {
       const savedSize = localStorage.getItem('barcodeScanAreaSize');
@@ -42,13 +45,14 @@ isActive,
     }
   });
   const lastScanTime = useRef(0);
-  const scanCooldown = 2000; // Reduced to 1000ms for faster scans
+  const scanCooldown = 1000; // Cooldown period between successful scans
   const animationFrameRef = useRef<number>();
   const lastDetectedBarcode = useRef<string>('');
   const currentTrack = useRef<MediaStreamTrack | null>(null);
   const instructionTimeoutRef = useRef<NodeJS.Timeout>();
   const [showManualInput, setShowManualInput] = useState(false);
   const [manualBarcode, setManualBarcode] = useState("");
+  const [barcodeEngine, setBarcodeEngine] = useState<'zxing' | 'quagga' | 'jsqr'>('zxing');
 
   const handleManualSubmit = () => {
     if (manualBarcode.trim()) {
@@ -119,6 +123,41 @@ isActive,
     return variance; // Higher variance indicates higher clarity
   }, []);
 
+  // Helper function to draw video frame to canvas and preprocess
+  const drawAndPreprocessFrame = useCallback((
+    video: HTMLVideoElement,
+    canvas: HTMLCanvasElement,
+    context: CanvasRenderingContext2D,
+    scanArea: { width: number; height: number }
+  ) => {
+    const videoWidth = video.videoWidth;
+    const videoHeight = video.videoHeight;
+
+    // Calculate crop region to be centered
+    const cropX = (videoWidth - scanArea.width) / 2;
+    const cropY = (videoHeight - scanArea.height) / 2;
+
+    // Set canvas size to the scan area size
+    canvas.width = scanArea.width;
+    canvas.height = scanArea.height;
+
+    // Draw the cropped video frame to canvas
+    context.drawImage(
+      video,
+      cropX,
+      cropY,
+      scanArea.width,
+      scanArea.height,
+      0,
+      0,
+      scanArea.width,
+      scanArea.height
+    );
+
+    // Preprocess the image
+    preprocessImage(context, canvas.width, canvas.height);
+  }, [preprocessImage]);
+
   const scanFrame = useCallback(() => {
     if (!videoRef.current || !canvasRef.current || !isScanning) return;
 
@@ -131,32 +170,7 @@ isActive,
       return;
     }
 
-    const videoWidth = video.videoWidth;
-    const videoHeight = video.videoHeight;
-
-    // Calculate crop region to be centered
-    const cropX = (videoWidth - scanAreaSize.width) / 2;
-    const cropY = (videoHeight - scanAreaSize.height) / 2;
-
-    // Set canvas size to the scan area size
-    canvas.width = scanAreaSize.width;
-    canvas.height = scanAreaSize.height;
-
-    // Draw the cropped video frame to canvas
-    context.drawImage(
-      video,
-      cropX,
-      cropY,
-      scanAreaSize.width,
-      scanAreaSize.height,
-      0,
-      0,
-      scanAreaSize.width,
-      scanAreaSize.height
-    );
-
-    // Preprocess the image
-    preprocessImage(context, canvas.width, canvas.height);
+    drawAndPreprocessFrame(video, canvas, context, scanAreaSize);
 
     // Calculate image clarity
     if (enableClarityCheck) {
@@ -173,48 +187,100 @@ isActive,
     }
 
     try {
+      const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
       const dataUrl = canvas.toDataURL('image/png');
 
-      // Create promises for original and rotated image decoding
-      const decodePromises = [
-        codeReader.decodeFromImage(undefined, dataUrl),
-        // Rotate image 90 degrees for another decode attempt
-        new Promise<Result>((resolve, reject) => {
-          const img = new Image();
-          img.onload = () => {
-            const rotatedCanvas = document.createElement('canvas');
-            const rotatedContext = rotatedCanvas.getContext('2d');
-            if (!rotatedContext) {
-              return reject(new Error("Could not get rotated canvas context"));
+      if (barcodeEngine === 'zxing') {
+        // ZXing decoding logic
+        // Create promises for original and rotated image decoding
+        const decodePromises = [
+          codeReader.decodeFromImage(undefined, dataUrl),
+          // Rotate image 90 degrees for another decode attempt
+          new Promise<Result>((resolve, reject) => {
+            const img = new Image();
+            img.onload = () => {
+              const rotatedCanvas = document.createElement('canvas');
+              const rotatedContext = rotatedCanvas.getContext('2d');
+              if (!rotatedContext) {
+                return reject(new Error("Could not get rotated canvas context"));
+              }
+              rotatedCanvas.width = canvas.height;
+              rotatedCanvas.height = canvas.width;
+              rotatedContext.translate(rotatedCanvas.width / 2, rotatedCanvas.height / 2);
+              rotatedContext.rotate(Math.PI / 2);
+              rotatedContext.drawImage(img, -canvas.width / 2, -canvas.height / 2);
+              
+              // Preprocess the rotated image as well
+              preprocessImage(rotatedContext, rotatedCanvas.width, rotatedCanvas.height);
+
+              codeReader.decodeFromImage(undefined, rotatedCanvas.toDataURL('image/png'))
+                .then(resolve)
+                .catch(reject);
+            };
+            img.onerror = reject;
+            img.src = dataUrl;
+          })
+        ];
+
+        Promise.any(decodePromises)
+          .then((result: Result) => {
+            if (result) {
+              const barcode = result.getText();
+              const now = Date.now();
+
+              if (barcode !== lastDetectedBarcode.current ||
+                (!continuousMode || now - lastScanTime.current > scanCooldown)) {
+
+                console.log('Barcode detected:', barcode);
+                setScanLine(true);
+                setShowInstructions(false);
+                setScanFeedback(null); // Clear feedback on successful scan
+
+                turnOffTorch();
+
+                setTimeout(() => setScanLine(false), 500);
+
+                onBarcodeDetected(barcode);
+                lastScanTime.current = now;
+                lastDetectedBarcode.current = barcode;
+
+                if (!continuousMode) {
+                  setIsScanning(false);
+                  return;
+                }
+              }
             }
-            rotatedCanvas.width = canvas.height;
-            rotatedCanvas.height = canvas.width;
-            rotatedContext.translate(rotatedCanvas.width / 2, rotatedCanvas.height / 2);
-            rotatedContext.rotate(Math.PI / 2);
-            rotatedContext.drawImage(img, -canvas.width / 2, -canvas.height / 2);
-            
-            // Preprocess the rotated image as well
-            preprocessImage(rotatedContext, rotatedCanvas.width, rotatedCanvas.height);
-
-            codeReader.decodeFromImage(undefined, rotatedCanvas.toDataURL('image/png'))
-              .then(resolve)
-              .catch(reject);
-          };
-          img.onerror = reject;
-          img.src = dataUrl;
-        })
-      ];
-
-      Promise.any(decodePromises)
-        .then((result: Result) => {
-          if (result) {
-            const barcode = result.getText();
+          })
+          .catch((error) => {
+            if (error instanceof AggregateError && error.errors.every((e: any) => e instanceof NotFoundException)) {
+              // All decode attempts failed to find a barcode
+              setScanFeedback("No barcode found. Try adjusting position or lighting.");
+            } else if (!(error instanceof NotFoundException)) {
+              console.error('Scanning error:', error);
+              toast({
+                title: "Scanning Error",
+                description: `An error occurred during scanning: ${error.message}`,
+                variant: "destructive",
+              });
+              setScanFeedback(`Scanning error: ${error.message}`);
+            }
+          });
+      } else if (barcodeEngine === 'quagga') {
+        // Use Quagga for 1D barcodes
+        Quagga.decodeSingle({
+          src: dataUrl,
+          numOfWorkers: 0,
+          inputStream: { size: scanAreaSize },
+          decoder: { readers: ['ean_reader', 'code_128_reader', 'upc_reader', 'upc_e_reader'] },
+          locate: true
+        }, (result) => {
+          if (result && result.codeResult) {
+            const barcode = result.codeResult.code;
             const now = Date.now();
 
             if (barcode !== lastDetectedBarcode.current ||
               (!continuousMode || now - lastScanTime.current > scanCooldown)) {
 
-              console.log('Barcode detected:', barcode);
               setScanLine(true);
               setShowInstructions(false);
               setScanFeedback(null); // Clear feedback on successful scan
@@ -232,26 +298,55 @@ isActive,
                 return;
               }
             }
-          }
-        })
-        .catch((error) => {
-          if (error instanceof AggregateError && error.errors.every((e: any) => e instanceof NotFoundException)) {
-            // All decode attempts failed to find a barcode
+          } else {
             setScanFeedback("No barcode found. Try adjusting position or lighting.");
-          } else if (!(error instanceof NotFoundException)) {
-            console.error('Scanning error:', error);
-            setScanFeedback(`Scanning error: ${error.message}`);
           }
         });
+      } else if (barcodeEngine === 'jsqr') {
+        // Use jsQR for QR codes
+        const code = jsQR(imageData.data, canvas.width, canvas.height);
+        if (code && code.data) {
+          const barcode = code.data;
+          const now = Date.now();
+
+          if (barcode !== lastDetectedBarcode.current ||
+            (!continuousMode || now - lastScanTime.current > scanCooldown)) {
+
+            setScanLine(true);
+            setShowInstructions(false);
+            setScanFeedback(null); // Clear feedback on successful scan
+
+            turnOffTorch();
+
+            setTimeout(() => setScanLine(false), 500);
+
+            onBarcodeDetected(barcode);
+            lastScanTime.current = now;
+            lastDetectedBarcode.current = barcode;
+
+            if (!continuousMode) {
+              setIsScanning(false);
+              return;
+            }
+          }
+        } else {
+          setScanFeedback("No QR code found. Try adjusting position or lighting.");
+        }
+      }
     } catch (error) {
       console.error('Canvas decode error:', error);
+      toast({
+        title: "Canvas Decode Error",
+        description: `An error occurred during canvas decoding: ${error.message}`,
+        variant: "destructive",
+      });
       setScanFeedback(`Canvas error: ${error.message}`);
     }
 
     if (continuousMode && isScanning) {
       animationFrameRef.current = requestAnimationFrame(scanFrame);
     }
-  }, [isScanning, continuousMode, onBarcodeDetected, codeReader, scanCooldown, turnOffTorch, scanAreaSize, preprocessImage, calculateImageClarity, enableImageEnhancement, enableClarityCheck]);
+  }, [isScanning, continuousMode, onBarcodeDetected, codeReader, scanCooldown, turnOffTorch, scanAreaSize, preprocessImage, calculateImageClarity, enableImageEnhancement, enableClarityCheck, barcodeEngine, drawAndPreprocessFrame]);
 
   const toggleTorch = useCallback(async () => {
     if (!currentTrack.current || !torchSupported) return;
@@ -318,6 +413,7 @@ isActive,
   useEffect(() => {
     if (isScanning && continuousMode) {
       resetLastBarcode();
+      setShowInstructions(true); // Show instructions when scanning starts in continuous mode
       animationFrameRef.current = requestAnimationFrame(scanFrame);
       
       // Auto-hide instructions after 3 seconds
@@ -342,9 +438,9 @@ isActive,
     if (!videoRef.current || isScanning) return;
 
     try {
+      setIsLoadingCamera(true); // Set loading state
       setIsScanning(true);
       resetLastBarcode();
-      setShowInstructions(true);
       
       const constraints: MediaStreamConstraints = {
         video: {
@@ -378,9 +474,26 @@ isActive,
         }
       };
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error accessing camera:', error);
+      let errorMessage = `Could not access camera: ${error.message}.`;
+      if (error.name === 'NotAllowedError') {
+        errorMessage = 'Camera access denied. Please grant camera permissions in your browser settings.';
+      } else if (error.name === 'NotFoundError') {
+        errorMessage = 'No camera found. Please ensure a camera is connected and enabled.';
+      } else if (error.name === 'NotReadableError') {
+        errorMessage = 'Camera is already in use or not accessible. Please close other applications using the camera.';
+      } else if (error.name === 'OverconstrainedError') {
+        errorMessage = 'Camera constraints could not be satisfied. Your device might not support the requested resolution or frame rate.';
+      }
+      toast({
+        title: "Camera Access Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
       setIsScanning(false);
+    } finally {
+      setIsLoadingCamera(false); // Clear loading state
     }
   };
 
@@ -419,32 +532,7 @@ isActive,
     setScanFeedback(null); // Clear feedback on force scan
     setTimeout(() => setScanLine(false), 500);
 
-    const videoWidth = video.videoWidth;
-    const videoHeight = video.videoHeight;
-
-    // Calculate crop region to be centered
-    const cropX = (videoWidth - scanAreaSize.width) / 2;
-    const cropY = (videoHeight - scanAreaSize.height) / 2;
-
-    // Set canvas size to the scan area size
-    canvas.width = scanAreaSize.width;
-    canvas.height = scanAreaSize.height;
-
-    // Draw the cropped video frame to canvas
-    context.drawImage(
-      video,
-      cropX,
-      cropY,
-      scanAreaSize.width,
-      scanAreaSize.height,
-      0,
-      0,
-      scanAreaSize.width,
-      scanAreaSize.height
-    );
-
-    // Preprocess the image
-    preprocessImage(context, canvas.width, canvas.height);
+    drawAndPreprocessFrame(video, canvas, context, scanAreaSize);
 
     try {
       const dataUrl = canvas.toDataURL('image/png');
@@ -463,6 +551,11 @@ isActive,
         .catch((error) => {
           if (!(error instanceof NotFoundException)) {
             console.error('Force scan error:', error);
+            toast({
+              title: "Force Scan Error",
+              description: `An error occurred during force scan: ${error.message}`,
+              variant: "destructive",
+            });
             setScanFeedback(`Force scan error: ${error.message}`);
           } else {
             setScanFeedback("No barcode found on force scan.");
@@ -470,20 +563,30 @@ isActive,
         });
     } catch (error) {
       console.error('Force scan canvas error:', error);
+      toast({
+        title: "Force Scan Canvas Error",
+        description: `An error occurred during force scan canvas processing: ${error.message}`,
+        variant: "destructive",
+      });
       setScanFeedback(`Force scan canvas error: ${error.message}`);
     }
-  }, [onBarcodeDetected, codeReader, turnOffTorch, scanAreaSize, preprocessImage, enableImageEnhancement]);
+  }, [onBarcodeDetected, codeReader, turnOffTorch, scanAreaSize, drawAndPreprocessFrame, enableImageEnhancement]);
 
   return (
     <div className="flex flex-col items-center w-full">
       <div className="relative bg-black rounded-lg overflow-hidden shadow-lg w-full">
         <video
           ref={videoRef}
-          className="w-full h-64 object-cover cursor-pointer"
+          className={`w-full h-64 object-cover cursor-pointer ${isLoadingCamera ? 'hidden' : ''}`}
           playsInline
           muted
           onClick={handleVideoTap}
         />
+        {isLoadingCamera && (
+          <div className="absolute inset-0 flex items-center justify-center text-white bg-black bg-opacity-75">
+            Loading camera...
+          </div>
+        )}
         
         {/* Hidden canvas for processing */}
         <canvas
@@ -492,35 +595,37 @@ isActive,
         />
         
         {/* Scanner Overlay */}
-        <div className="absolute inset-0 flex items-center justify-center">
-          <div className="relative" style={{ width: scanAreaSize.width, height: scanAreaSize.height }}>
-            {/* Scanner Frame */}
-            <div className="w-full h-full border-2 border-white border-dashed rounded-lg"></div>
-            
-            {/* Animated Scan Line */}
-            {scanLine && (
-              <div className="absolute top-0 left-0 w-full h-1 bg-green-400 animate-pulse"></div>
-            )}
-            
-            {/* Resizable Corner Indicators */}
-            <ResizableCorner
-              position="top-left"
-              onDrag={(deltaX, deltaY) => handleCornerDrag('top-left', deltaX, deltaY)}
-            />
-            <ResizableCorner
-              position="top-right"
-              onDrag={(deltaX, deltaY) => handleCornerDrag('top-right', deltaX, deltaY)}
-            />
-            <ResizableCorner
-              position="bottom-left"
-              onDrag={(deltaX, deltaY) => handleCornerDrag('bottom-left', deltaX, deltaY)}
-            />
-            <ResizableCorner
-              position="bottom-right"
-              onDrag={(deltaX, deltaY) => handleCornerDrag('bottom-right', deltaX, deltaY)}
-            />
+        {!isLoadingCamera && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="relative" style={{ width: scanAreaSize.width, height: scanAreaSize.height }}>
+              {/* Scanner Frame */}
+              <div className="w-full h-full border-2 border-white border-dashed rounded-lg"></div>
+              
+              {/* Animated Scan Line */}
+              {scanLine && (
+                <div className="absolute top-0 left-0 w-full h-1 bg-green-400 animate-pulse"></div>
+              )}
+              
+              {/* Resizable Corner Indicators */}
+              <ResizableCorner
+                position="top-left"
+                onDrag={(deltaX, deltaY) => handleCornerDrag('top-left', deltaX, deltaY)}
+              />
+              <ResizableCorner
+                position="top-right"
+                onDrag={(deltaX, deltaY) => handleCornerDrag('top-right', deltaX, deltaY)}
+              />
+              <ResizableCorner
+                position="bottom-left"
+                onDrag={(deltaX, deltaY) => handleCornerDrag('bottom-left', deltaX, deltaY)}
+              />
+              <ResizableCorner
+                position="bottom-right"
+                onDrag={(deltaX, deltaY) => handleCornerDrag('bottom-right', deltaX, deltaY)}
+              />
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Instructions Overlay - Auto-hide after 3 seconds */}
         {showInstructions && (
@@ -536,43 +641,48 @@ isActive,
         )}
 
         {/* Scan Status */}
-        <div className="absolute bottom-4 left-0 right-0 text-center">
-          <p className="text-white text-sm bg-black bg-opacity-50 rounded px-3 py-1 inline-block">
-            <Scan className="inline w-4 h-4 mr-1" />
-            {continuousMode ? 'Scanning continuously...' : 'Align barcode within the frame'}
-          </p>
-          {scanFeedback && (
-            <p className="text-red-400 text-xs mt-1 bg-black bg-opacity-50 rounded px-2 py-1 inline-block">
-              {scanFeedback}
+        {!isLoadingCamera && (
+          <div className="absolute bottom-4 left-0 right-0 text-center">
+            <p className="text-white text-sm bg-black bg-opacity-50 rounded px-3 py-1 inline-block">
+              <Scan className="inline w-4 h-4 mr-1" />
+              {continuousMode ? 'Scanning continuously...' : 'Align barcode within the frame'}
             </p>
-          )}
-        </div>
+            {scanFeedback && (
+              <p className="text-red-400 text-xs mt-1 bg-black bg-opacity-50 rounded px-2 py-1 inline-block">
+                {scanFeedback}
+              </p>
+            )}
+          </div>
+        )}
 
         {/* Continuous Scan Toggle */}
-        <div className="absolute top-4 left-4">
-          <button
-            onClick={() => setContinuousMode(prev => !prev)}
-            className={`p-2 rounded-full transition-colors text-xs ${
-              continuousMode
-                ? 'bg-purple-600 hover:bg-purple-700 text-white'
-                : 'bg-gray-600 hover:bg-gray-700 text-white'
-            }`}
-            title={continuousMode ? 'Disable Continuous Scan' : 'Enable Continuous Scan'}
-          >
-            {continuousMode ? 'Continuous ON' : 'Continuous OFF'}
-          </button>
-        </div>
+        {!isLoadingCamera && (
+          <div className="absolute top-4 left-4">
+            <button
+              onClick={() => setContinuousMode(prev => !prev)}
+              className={`p-2 rounded-full transition-colors text-xs ${
+                continuousMode
+                  ? 'bg-purple-600 hover:bg-purple-700 text-white'
+                  : 'bg-gray-600 hover:bg-gray-700 text-white'
+              }`}
+              title={continuousMode ? 'Disable Continuous Scan' : 'Enable Continuous Scan'}
+            >
+              {continuousMode ? 'Continuous ON' : 'Continuous OFF'}
+            </button>
+          </div>
+        )}
 
         {/* Control Buttons */}
-        <div className="absolute top-4 right-4 flex flex-col space-y-2">
-          {/* Force Scan Button */}
-          <button
-            onClick={forceScan}
-            className="bg-blue-600 hover:bg-blue-700 text-white p-2 rounded-full transition-colors"
-            title="Force Scan"
-          >
-            <Camera className="w-5 h-5" />
-          </button>
+        {!isLoadingCamera && (
+          <div className="absolute top-4 right-4 flex flex-col space-y-2">
+            {/* Force Scan Button */}
+            <button
+              onClick={forceScan}
+              className="bg-blue-600 hover:bg-blue-700 text-white p-2 rounded-full transition-colors"
+              title="Force Scan"
+            >
+              <Camera className="w-5 h-5" />
+            </button>
 
           {/* Torch Toggle */}
           {torchSupported && (
@@ -598,47 +708,70 @@ isActive,
             }`}
             title={enableImageEnhancement ? 'Disable Image Enhancement' : 'Enable Image Enhancement'}
           >
-            <img src="/images/SparkyFitness.png" alt="Enhance" className="w-5 h-5" /> {/* Placeholder icon */}
-          </button>
-        </div>
+            <Sparkles className="w-5 h-5" />
+            </button>
+            {/* Clarity Check Toggle */}
+            <button
+              onClick={() => setEnableClarityCheck(prev => !prev)}
+              className={`p-2 rounded-full transition-colors ${
+                enableClarityCheck
+                  ? 'bg-blue-500 hover:bg-blue-600 text-white'
+                  : 'bg-gray-600 hover:bg-gray-700 text-white'
+              }`}
+              title={enableClarityCheck ? 'Disable Clarity Check' : 'Enable Clarity Check'}
+            >
+              <Eye className="w-5 h-5" />
+            </button>
+            </div>
+  
+          )}
       </div>
 
       {/* Manual Entry Button and Input */}
-      <div className="p-4 flex flex-col items-center space-y-2 mt-4 w-full">
-        {showManualInput && (
-          <div className="w-full flex flex-col space-y-2 bg-black bg-opacity-80 p-4 rounded-lg">
-            <Input
-              placeholder="Enter barcode manually"
-              value={manualBarcode}
-              onChange={(e) => setManualBarcode(e.target.value)}
-              onKeyPress={(e) => {
-                if (e.key === 'Enter') {
-                  handleManualSubmit();
-                }
-              }}
-              className="w-full bg-gray-700 text-white border-gray-600"
-            />
-            <Button onClick={handleManualSubmit} disabled={!manualBarcode.trim()} className="w-full">
-              Submit Manual Barcode
-            </Button>
-          </div>
-        )}
-        <Button onClick={() => setShowManualInput(!showManualInput)} className="w-fit px-4 py-2 text-sm" variant="outline">
-          <Keyboard className="w-4 h-4 mr-2" /> Manual Entry
-        </Button>
-        {/* Clarity Check Toggle */}
-        <button
-          onClick={() => setEnableClarityCheck(prev => !prev)}
-          className={`p-2 rounded-full transition-colors ${
-            enableClarityCheck
-              ? 'bg-blue-500 hover:bg-blue-600 text-white'
-              : 'bg-gray-600 hover:bg-gray-700 text-white'
-          }`}
-          title={enableClarityCheck ? 'Disable Clarity Check' : 'Enable Clarity Check'}
-        >
-          {enableClarityCheck ? 'Clarity ON' : 'Clarity OFF'}
-        </button>
-      </div>
+      {!isLoadingCamera && (
+        <div className="p-4 flex flex-col items-center space-y-2 mt-4 w-full">
+          {showManualInput && (
+            <div className="w-full flex flex-col space-y-2 bg-black bg-opacity-80 p-4 rounded-lg">
+              <Input
+                placeholder="Enter barcode manually"
+                value={manualBarcode}
+                onChange={(e) => setManualBarcode(e.target.value)}
+                onKeyPress={(e) => {
+                  if (e.key === 'Enter') {
+                    handleManualSubmit();
+                  }
+                }}
+                className="w-full bg-gray-700 text-white border-gray-600"
+              />
+              <Button onClick={handleManualSubmit} disabled={!manualBarcode.trim()} className="w-full">
+                Submit Manual Barcode
+              </Button>
+              <Button onClick={() => setShowManualInput(false)} variant="ghost" className="w-full text-white">
+                Cancel
+              </Button>
+            </div>
+          )}
+          <Button onClick={() => setShowManualInput(!showManualInput)} className="w-fit px-4 py-2 text-sm" variant="outline">
+            <Keyboard className="w-4 h-4 mr-2" /> Manual Entry
+          </Button>
+        </div>
+      )}
+
+      {/* Barcode Engine Selection */}
+      {!isLoadingCamera && (
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 flex space-x-2 z-20">
+          <select
+            value={barcodeEngine}
+            onChange={e => setBarcodeEngine(e.target.value as 'zxing' | 'quagga' | 'jsqr')}
+            className="bg-gray-800 text-white rounded px-2 py-1 border border-gray-600 text-xs"
+            title="Select Barcode Engine"
+          >
+            <option value="zxing">ZXing (Default, 1D/2D)</option>
+            <option value="quagga">Quagga (1D only)</option>
+            <option value="jsqr">jsQR (QR only)</option>
+          </select>
+        </div>
+      )}
     </div>
   );
 };
