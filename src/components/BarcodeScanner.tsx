@@ -28,7 +28,15 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
   const [torchEnabled, setTorchEnabled] = useState(false);
   const [torchSupported, setTorchSupported] = useState(false);
   const [showInstructions, setShowInstructions] = useState(true);
-  const [scanAreaSize, setScanAreaSize] = useState({ width: 280, height: 140 });
+  const [scanAreaSize, setScanAreaSize] = useState(() => {
+    try {
+      const savedSize = localStorage.getItem('barcodeScanAreaSize');
+      return savedSize ? JSON.parse(savedSize) : { width: 280, height: 140 };
+    } catch (error) {
+      console.error("Failed to parse scan area size from localStorage", error);
+      return { width: 280, height: 140 };
+    }
+  });
   const lastScanTime = useRef(0);
   const scanCooldown = 2000;
   const animationFrameRef = useRef<number>();
@@ -173,7 +181,9 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
         newHeight = Math.max(100, Math.min(200, prev.height - deltaY));
       }
       
-      return { width: newWidth, height: newHeight };
+      const newSize = { width: newWidth, height: newHeight };
+      localStorage.setItem('barcodeScanAreaSize', JSON.stringify(newSize));
+      return newSize;
     });
   }, []);
 
