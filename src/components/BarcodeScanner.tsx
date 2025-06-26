@@ -195,7 +195,6 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
       animationFrameRef.current = requestAnimationFrame(scanFrame);
       
       // Auto-hide instructions after 3 seconds
-      setShowInstructions(true);
       instructionTimeoutRef.current = setTimeout(() => {
         setShowInstructions(false);
       }, 3000);
@@ -322,102 +321,104 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
   };
 
   return (
-    <div className="relative bg-black rounded-lg overflow-hidden shadow-lg">
-      <video
-        ref={videoRef}
-        className="w-full h-64 object-cover cursor-pointer"
-        playsInline
-        muted
-        onClick={handleVideoTap}
-      />
-      
-      {/* Hidden canvas for processing */}
-      <canvas
-        ref={canvasRef}
-        className="hidden"
-      />
-      
-      {/* Scanner Overlay */}
-      <div className="absolute inset-0 flex items-center justify-center">
-        <div className="relative" style={{ width: scanAreaSize.width, height: scanAreaSize.height }}>
-          {/* Scanner Frame */}
-          <div className="w-full h-full border-2 border-white border-dashed rounded-lg"></div>
-          
-          {/* Animated Scan Line */}
-          {scanLine && (
-            <div className="absolute top-0 left-0 w-full h-1 bg-green-400 animate-pulse"></div>
-          )}
-          
-          {/* Resizable Corner Indicators */}
-          <ResizableCorner 
-            position="top-left" 
-            onDrag={(deltaX, deltaY) => handleCornerDrag('top-left', deltaX, deltaY)}
-          />
-          <ResizableCorner 
-            position="top-right" 
-            onDrag={(deltaX, deltaY) => handleCornerDrag('top-right', deltaX, deltaY)}
-          />
-          <ResizableCorner 
-            position="bottom-left" 
-            onDrag={(deltaX, deltaY) => handleCornerDrag('bottom-left', deltaX, deltaY)}
-          />
-          <ResizableCorner 
-            position="bottom-right" 
-            onDrag={(deltaX, deltaY) => handleCornerDrag('bottom-right', deltaX, deltaY)}
-          />
-        </div>
-      </div>
-
-      {/* Instructions Overlay - Auto-hide after 3 seconds */}
-      {showInstructions && (
-        <div className="absolute top-4 left-4 right-4 bg-black bg-opacity-80 rounded-lg p-2 text-white text-xs">
-          <div className="space-y-1">
-            <p>📷 Point camera steadily at barcode</p>
-            <p>↔️ Move back if image is blurry</p>
-            <p>👆 Tap screen to refocus</p>
-            <p>📐 Drag green corners to resize scan area</p>
-            {torchSupported && <p>💡 Use flashlight in low light</p>}
+    <div className="flex flex-col items-center w-full">
+      <div className="relative bg-black rounded-lg overflow-hidden shadow-lg w-full">
+        <video
+          ref={videoRef}
+          className="w-full h-64 object-cover cursor-pointer"
+          playsInline
+          muted
+          onClick={handleVideoTap}
+        />
+        
+        {/* Hidden canvas for processing */}
+        <canvas
+          ref={canvasRef}
+          className="hidden"
+        />
+        
+        {/* Scanner Overlay */}
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="relative" style={{ width: scanAreaSize.width, height: scanAreaSize.height }}>
+            {/* Scanner Frame */}
+            <div className="w-full h-full border-2 border-white border-dashed rounded-lg"></div>
+            
+            {/* Animated Scan Line */}
+            {scanLine && (
+              <div className="absolute top-0 left-0 w-full h-1 bg-green-400 animate-pulse"></div>
+            )}
+            
+            {/* Resizable Corner Indicators */}
+            <ResizableCorner
+              position="top-left"
+              onDrag={(deltaX, deltaY) => handleCornerDrag('top-left', deltaX, deltaY)}
+            />
+            <ResizableCorner
+              position="top-right"
+              onDrag={(deltaX, deltaY) => handleCornerDrag('top-right', deltaX, deltaY)}
+            />
+            <ResizableCorner
+              position="bottom-left"
+              onDrag={(deltaX, deltaY) => handleCornerDrag('bottom-left', deltaX, deltaY)}
+            />
+            <ResizableCorner
+              position="bottom-right"
+              onDrag={(deltaX, deltaY) => handleCornerDrag('bottom-right', deltaX, deltaY)}
+            />
           </div>
         </div>
-      )}
 
-      {/* Scan Status */}
-      <div className="absolute bottom-4 left-0 right-0 text-center">
-        <p className="text-white text-sm bg-black bg-opacity-50 rounded px-3 py-1 inline-block">
-          <Scan className="inline w-4 h-4 mr-1" />
-          {continuousMode ? 'Scanning continuously...' : 'Align barcode within the frame'}
-        </p>
-      </div>
-
-      {/* Control Buttons */}
-      <div className="absolute top-4 right-4 flex flex-col space-y-2">
-        {/* Force Scan Button */}
-        <button
-          onClick={forceScan}
-          className="bg-blue-600 hover:bg-blue-700 text-white p-2 rounded-full transition-colors"
-          title="Force Scan"
-        >
-          <Camera className="w-5 h-5" />
-        </button>
-
-        {/* Torch Toggle */}
-        {torchSupported && (
-          <button
-            onClick={toggleTorch}
-            className={`p-2 rounded-full transition-colors ${
-              torchEnabled 
-                ? 'bg-yellow-500 hover:bg-yellow-600 text-white' 
-                : 'bg-gray-600 hover:bg-gray-700 text-white'
-            }`}
-            title={torchEnabled ? 'Turn off flashlight' : 'Turn on flashlight'}
-          >
-            {torchEnabled ? <Flashlight className="w-5 h-5" /> : <FlashlightOff className="w-5 h-5" />}
-          </button>
+        {/* Instructions Overlay - Auto-hide after 3 seconds */}
+        {showInstructions && (
+          <div className="absolute top-4 left-4 right-4 bg-black bg-opacity-80 rounded-lg p-2 text-white text-xs">
+            <div className="space-y-1">
+              <p>📷 Point camera steadily at barcode</p>
+              <p>↔️ Move back if image is blurry</p>
+              <p>👆 Tap screen to refocus</p>
+              <p>📐 Drag green corners to resize scan area</p>
+              {torchSupported && <p>💡 Use flashlight in low light</p>}
+            </div>
+          </div>
         )}
+
+        {/* Scan Status */}
+        <div className="absolute bottom-4 left-0 right-0 text-center">
+          <p className="text-white text-sm bg-black bg-opacity-50 rounded px-3 py-1 inline-block">
+            <Scan className="inline w-4 h-4 mr-1" />
+            {continuousMode ? 'Scanning continuously...' : 'Align barcode within the frame'}
+          </p>
+        </div>
+
+        {/* Control Buttons */}
+        <div className="absolute top-4 right-4 flex flex-col space-y-2">
+          {/* Force Scan Button */}
+          <button
+            onClick={forceScan}
+            className="bg-blue-600 hover:bg-blue-700 text-white p-2 rounded-full transition-colors"
+            title="Force Scan"
+          >
+            <Camera className="w-5 h-5" />
+          </button>
+
+          {/* Torch Toggle */}
+          {torchSupported && (
+            <button
+              onClick={toggleTorch}
+              className={`p-2 rounded-full transition-colors ${
+                torchEnabled
+                  ? 'bg-yellow-500 hover:bg-yellow-600 text-white'
+                  : 'bg-gray-600 hover:bg-gray-700 text-white'
+              }`}
+              title={torchEnabled ? 'Turn off flashlight' : 'Turn on flashlight'}
+            >
+              {torchEnabled ? <Flashlight className="w-5 h-5" /> : <FlashlightOff className="w-5 h-5" />}
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Manual Entry Button and Input */}
-      <div className="absolute bottom-0 inset-x-0 p-4 flex flex-col items-center space-y-2">
+      <div className="p-4 flex flex-col items-center space-y-2 mt-4 w-full">
         {showManualInput && (
           <div className="w-full flex flex-col space-y-2 bg-black bg-opacity-80 p-4 rounded-lg">
             <Input
@@ -436,7 +437,7 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
             </Button>
           </div>
         )}
-        <Button onClick={() => setShowManualInput(!showManualInput)} className="w-full" variant="outline">
+        <Button onClick={() => setShowManualInput(!showManualInput)} className="w-fit px-4 py-2 text-sm" variant="outline">
           <Keyboard className="w-4 h-4 mr-2" /> Manual Entry
         </Button>
       </div>
