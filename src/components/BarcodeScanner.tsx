@@ -28,6 +28,7 @@ isActive,
   const [codeReader] = useState(() => new BrowserMultiFormatReader());
   const [isScanning, setIsScanning] = useState(false);
   const [scanLine, setScanLine] = useState(false);
+  const [scanLinePosition, setScanLinePosition] = useState(0); // New state for scan line animation
   const [torchEnabled, setTorchEnabled] = useState(false);
   const [torchSupported, setTorchSupported] = useState(false);
   const [showInstructions, setShowInstructions] = useState(false);
@@ -233,12 +234,17 @@ isActive,
 
                 console.log('Barcode detected:', barcode);
                 setScanLine(true);
+                setScanLinePosition(0); // Start scan line at the top
                 setShowInstructions(false);
                 setScanFeedback(null); // Clear feedback on successful scan
 
                 turnOffTorch();
 
-                setTimeout(() => setScanLine(false), 500);
+                // Animate scan line to the bottom
+                setTimeout(() => {
+                  setScanLinePosition(scanAreaSize.height - 1); // Move to bottom, -1 for line height
+                }, 10); // Small delay to ensure transition applies
+                setTimeout(() => setScanLine(false), 500); // Hide after animation
 
                 onBarcodeDetected(barcode);
                 lastScanTime.current = now;
@@ -528,9 +534,15 @@ isActive,
     if (!context || video.readyState !== video.HAVE_ENOUGH_DATA) return;
 
     setScanLine(true);
+    setScanLinePosition(0); // Start scan line at the top
     setShowInstructions(false);
     setScanFeedback(null); // Clear feedback on force scan
-    setTimeout(() => setScanLine(false), 500);
+    
+    // Animate scan line to the bottom
+    setTimeout(() => {
+      setScanLinePosition(scanAreaSize.height - 1); // Move to bottom, -1 for line height
+    }, 10); // Small delay to ensure transition applies
+    setTimeout(() => setScanLine(false), 500); // Hide after animation
 
     drawAndPreprocessFrame(video, canvas, context, scanAreaSize);
 
@@ -603,7 +615,13 @@ isActive,
               
               {/* Animated Scan Line */}
               {scanLine && (
-                <div className="absolute top-0 left-0 w-full h-1 bg-green-400 animate-pulse"></div>
+                <div
+                  className="absolute left-0 w-full h-1 bg-green-400 transition-transform duration-500 ease-linear"
+                  style={{
+                    transform: `translateY(${scanLinePosition}px)`,
+                    top: 0 // Keep top at 0, use transform for movement
+                  }}
+                ></div>
               )}
               
               {/* Resizable Corner Indicators */}
