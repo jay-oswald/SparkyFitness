@@ -326,11 +326,14 @@ const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
             </DialogDescription>
           </DialogHeader>
           <BarcodeScanner
-            onScan={(barcode) => {
+            onBarcodeDetected={(barcode) => {
               searchOpenFoodFactsByBarcode(barcode);
               setShowBarcodeScanner(false);
             }}
             onClose={() => setShowBarcodeScanner(false)}
+            isActive={showBarcodeScanner}
+            cameraFacing="back"
+            continuousMode={false}
           />
         </DialogContent>
       </Dialog>
