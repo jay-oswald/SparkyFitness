@@ -8,18 +8,19 @@ import { Input } from "@/components/ui/input";
 interface BarcodeScannerProps {
   onBarcodeDetected: (barcode: string) => void;
   onClose: () => void;
-  isActive: boolean;
+isActive: boolean;
   cameraFacing: 'front' | 'back';
-  continuousMode: boolean;
+  initialContinuousMode: boolean; // Renamed prop to avoid conflict with internal state
 }
 
 const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
   onBarcodeDetected,
   onClose,
-  isActive,
+isActive,
   cameraFacing,
-  continuousMode,
+  initialContinuousMode,
 }) => {
+  const [continuousMode, setContinuousMode] = useState(initialContinuousMode); // Internal state for continuous mode
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [codeReader] = useState(() => new BrowserMultiFormatReader());
@@ -545,6 +546,21 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
               {scanFeedback}
             </p>
           )}
+        </div>
+
+        {/* Continuous Scan Toggle */}
+        <div className="absolute top-4 left-4">
+          <button
+            onClick={() => setContinuousMode(prev => !prev)}
+            className={`p-2 rounded-full transition-colors text-xs ${
+              continuousMode
+                ? 'bg-purple-600 hover:bg-purple-700 text-white'
+                : 'bg-gray-600 hover:bg-gray-700 text-white'
+            }`}
+            title={continuousMode ? 'Disable Continuous Scan' : 'Enable Continuous Scan'}
+          >
+            {continuousMode ? 'Continuous ON' : 'Continuous OFF'}
+          </button>
         </div>
 
         {/* Control Buttons */}
