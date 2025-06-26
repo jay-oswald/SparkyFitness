@@ -28,6 +28,9 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
   const [torchEnabled, setTorchEnabled] = useState(false);
   const [torchSupported, setTorchSupported] = useState(false);
   const [showInstructions, setShowInstructions] = useState(true);
+  const [scanFeedback, setScanFeedback] = useState<string | null>(null); // New state for scan feedback
+  const [enableImageEnhancement, setEnableImageEnhancement] = useState(false); // New state for image enhancement toggle, default to false
+  const [enableClarityCheck, setEnableClarityCheck] = useState(true); // New state for clarity check toggle, default to true
   const [scanAreaSize, setScanAreaSize] = useState(() => {
     try {
       const savedSize = localStorage.getItem('barcodeScanAreaSize');
@@ -38,7 +41,7 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
     }
   });
   const lastScanTime = useRef(0);
-  const scanCooldown = 2000;
+  const scanCooldown = 2000; // Reduced to 1000ms for faster scans
   const animationFrameRef = useRef<number>();
   const lastDetectedBarcode = useRef<string>('');
   const currentTrack = useRef<MediaStreamTrack | null>(null);
@@ -70,6 +73,51 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
     }
   }, [torchEnabled, torchSupported]);
 
+  // Function to preprocess image (grayscale and contrast enhancement)
+  const preprocessImage = useCallback((context: CanvasRenderingContext2D, width: number, height: number) => {
+    const imageData = context.getImageData(0, 0, width, height);
+    const data = imageData.data;
+
+    for (let i = 0; i < data.length; i += 4) {
+      // Grayscale conversion (luminosity method)
+      const avg = (data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114);
+      data[i] = avg; // Red
+      data[i + 1] = avg; // Green
+      data[i + 2] = avg; // Blue
+
+      // Simple contrast enhancement (adjust factor as needed)
+      if (enableImageEnhancement) {
+        const factor = 2.0; // Increased for more aggressive contrast
+        data[i] = factor * (data[i] - 128) + 128;
+        data[i + 1] = factor * (data[i + 1] - 128) + 128;
+        data[i + 2] = factor * (data[i + 2] - 128) + 128;
+      }
+    }
+    context.putImageData(imageData, 0, 0);
+  }, []);
+
+  // Function to estimate image clarity based on pixel variance
+  const calculateImageClarity = useCallback((context: CanvasRenderingContext2D, width: number, height: number): number => {
+    const imageData = context.getImageData(0, 0, width, height);
+    const data = imageData.data;
+    let sum = 0;
+    let sumSq = 0;
+    let count = 0;
+
+    for (let i = 0; i < data.length; i += 4) {
+      const gray = (data[i] + data[i + 1] + data[i + 2]) / 3;
+      sum += gray;
+      sumSq += gray * gray;
+      count++;
+    }
+
+    if (count === 0) return 0;
+
+    const mean = sum / count;
+    const variance = (sumSq / count) - (mean * mean);
+    return variance; // Higher variance indicates higher clarity
+  }, []);
+
   const scanFrame = useCallback(() => {
     if (!videoRef.current || !canvasRef.current || !isScanning) return;
 
@@ -82,39 +130,102 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
       return;
     }
 
-    // Set canvas size to match video
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+    const videoWidth = video.videoWidth;
+    const videoHeight = video.videoHeight;
 
-    // Draw video frame to canvas
-    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    // Calculate crop region to be centered
+    const cropX = (videoWidth - scanAreaSize.width) / 2;
+    const cropY = (videoHeight - scanAreaSize.height) / 2;
+
+    // Set canvas size to the scan area size
+    canvas.width = scanAreaSize.width;
+    canvas.height = scanAreaSize.height;
+
+    // Draw the cropped video frame to canvas
+    context.drawImage(
+      video,
+      cropX,
+      cropY,
+      scanAreaSize.width,
+      scanAreaSize.height,
+      0,
+      0,
+      scanAreaSize.width,
+      scanAreaSize.height
+    );
+
+    // Preprocess the image
+    preprocessImage(context, canvas.width, canvas.height);
+
+    // Calculate image clarity
+    if (enableClarityCheck) {
+      const clarity = calculateImageClarity(context, canvas.width, canvas.height);
+      const clarityThreshold = 1000; // Adjust as needed
+
+      if (clarity < clarityThreshold) {
+        setScanFeedback("Image blurry. Please adjust focus or distance.");
+      } else {
+        setScanFeedback(null);
+      }
+    } else {
+      setScanFeedback(null); // Clear feedback if clarity check is disabled
+    }
 
     try {
-      // Convert canvas to data URL and decode
       const dataUrl = canvas.toDataURL('image/png');
-      codeReader.decodeFromImage(undefined, dataUrl)
+
+      // Create promises for original and rotated image decoding
+      const decodePromises = [
+        codeReader.decodeFromImage(undefined, dataUrl),
+        // Rotate image 90 degrees for another decode attempt
+        new Promise<Result>((resolve, reject) => {
+          const img = new Image();
+          img.onload = () => {
+            const rotatedCanvas = document.createElement('canvas');
+            const rotatedContext = rotatedCanvas.getContext('2d');
+            if (!rotatedContext) {
+              return reject(new Error("Could not get rotated canvas context"));
+            }
+            rotatedCanvas.width = canvas.height;
+            rotatedCanvas.height = canvas.width;
+            rotatedContext.translate(rotatedCanvas.width / 2, rotatedCanvas.height / 2);
+            rotatedContext.rotate(Math.PI / 2);
+            rotatedContext.drawImage(img, -canvas.width / 2, -canvas.height / 2);
+            
+            // Preprocess the rotated image as well
+            preprocessImage(rotatedContext, rotatedCanvas.width, rotatedCanvas.height);
+
+            codeReader.decodeFromImage(undefined, rotatedCanvas.toDataURL('image/png'))
+              .then(resolve)
+              .catch(reject);
+          };
+          img.onerror = reject;
+          img.src = dataUrl;
+        })
+      ];
+
+      Promise.any(decodePromises)
         .then((result: Result) => {
           if (result) {
             const barcode = result.getText();
             const now = Date.now();
-            
-            // Check if this is a new barcode or enough time has passed
-            if (barcode !== lastDetectedBarcode.current || 
-                (!continuousMode || now - lastScanTime.current > scanCooldown)) {
-              
+
+            if (barcode !== lastDetectedBarcode.current ||
+              (!continuousMode || now - lastScanTime.current > scanCooldown)) {
+
               console.log('Barcode detected:', barcode);
               setScanLine(true);
               setShowInstructions(false);
-              
-              // Turn off torch after successful scan
+              setScanFeedback(null); // Clear feedback on successful scan
+
               turnOffTorch();
-              
+
               setTimeout(() => setScanLine(false), 500);
-              
+
               onBarcodeDetected(barcode);
               lastScanTime.current = now;
               lastDetectedBarcode.current = barcode;
-              
+
               if (!continuousMode) {
                 setIsScanning(false);
                 return;
@@ -123,19 +234,23 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
           }
         })
         .catch((error) => {
-          // Only log non-NotFoundException errors
-          if (!(error instanceof NotFoundException)) {
+          if (error instanceof AggregateError && error.errors.every((e: any) => e instanceof NotFoundException)) {
+            // All decode attempts failed to find a barcode
+            setScanFeedback("No barcode found. Try adjusting position or lighting.");
+          } else if (!(error instanceof NotFoundException)) {
             console.error('Scanning error:', error);
+            setScanFeedback(`Scanning error: ${error.message}`);
           }
         });
     } catch (error) {
       console.error('Canvas decode error:', error);
+      setScanFeedback(`Canvas error: ${error.message}`);
     }
 
     if (continuousMode && isScanning) {
       animationFrameRef.current = requestAnimationFrame(scanFrame);
     }
-  }, [isScanning, continuousMode, onBarcodeDetected, codeReader, scanCooldown, turnOffTorch]);
+  }, [isScanning, continuousMode, onBarcodeDetected, codeReader, scanCooldown, turnOffTorch, scanAreaSize, preprocessImage, calculateImageClarity, enableImageEnhancement, enableClarityCheck]);
 
   const toggleTorch = useCallback(async () => {
     if (!currentTrack.current || !torchSupported) return;
@@ -169,16 +284,16 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
       let newHeight = prev.height;
       
       if (corner.includes('right')) {
-        newWidth = Math.max(200, Math.min(400, prev.width + deltaX));
+        newWidth = Math.max(100, Math.min(400, prev.width + deltaX)); // Reduced min width to 100
       }
       if (corner.includes('left')) {
-        newWidth = Math.max(200, Math.min(400, prev.width - deltaX));
+        newWidth = Math.max(100, Math.min(400, prev.width - deltaX)); // Reduced min width to 100
       }
       if (corner.includes('bottom')) {
-        newHeight = Math.max(100, Math.min(200, prev.height + deltaY));
+        newHeight = Math.max(50, Math.min(200, prev.height + deltaY)); // Reduced min height to 50
       }
       if (corner.includes('top')) {
-        newHeight = Math.max(100, Math.min(200, prev.height - deltaY));
+        newHeight = Math.max(50, Math.min(200, prev.height - deltaY)); // Reduced min height to 50
       }
       
       const newSize = { width: newWidth, height: newHeight };
@@ -230,11 +345,12 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
       resetLastBarcode();
       setShowInstructions(true);
       
-      const constraints = {
+      const constraints: MediaStreamConstraints = {
         video: {
           facingMode: cameraFacing === 'front' ? 'user' : { ideal: 'environment' },
-          width: { ideal: 1920, max: 1920 },
-          height: { ideal: 1080, max: 1080 },
+          // Dynamically adjust resolution based on device capabilities
+          width: { ideal: 1280, max: 1280 },
+          height: { ideal: 720, max: 720 },
           frameRate: { ideal: 30, max: 60 },
           focusMode: { ideal: 'continuous' },
           zoom: true
@@ -288,7 +404,7 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
     resetLastBarcode();
   };
 
-  const forceScan = () => {
+  const forceScan = useCallback(() => {
     if (!videoRef.current || !canvasRef.current) return;
 
     const video = videoRef.current;
@@ -299,12 +415,35 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
 
     setScanLine(true);
     setShowInstructions(false);
+    setScanFeedback(null); // Clear feedback on force scan
     setTimeout(() => setScanLine(false), 500);
 
-    // Set canvas size and draw current frame
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const videoWidth = video.videoWidth;
+    const videoHeight = video.videoHeight;
+
+    // Calculate crop region to be centered
+    const cropX = (videoWidth - scanAreaSize.width) / 2;
+    const cropY = (videoHeight - scanAreaSize.height) / 2;
+
+    // Set canvas size to the scan area size
+    canvas.width = scanAreaSize.width;
+    canvas.height = scanAreaSize.height;
+
+    // Draw the cropped video frame to canvas
+    context.drawImage(
+      video,
+      cropX,
+      cropY,
+      scanAreaSize.width,
+      scanAreaSize.height,
+      0,
+      0,
+      scanAreaSize.width,
+      scanAreaSize.height
+    );
+
+    // Preprocess the image
+    preprocessImage(context, canvas.width, canvas.height);
 
     try {
       const dataUrl = canvas.toDataURL('image/png');
@@ -323,12 +462,16 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
         .catch((error) => {
           if (!(error instanceof NotFoundException)) {
             console.error('Force scan error:', error);
+            setScanFeedback(`Force scan error: ${error.message}`);
+          } else {
+            setScanFeedback("No barcode found on force scan.");
           }
         });
     } catch (error) {
       console.error('Force scan canvas error:', error);
+      setScanFeedback(`Force scan canvas error: ${error.message}`);
     }
-  };
+  }, [onBarcodeDetected, codeReader, turnOffTorch, scanAreaSize, preprocessImage, enableImageEnhancement]);
 
   return (
     <div className="flex flex-col items-center w-full">
@@ -397,6 +540,11 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
             <Scan className="inline w-4 h-4 mr-1" />
             {continuousMode ? 'Scanning continuously...' : 'Align barcode within the frame'}
           </p>
+          {scanFeedback && (
+            <p className="text-red-400 text-xs mt-1 bg-black bg-opacity-50 rounded px-2 py-1 inline-block">
+              {scanFeedback}
+            </p>
+          )}
         </div>
 
         {/* Control Buttons */}
@@ -424,6 +572,18 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
               {torchEnabled ? <Flashlight className="w-5 h-5" /> : <FlashlightOff className="w-5 h-5" />}
             </button>
           )}
+          {/* Image Enhancement Toggle */}
+          <button
+            onClick={() => setEnableImageEnhancement(prev => !prev)}
+            className={`p-2 rounded-full transition-colors ${
+              enableImageEnhancement
+                ? 'bg-green-500 hover:bg-green-600 text-white'
+                : 'bg-gray-600 hover:bg-gray-700 text-white'
+            }`}
+            title={enableImageEnhancement ? 'Disable Image Enhancement' : 'Enable Image Enhancement'}
+          >
+            <img src="/images/SparkyFitness.png" alt="Enhance" className="w-5 h-5" /> {/* Placeholder icon */}
+          </button>
         </div>
       </div>
 
@@ -450,6 +610,18 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
         <Button onClick={() => setShowManualInput(!showManualInput)} className="w-fit px-4 py-2 text-sm" variant="outline">
           <Keyboard className="w-4 h-4 mr-2" /> Manual Entry
         </Button>
+        {/* Clarity Check Toggle */}
+        <button
+          onClick={() => setEnableClarityCheck(prev => !prev)}
+          className={`p-2 rounded-full transition-colors ${
+            enableClarityCheck
+              ? 'bg-blue-500 hover:bg-blue-600 text-white'
+              : 'bg-gray-600 hover:bg-gray-700 text-white'
+          }`}
+          title={enableClarityCheck ? 'Disable Clarity Check' : 'Enable Clarity Check'}
+        >
+          {enableClarityCheck ? 'Clarity ON' : 'Clarity OFF'}
+        </button>
       </div>
     </div>
   );
