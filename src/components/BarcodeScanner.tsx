@@ -2,7 +2,9 @@ import { Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { toast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
-import { Camera as CameraIcon } from "lucide-react";
+import { Camera as CameraIcon, Keyboard } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Slider } from "@/components/ui/slider";
 
 interface BarcodeScannerProps {
   onScan: (barcode: string) => void;
@@ -13,7 +15,24 @@ const BarcodeScanner = ({ onScan, onClose }: BarcodeScannerProps) => {
   const [scannerReady, setScannerReady] = useState(false);
   const [cameras, setCameras] = useState<any[]>([]);
   const [currentCameraId, setCurrentCameraId] = useState<string | null>(null);
+  const [showManualInput, setShowManualInput] = useState(false);
+  const [manualBarcode, setManualBarcode] = useState("");
+  const [qrboxWidth, setQrboxWidth] = useState(() => {
+    const savedWidth = localStorage.getItem('barcodeScannerQrboxWidth');
+    return savedWidth ? parseInt(savedWidth, 10) : 250;
+  });
+  const [qrboxHeight, setQrboxHeight] = useState(() => {
+    const savedHeight = localStorage.getItem('barcodeScannerQrboxHeight');
+    return savedHeight ? parseInt(savedHeight, 10) : 250;
+  });
   const qrcodeRegionId = "qr-reader";
+
+  const handleManualSubmit = () => {
+    if (manualBarcode.trim()) {
+      onScan(manualBarcode);
+      onClose();
+    }
+  };
 
   // Use useRef to hold the Html5Qrcode instance
   const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
@@ -29,7 +48,7 @@ const BarcodeScanner = ({ onScan, onClose }: BarcodeScannerProps) => {
     });
   }, [onScan, onClose]);
 
-  const startScanner = useCallback(async (cameraId: string) => {
+  const startScanner = useCallback(async (cameraId: string, width: number, height: number) => {
     if (!html5QrCodeRef.current) return;
 
     try {
@@ -40,7 +59,7 @@ const BarcodeScanner = ({ onScan, onClose }: BarcodeScannerProps) => {
         cameraId,
         {
           fps: 10,
-          qrbox: { width: 250, height: 250 },
+          qrbox: { width: width, height: height },
         },
         qrCodeSuccessCallback,
         (errorMessage: string) => {
@@ -86,7 +105,7 @@ const BarcodeScanner = ({ onScan, onClose }: BarcodeScannerProps) => {
         setCameras(devices);
         const environmentCamera = devices.find(device => device.label.toLowerCase().includes('back') || device.label.toLowerCase().includes('environment'));
         const initialCameraId = environmentCamera ? environmentCamera.id : devices[0].id;
-        startScanner(initialCameraId);
+        startScanner(initialCameraId, qrboxWidth, qrboxHeight);
       } else if (isMounted) {
         toast({
           title: "No cameras found",
@@ -115,14 +134,22 @@ const BarcodeScanner = ({ onScan, onClose }: BarcodeScannerProps) => {
         });
       }
     };
-  }, [onClose, startScanner]);
+  }, [onClose, startScanner, qrboxWidth, qrboxHeight]);
+
+  useEffect(() => {
+    localStorage.setItem('barcodeScannerQrboxWidth', qrboxWidth.toString());
+  }, [qrboxWidth]);
+
+  useEffect(() => {
+    localStorage.setItem('barcodeScannerQrboxHeight', qrboxHeight.toString());
+  }, [qrboxHeight]);
 
   const handleSwitchCamera = () => {
     if (cameras.length > 1) {
       const currentIndex = cameras.findIndex(camera => camera.id === currentCameraId);
       const nextIndex = (currentIndex + 1) % cameras.length;
       const nextCamera = cameras[nextIndex];
-      startScanner(nextCamera.id);
+      startScanner(nextCamera.id, qrboxWidth, qrboxHeight);
     } else {
       toast({
         title: "No other cameras",
@@ -141,13 +168,71 @@ const BarcodeScanner = ({ onScan, onClose }: BarcodeScannerProps) => {
         </div>
       )}
       {scannerReady && cameras.length > 1 && (
-        <Button onClick={handleSwitchCamera} className="w-full">
+        <Button onClick={handleSwitchCamera} className="w-full mb-2">
           <CameraIcon className="w-4 h-4 mr-2" /> Switch Camera
         </Button>
+      )}
+      {scannerReady && (
+        <div className="flex flex-col space-y-2">
+          <Button onClick={() => startScanner(currentCameraId!, qrboxWidth, qrboxHeight)} className="w-full">
+            Force Scan
+          </Button>
+          <Button onClick={() => setShowManualInput(!showManualInput)} className="w-full" variant="outline">
+            <Keyboard className="w-4 h-4 mr-2" /> Manual Entry
+          </Button>
+        </div>
+      )}
+      {showManualInput && (
+        <div className="flex flex-col space-y-2">
+          <Input
+            placeholder="Enter barcode manually"
+            value={manualBarcode}
+            onChange={(e) => setManualBarcode(e.target.value)}
+            onKeyPress={(e) => {
+              if (e.key === 'Enter') {
+                handleManualSubmit();
+              }
+            }}
+          />
+          <Button onClick={handleManualSubmit} disabled={!manualBarcode.trim()}>
+            Submit Manual Barcode
+          </Button>
+        </div>
       )}
       <p className="text-center text-sm text-gray-600">
         Position the barcode within the scanning area.
       </p>
+
+      {scannerReady && (
+        <div className="space-y-4 mt-4">
+          <div className="flex items-center space-x-2">
+            <label htmlFor="width-slider" className="text-sm font-medium w-20">Width:</label>
+            <Slider
+              id="width-slider"
+              min={50}
+              max={Math.min(window.innerWidth * 0.8, 500)}
+              step={10}
+              value={[qrboxWidth]}
+              onValueChange={(val) => setQrboxWidth(val[0])}
+              className="flex-grow"
+            />
+            <span className="text-sm font-medium">{qrboxWidth}px</span>
+          </div>
+          <div className="flex items-center space-x-2">
+            <label htmlFor="height-slider" className="text-sm font-medium w-20">Height:</label>
+            <Slider
+              id="height-slider"
+              min={50}
+              max={Math.min(window.innerHeight * 0.8, 500)}
+              step={10}
+              value={[qrboxHeight]}
+              onValueChange={(val) => setQrboxHeight(val[0])}
+              className="flex-grow"
+            />
+            <span className="text-sm font-medium">{qrboxHeight}px</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
