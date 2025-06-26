@@ -9,20 +9,23 @@ import { useQuery } from "@tanstack/react-query";
 import { usePreferences } from "@/contexts/PreferencesContext";
 import { debug, info, warn, error } from '@/utils/logging';
 
+// This component is deprecated and replaced by EnhancedFoodSearch.tsx
+// Keeping it for reference or if there's a specific need for a simpler version.
+
 interface Food {
-  id: string;
-  name: string;
-  brand?: string;
-  calories: number;
-  protein: number;
-  carbs: number;
-  fat: number;
-  fiber?: number;
-  sugar?: number;
+ id: string;
+ name: string;
+ brand?: string;
+ calories: number;
+ protein: number;
+ carbs: number;
+ fat: number;
+ fiber?: number;
+ sugar?: number;
 }
 
 interface FoodSearchProps {
-  onFoodSelect: (food: Food) => void;
+ onFoodSelect: (food: Food) => void;
 }
 
 const FoodSearch = ({ onFoodSelect }: FoodSearchProps) => {
@@ -33,46 +36,46 @@ const FoodSearch = ({ onFoodSelect }: FoodSearchProps) => {
 
  // Mock data for demonstration - replace with actual OpenFoodFacts API
  const mockFoods: Food[] = [
-    {
-      id: "1",
-      name: "Banana",
-      calories: 89,
-      protein: 1.1,
-      carbs: 22.8,
-      fat: 0.3,
-      fiber: 2.6,
-      sugar: 12.2
-    },
-    {
-      id: "2",
-      name: "Chicken Breast",
-      brand: "Generic",
-      calories: 165,
-      protein: 31,
-      carbs: 0,
-      fat: 3.6,
-      fiber: 0
-    },
-    {
-      id: "3",
-      name: "Brown Rice",
-      calories: 216,
-      protein: 5,
-      carbs: 45,
-      fat: 1.8,
-      fiber: 3.5
-    },
-    {
-      id: "4",
-      name: "Greek Yogurt",
-      brand: "Chobani",
-      calories: 100,
-      protein: 17,
-      carbs: 6,
-      fat: 0,
-      sugar: 4
-    }
-  ];
+   {
+     id: "1",
+     name: "Banana",
+     calories: 89,
+     protein: 1.1,
+     carbs: 22.8,
+     fat: 0.3,
+     fiber: 2.6,
+     sugar: 12.2
+   },
+   {
+     id: "2",
+     name: "Chicken Breast",
+     brand: "Generic",
+     calories: 165,
+     protein: 31,
+     carbs: 0,
+     fat: 3.6,
+     fiber: 0
+   },
+   {
+     id: "3",
+     name: "Brown Rice",
+     calories: 216,
+     protein: 5,
+     carbs: 45,
+     fat: 1.8,
+     fiber: 3.5
+   },
+   {
+     id: "4",
+     name: "Greek Yogurt",
+     brand: "Chobani",
+     calories: 100,
+     protein: 17,
+     carbs: 6,
+     fat: 0,
+     sugar: 4
+   }
+ ];
 
  const { data: foods = [], isLoading } = useQuery({
    queryKey: ['foods', debouncedSearchTerm],

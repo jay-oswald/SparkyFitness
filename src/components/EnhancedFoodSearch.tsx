@@ -6,9 +6,10 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { Search, Plus, Loader2, Edit } from 'lucide-react';
+import { Search, Plus, Loader2, Edit, Camera } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import EnhancedCustomFoodForm from './EnhancedCustomFoodForm';
+import BarcodeScanner from './BarcodeScanner';
 
 interface Food {
   id: string;
@@ -50,9 +51,10 @@ const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
   const [foods, setFoods] = useState<Food[]>([]);
   const [openFoodFactsResults, setOpenFoodFactsResults] = useState<OpenFoodFactsProduct[]>([]);
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<'database' | 'openfoodfacts'>('database');
+  const [activeTab, setActiveTab] = useState<'database' | 'openfoodfacts' | 'barcode'>('database');
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [editingProduct, setEditingProduct] = useState<OpenFoodFactsProduct | null>(null);
+  const [showBarcodeScanner, setShowBarcodeScanner] = useState(false);
 
   const searchDatabase = async () => {
     if (!searchTerm.trim()) return;
@@ -87,7 +89,7 @@ const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
       const data = await response.json();
       
       if (data.products) {
-        setOpenFoodFactsResults(data.products.filter((p: any) => 
+        setOpenFoodFactsResults(data.products.filter((p: any) =>
           p.product_name && p.nutriments && p.nutriments['energy-kcal_100g']
         ));
       }
@@ -100,6 +102,37 @@ const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
     }
     setLoading(false);
   };
+
+  const searchOpenFoodFactsByBarcode = async (barcode: string) => {
+   setLoading(true);
+   try {
+     const response = await fetch(`https://world.openfoodfacts.org/api/v0/product/${barcode}.json`);
+     const data = await response.json();
+
+     if (data.status === 1 && data.product) {
+       setOpenFoodFactsResults([data.product]);
+       setActiveTab('openfoodfacts'); // Switch to OpenFoodFacts tab to display result
+       toast({
+         title: 'Barcode scanned successfully',
+         description: `Found product: ${data.product.product_name}`,
+       });
+     } else {
+       setOpenFoodFactsResults([]);
+       toast({
+         title: 'Product not found',
+         description: 'No product found for this barcode on OpenFoodFacts.',
+         variant: 'destructive',
+       });
+     }
+   } catch (error) {
+     toast({
+       title: 'Barcode search failed',
+       description: 'Unable to search OpenFoodFacts database with barcode.',
+       variant: 'destructive',
+     });
+   }
+   setLoading(false);
+ };
 
   const handleOpenFoodFactsEdit = (product: OpenFoodFactsProduct) => {
     setEditingProduct(product);
@@ -163,8 +196,11 @@ const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
   const handleSearch = () => {
     if (activeTab === 'database') {
       searchDatabase();
-    } else {
+    } else if (activeTab === 'openfoodfacts') {
       searchOpenFoodFacts();
+    } else if (activeTab === 'barcode') {
+      // Barcode scanning is handled by the BarcodeScanner component directly
+      // No action needed here for handleSearch
     }
   };
 
@@ -182,8 +218,17 @@ const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
           onClick={() => setActiveTab('openfoodfacts')}
         >
           OpenFoodFacts
-        </Button>
-      </div>
+         </Button>
+         <Button
+           variant={activeTab === 'barcode' ? 'default' : 'outline'}
+           onClick={() => {
+             setActiveTab('barcode');
+             setShowBarcodeScanner(true);
+           }}
+         >
+           <Camera className="w-4 h-4 mr-2" /> Scan Barcode
+         </Button>
+       </div>
 
       <div className="flex space-x-2">
         <Input
@@ -263,11 +308,30 @@ const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
             <DialogTitle>Edit Food Details</DialogTitle>
           </DialogHeader>
           {editingProduct && (
-            <EnhancedCustomFoodForm 
+            <EnhancedCustomFoodForm
               food={convertOpenFoodFactsToFood(editingProduct)}
-              onSave={handleSaveEditedFood} 
+              onSave={handleSaveEditedFood}
             />
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Barcode Scanner Dialog */}
+      <Dialog open={showBarcodeScanner} onOpenChange={setShowBarcodeScanner}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Scan Barcode</DialogTitle>
+            <DialogDescription>
+              Position the product barcode in front of your camera.
+            </DialogDescription>
+          </DialogHeader>
+          <BarcodeScanner
+            onScan={(barcode) => {
+              searchOpenFoodFactsByBarcode(barcode);
+              setShowBarcodeScanner(false);
+            }}
+            onClose={() => setShowBarcodeScanner(false)}
+          />
         </DialogContent>
       </Dialog>
     </div>
