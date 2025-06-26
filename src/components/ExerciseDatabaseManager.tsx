@@ -275,106 +275,113 @@ const ExerciseDatabaseManager = () => {
     <div className="space-y-6">
       <Card>
         <CardContent className="pt-6">
-          <div className="flex items-center space-x-2 mb-6">
-            <Input
-              type="text"
-              placeholder="Search exercises..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="flex-1"
-            />
-            <Select onValueChange={setCategoryFilter} defaultValue={categoryFilter}>
-              <SelectTrigger className="w-48">
-                <SelectValue placeholder="All Categories" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Categories</SelectItem>
-                <SelectItem value="general">General</SelectItem>
-                <SelectItem value="strength">Strength</SelectItem>
-                <SelectItem value="cardio">Cardio</SelectItem>
-                <SelectItem value="yoga">Yoga</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select onValueChange={setOwnershipFilter} defaultValue={ownershipFilter}>
-              <SelectTrigger className="w-32">
-                <SelectValue placeholder="All" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All</SelectItem>
-                <SelectItem value="own">My Own</SelectItem>
-                <SelectItem value="family">Family</SelectItem>
-                <SelectItem value="public">Public</SelectItem>
-              </SelectContent>
-            </Select>
-            <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-              <DialogTrigger asChild>
-                <Button className="bg-slate-900 hover:bg-slate-800 text-white">
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add Exercise
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Add New Exercise</DialogTitle>
-                  <DialogDescription>
-                    Enter the details for a new exercise to add to your database.
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="grid gap-4 py-4">
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="name" className="text-right">
-                      Name
-                    </Label>
-                    <Input
-                      id="name"
-                      value={newExerciseName}
-                      onChange={(e) => setNewExerciseName(e.target.value)}
-                      className="col-span-3"
-                    />
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-6">
+            {/* This div will contain the search and category filter. On mobile, it will be the first "row". On desktop, it will be part of the single row. */}
+            <div className="flex flex-wrap items-center gap-2 flex-1">
+              <Input
+                type="text"
+                placeholder="Search exercises..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="flex-1 min-w-[150px]"
+              />
+              <Select onValueChange={setCategoryFilter} defaultValue={categoryFilter}>
+                <SelectTrigger className="w-48">
+                  <SelectValue placeholder="All Categories" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Categories</SelectItem>
+                  <SelectItem value="general">General</SelectItem>
+                  <SelectItem value="strength">Strength</SelectItem>
+                  <SelectItem value="cardio">Cardio</SelectItem>
+                  <SelectItem value="yoga">Yoga</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* This div will contain the ownership filter and add button. On mobile, it will be the second "row". On desktop, it will be part of the single row. */}
+            <div className="flex flex-wrap items-center gap-2">
+              <Select onValueChange={setOwnershipFilter} defaultValue={ownershipFilter}>
+                <SelectTrigger className="w-32">
+                  <SelectValue placeholder="All" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All</SelectItem>
+                  <SelectItem value="own">My Own</SelectItem>
+                  <SelectItem value="family">Family</SelectItem>
+                  <SelectItem value="public">Public</SelectItem>
+                </SelectContent>
+              </Select>
+              <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button className="bg-slate-900 hover:bg-slate-800 text-white">
+                    <Plus className="w-4 h-4 mr-2" />
+                    Add Exercise
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Add New Exercise</DialogTitle>
+                    <DialogDescription>
+                      Enter the details for a new exercise to add to your database.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="grid gap-4 py-4">
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="name" className="text-right">
+                        Name
+                      </Label>
+                      <Input
+                        id="name"
+                        value={newExerciseName}
+                        onChange={(e) => setNewExerciseName(e.target.value)}
+                        className="col-span-3"
+                      />
+                    </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="category" className="text-right">
+                        Category
+                      </Label>
+                      <Select onValueChange={setNewExerciseCategory} defaultValue={newExerciseCategory}>
+                        <SelectTrigger className="col-span-3">
+                          <SelectValue placeholder="Select a category" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="general">General</SelectItem>
+                          <SelectItem value="strength">Strength</SelectItem>
+                          <SelectItem value="cardio">Cardio</SelectItem>
+                          <SelectItem value="yoga">Yoga</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="calories" className="text-right">
+                        Calories/Hour
+                      </Label>
+                      <Input
+                        id="calories"
+                        type="number"
+                        value={newExerciseCalories.toString()}
+                        onChange={(e) => setNewExerciseCalories(Number(e.target.value))}
+                        className="col-span-3"
+                      />
+                    </div>
+                    <div className="grid grid-cols-4 items-start gap-4">
+                      <Label htmlFor="description" className="text-right mt-1">
+                        Description
+                      </Label>
+                      <Textarea
+                        id="description"
+                        value={newExerciseDescription}
+                        onChange={(e) => setNewExerciseDescription(e.target.value)}
+                        className="col-span-3"
+                      />
+                    </div>
                   </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="category" className="text-right">
-                      Category
-                    </Label>
-                    <Select onValueChange={setNewExerciseCategory} defaultValue={newExerciseCategory}>
-                      <SelectTrigger className="col-span-3">
-                        <SelectValue placeholder="Select a category" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="general">General</SelectItem>
-                        <SelectItem value="strength">Strength</SelectItem>
-                        <SelectItem value="cardio">Cardio</SelectItem>
-                        <SelectItem value="yoga">Yoga</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="calories" className="text-right">
-                      Calories/Hour
-                    </Label>
-                    <Input
-                      id="calories"
-                      type="number"
-                      value={newExerciseCalories.toString()}
-                      onChange={(e) => setNewExerciseCalories(Number(e.target.value))}
-                      className="col-span-3"
-                    />
-                  </div>
-                  <div className="grid grid-cols-4 items-start gap-4">
-                    <Label htmlFor="description" className="text-right mt-1">
-                      Description
-                    </Label>
-                    <Textarea
-                      id="description"
-                      value={newExerciseDescription}
-                      onChange={(e) => setNewExerciseDescription(e.target.value)}
-                      className="col-span-3"
-                    />
-                  </div>
-                </div>
-                <Button onClick={handleAddExercise}>Add Exercise</Button>
-              </DialogContent>
-            </Dialog>
+                  <Button onClick={handleAddExercise}>Add Exercise</Button>
+                </DialogContent>
+              </Dialog>
+            </div>
           </div>
           
           <div className="flex justify-between items-center mb-4">

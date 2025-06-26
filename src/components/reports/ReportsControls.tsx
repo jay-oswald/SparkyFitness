@@ -113,11 +113,11 @@ const ReportsControls = ({
   return (
     <Card>
       <CardContent className="p-4">
-        <div className="flex items-center justify-between">
-          {/* Unit Toggles on the left */}
-          <div className="flex items-center gap-6">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0">
+          {/* Unit Toggles */}
+          <div className="flex flex-row items-center gap-4 md:gap-6">
             <div className="flex items-center space-x-2">
-              <Label className="text-sm">Weight</Label>
+              <Label className="text-sm hidden md:block">Weight</Label>
               <span className={`text-xs ${showWeightInKg ? 'font-bold' : ''}`}>kg</span>
               <Switch
                 checked={!showWeightInKg}
@@ -126,7 +126,7 @@ const ReportsControls = ({
               <span className={`text-xs ${!showWeightInKg ? 'font-bold' : ''}`}>lbs</span>
             </div>
             <div className="flex items-center space-x-2">
-              <Label className="text-sm">Measurements</Label>
+              <Label className="text-sm hidden md:block">Measurements</Label>
               <span className={`text-xs ${showMeasurementsInCm ? 'font-bold' : ''}`}>cm</span>
               <Switch
                 checked={!showMeasurementsInCm}
@@ -136,8 +136,8 @@ const ReportsControls = ({
             </div>
           </div>
 
-          {/* Date Range Controls on the right */}
-          <div className="flex items-center gap-4">
+          {/* Date Range Controls */}
+          <div className="flex flex-col md:flex-row md:items-center gap-4">
             {/* Start Date Navigation */}
             <div className="flex items-center gap-2">
               <Button

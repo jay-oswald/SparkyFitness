@@ -290,67 +290,71 @@ const FoodDatabaseManager = () => {
   return (
     <div className="space-y-6">
       {/* Controls in a single row: Search, Filter, Items per page, Add button */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-        {/* Search box */}
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-          <Input
-            placeholder="Search foods..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10"
-          />
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-row flex-wrap items-center gap-4">
+          {/* Search box */}
+          <div className="relative flex-1 min-w-[180px]">
+            <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+            <Input
+              placeholder="Search foods..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10"
+            />
+          </div>
+
+          {/* Filter dropdown */}
+          <div className="flex items-center gap-2 whitespace-nowrap">
+            <Filter className="h-4 w-4 text-gray-500" />
+            <Select value={foodFilter} onValueChange={handleFilterChange}>
+              <SelectTrigger className="w-32">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="mine">My Foods</SelectItem>
+                <SelectItem value="family">Family</SelectItem>
+                <SelectItem value="public">Public</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
-        {/* Filter dropdown */}
-        <div className="flex items-center gap-2 whitespace-nowrap">
-          <Filter className="h-4 w-4 text-gray-500" />
-          <Select value={foodFilter} onValueChange={handleFilterChange}>
-            <SelectTrigger className="w-32">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All</SelectItem>
-              <SelectItem value="mine">My Foods</SelectItem>
-              <SelectItem value="family">Family</SelectItem>
-              <SelectItem value="public">Public</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          {/* Items per page selector */}
+          <div className="flex items-center gap-2 whitespace-nowrap">
+            <span className="text-sm">Items per page:</span>
+            <Select value={itemsPerPage.toString()} onValueChange={handleItemsPerPageChange}>
+              <SelectTrigger className="w-20">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="10">10</SelectItem>
+                <SelectItem value="15">15</SelectItem>
+                <SelectItem value="25">25</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
 
-        {/* Items per page selector */}
-        <div className="flex items-center gap-2 whitespace-nowrap">
-          <span className="text-sm">Items per page:</span>
-          <Select value={itemsPerPage.toString()} onValueChange={handleItemsPerPageChange}>
-            <SelectTrigger className="w-20">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="10">10</SelectItem>
-              <SelectItem value="15">15</SelectItem>
-              <SelectItem value="25">25</SelectItem>
-            </SelectContent>
-          </Select>
+          {/* Add new food button */}
+          <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+            <DialogTrigger asChild>
+              <Button className="whitespace-nowrap">
+                <Plus className="w-4 h-4 mr-2" />
+                Add New Food
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Add New Food</DialogTitle>
+                <DialogDescription>
+                  Enter the details for a new food item to add to your database.
+                </DialogDescription>
+              </DialogHeader>
+              <EnhancedCustomFoodForm onSave={handleSaveComplete} />
+            </DialogContent>
+          </Dialog>
         </div>
-
-        {/* Add new food button */}
-        <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-          <DialogTrigger asChild>
-            <Button className="whitespace-nowrap">
-              <Plus className="w-4 h-4 mr-2" />
-              Add New Food
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Add New Food</DialogTitle>
-              <DialogDescription>
-                Enter the details for a new food item to add to your database.
-              </DialogDescription>
-            </DialogHeader>
-            <EnhancedCustomFoodForm onSave={handleSaveComplete} />
-          </DialogContent>
-        </Dialog>
       </div>
 
       {loading ? (

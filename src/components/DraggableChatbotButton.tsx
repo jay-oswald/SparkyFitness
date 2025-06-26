@@ -82,7 +82,7 @@ const DraggableChatbotButton: React.FC = () => {
     handleInteractionEnd();
   };
 
-  const handleTouchStart = (e: React.TouchEvent) => {
+  const handleTouchStart = (e: TouchEvent) => {
     if (e.touches.length === 1) {
       handleInteractionStart(e.touches[0].clientX, e.touches[0].clientY);
       e.preventDefault(); // Prevent scrolling while dragging
@@ -108,24 +108,31 @@ const DraggableChatbotButton: React.FC = () => {
   };
 
   useEffect(() => {
-    if (isMobile) {
-      window.addEventListener('touchmove', handleTouchMove, { passive: false });
-      window.addEventListener('touchend', handleTouchEnd);
-    } else {
-      window.addEventListener('mousemove', handleMouseMove);
-      window.addEventListener('mouseup', handleMouseUp);
+    const buttonElement = buttonRef.current;
+    if (buttonElement) {
+      if (isMobile) {
+        buttonElement.addEventListener('touchstart', handleTouchStart, { passive: false });
+        window.addEventListener('touchmove', handleTouchMove, { passive: false });
+        window.addEventListener('touchend', handleTouchEnd);
+      } else {
+        window.addEventListener('mousemove', handleMouseMove);
+        window.addEventListener('mouseup', handleMouseUp);
+      }
     }
 
     return () => {
-      if (isMobile) {
-        window.removeEventListener('touchmove', handleTouchMove);
-        window.removeEventListener('touchend', handleTouchEnd);
-      } else {
-        window.removeEventListener('mousemove', handleMouseMove);
-        window.removeEventListener('mouseup', handleMouseUp);
+      if (buttonElement) {
+        if (isMobile) {
+          buttonElement.removeEventListener('touchstart', handleTouchStart);
+          window.removeEventListener('touchmove', handleTouchMove);
+          window.removeEventListener('touchend', handleTouchEnd);
+        } else {
+          window.removeEventListener('mousemove', handleMouseMove);
+          window.removeEventListener('mouseup', handleMouseUp);
+        }
       }
     };
-  }, [isDragging, position, isMobile, updatePosition]); // Re-run effect if dragging state, position, or mobile state changes
+  }, [isDragging, position, isMobile, updatePosition, handleTouchStart, handleTouchMove, handleTouchEnd]); // Re-run effect if dragging state, position, or mobile state changes
 
   return (
     <>
@@ -134,7 +141,6 @@ const DraggableChatbotButton: React.FC = () => {
         className="fixed z-50 rounded-full w-14 h-14 shadow-lg hover:shadow-xl transition-all duration-200 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 flex items-center justify-center overflow-hidden"
         style={{ left: position.x, top: position.y, cursor: isDragging ? 'grabbing' : (isMobile ? 'grab' : 'grab') }}
         onMouseDown={isMobile ? undefined : handleMouseDown}
-        onTouchStart={isMobile ? handleTouchStart : undefined}
         onClick={handleClick}
         size="lg"
       >

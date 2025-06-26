@@ -69,11 +69,11 @@ const CheckInPreferences = ({
     <div className="space-y-4">
       <Card>
         <CardContent className="p-4">
-          <div className="flex items-center justify-between">
-            {/* Unit Toggles on the left */}
-            <div className="flex items-center gap-6">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0">
+            {/* Unit Toggles */}
+            <div className="flex flex-row items-center gap-4 md:gap-6">
               <div className="flex items-center space-x-2">
-                <Label className="text-sm">Weight</Label>
+                <Label className="text-sm hidden md:block">Weight</Label>
                 <span className={`text-xs ${weightUnit === 'kg' ? 'font-bold' : ''}`}>kg</span>
                 <Switch
                   checked={weightUnit === 'lbs'}
@@ -86,7 +86,7 @@ const CheckInPreferences = ({
                 <span className={`text-xs ${weightUnit === 'lbs' ? 'font-bold' : ''}`}>lbs</span>
               </div>
               <div className="flex items-center space-x-2">
-                <Label className="text-sm">Measurements</Label>
+                <Label className="text-sm hidden md:block">Measurements</Label>
                 <span className={`text-xs ${measurementUnit === 'cm' ? 'font-bold' : ''}`}>cm</span>
                 <Switch
                   checked={measurementUnit === 'inches'}
@@ -100,7 +100,7 @@ const CheckInPreferences = ({
               </div>
             </div>
 
-            {/* Date Navigation on the right */}
+            {/* Date Navigation */}
             <div className="flex items-center gap-2">
               <Button
                 variant="outline"
