@@ -84,11 +84,16 @@ export default {
 					to: {
 						height: '0'
 					}
-				}
+				},
+				'scan-line': {
+					'0%': { bottom: '100%' }, // Start with bottom edge 100% from the bottom (i.e., at the top)
+					'100%': { bottom: '0%' }, // End with bottom edge at the bottom
+				},
 			},
 			animation: {
 				'accordion-down': 'accordion-down 0.2s ease-out',
-				'accordion-up': 'accordion-up 0.2s ease-out'
+				'accordion-up': 'accordion-up 0.2s ease-out',
+				'scan-line': 'scan-line 2s infinite linear',
 			}
 		}
 	},
