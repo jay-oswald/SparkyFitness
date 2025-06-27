@@ -118,6 +118,7 @@ To get the SparkyFitness application running on your local machine, follow these
      
 
 ### Manul Deployment of DB & Functions to Supabase
+**Method 1:  
 **If you don't have IPV6 network connection enabled, DB migration will fail as Supabase's free verssion doesn't support IPV4 direct connection.
 
    1. Download latest release and unzip to your PC.
@@ -129,5 +130,12 @@ To get the SparkyFitness application running on your local machine, follow these
       supabase db push  
       supabase functions deploy chat   
 ``
-Re-run Docker compose. Front end App will start working.  
+Re-run Docker compose. Front end App will start working.
+
+**Method 2:  
+   1. Download latest release and unzip to your PC.  
+   2. Navigate to the project folder.  
+   3. Go to supabase/migrations. Copy the SQL statements and run them in Supabase-->Project-->SQL Editor one by one in ASC order.  
+   4. [Optional] Do the same for supabase/functions/chat  if you require AI ChatBOT. Copy index.js and run it in Supabase-->Project-->Edge Function-->Deploy new function.  
+
 
