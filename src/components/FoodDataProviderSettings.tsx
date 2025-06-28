@@ -254,7 +254,6 @@ const FoodDataProviderSettings = () => {
   const getProviderTypes = () => [
     { value: "openfoodfacts", label: "OpenFoodFacts" },
     { value: "nutritionix", label: "Nutritionix" },
-    { value: "fatsecret", label: "FatSecret" },
   ];
 
   return (
