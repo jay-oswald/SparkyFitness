@@ -12,6 +12,7 @@ import EnhancedCustomFoodForm from './EnhancedCustomFoodForm';
 import BarcodeScanner from './BarcodeScanner';
 import { usePreferences } from "@/contexts/PreferencesContext";
 import { searchNutritionixFoods, getNutritionixNutrients, getNutritionixBrandedNutrients } from "@/services/NutritionixService";
+import { searchFatSecretFoods, getFatSecretNutrients } from "@/services/FatSecretService";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/hooks/useAuth";
 import { TablesInsert } from "@/integrations/supabase/types";
@@ -72,6 +73,7 @@ const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
   const [foods, setFoods] = useState<Food[]>([]);
   const [openFoodFactsResults, setOpenFoodFactsResults] = useState<OpenFoodFactsProduct[]>([]);
   const [nutritionixResults, setNutritionixResults] = useState<any[]>([]); // To store Nutritionix search results
+  const [fatSecretResults, setFatSecretResults] = useState<any[]>([]); // To store FatSecret search results
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'database' | 'online' | 'barcode'>('database');
   const [showEditDialog, setShowEditDialog] = useState(false);
@@ -253,6 +255,7 @@ const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
     setFoods([]); // Clear previous results
     setOpenFoodFactsResults([]);
     setNutritionixResults([]);
+    setFatSecretResults([]);
 
     if (!searchTerm.trim()) {
       setLoading(false);
@@ -278,6 +281,9 @@ const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
       } else if (provider?.provider_type === 'nutritionix') {
         const results = await searchNutritionixFoods(searchTerm, selectedFoodDataProvider);
         setNutritionixResults(results);
+      } else if (provider?.provider_type === 'fatsecret') {
+        const results = await searchFatSecretFoods(searchTerm, selectedFoodDataProvider);
+        setFatSecretResults(results);
       } else {
         toast({
           title: "Error",
@@ -322,6 +328,53 @@ const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
 
     if (nutrientData) {
       setEditingProduct(convertNutritionixToFood(item, nutrientData)); // Convert to Food object for editing
+      setShowEditDialog(true);
+    } else {
+      toast({
+        title: "Error",
+        description: "Failed to retrieve detailed nutrition for this item.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const convertFatSecretToFood = (item: any, nutrientData: any): Food => {
+    return {
+      id: undefined, // Let Supabase generate UUID
+      name: nutrientData.name,
+      brand: nutrientData.brand,
+      calories: nutrientData.calories,
+      protein: nutrientData.protein,
+      carbs: nutrientData.carbohydrates,
+      fat: nutrientData.fat,
+      saturated_fat: nutrientData.saturated_fat,
+      sodium: nutrientData.sodium,
+      serving_size: nutrientData.serving_qty,
+      serving_unit: nutrientData.serving_unit,
+      is_custom: false,
+      provider_external_id: item.id,
+      provider_type: 'fatsecret',
+      polyunsaturated_fat: nutrientData.polyunsaturated_fat,
+      monounsaturated_fat: nutrientData.monounsaturated_fat,
+      trans_fat: nutrientData.trans_fat,
+      cholesterol: nutrientData.cholesterol,
+      potassium: nutrientData.potassium,
+      dietary_fiber: nutrientData.dietary_fiber,
+      sugars: nutrientData.sugars,
+      vitamin_a: nutrientData.vitamin_a,
+      vitamin_c: nutrientData.vitamin_c,
+      calcium: nutrientData.calcium,
+      iron: nutrientData.iron,
+    };
+  };
+
+  const handleFatSecretEdit = async (item: any) => {
+    setLoading(true);
+    const nutrientData = await getFatSecretNutrients(item.id, selectedFoodDataProvider);
+    setLoading(false);
+
+    if (nutrientData) {
+      setEditingProduct(convertFatSecretToFood(item, nutrientData));
       setShowEditDialog(true);
     } else {
       toast({
@@ -407,7 +460,7 @@ const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
           </div>
         )}
 
-        {!loading && activeTab === 'online' && openFoodFactsResults.length === 0 && nutritionixResults.length === 0 && searchTerm.trim() && (
+        {!loading && activeTab === 'online' && openFoodFactsResults.length === 0 && nutritionixResults.length === 0 && fatSecretResults.length === 0 && searchTerm.trim() && (
           <div className="text-center py-8 text-gray-500">
             No foods found from the selected online provider.
           </div>
@@ -499,6 +552,43 @@ const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
                 <Button
                   size="sm"
                   onClick={() => handleNutritionixEdit(item)}
+                  className="ml-2"
+                >
+                  <Edit className="w-4 h-4 mr-1" />
+                  Edit & Add
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+
+        {activeTab === 'online' && fatSecretResults.length > 0 && fatSecretResults.map((item) => (
+          <Card key={item.id} className="hover:bg-gray-50">
+            <CardContent className="p-4">
+              <div className="flex justify-between items-start">
+                <div className="flex-1">
+                  <div className="flex items-center space-x-2 mb-2">
+                    <h3 className="font-medium">{item.name}</h3>
+                    {item.brand && <Badge variant="secondary" className="text-xs">{item.brand}</Badge>}
+                    <Badge variant="outline" className="text-xs">FatSecret</Badge>
+                  </div>
+                  {item.calories && (
+                    <div className="grid grid-cols-4 gap-2 text-sm text-gray-600 mt-1">
+                      <span><strong>{Math.round(item.calories)}</strong> cal</span>
+                      {item.protein && <span><strong>{Math.round(item.protein)}g</strong> protein</span>}
+                      {item.carbs && <span><strong>{Math.round(item.carbs)}g</strong> carbs</span>}
+                      {item.fat && <span><strong>{Math.round(item.fat)}g</strong> fat</span>}
+                    </div>
+                  )}
+                  {item.serving_size && item.serving_unit && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      Per {item.serving_size}{item.serving_unit}
+                    </p>
+                  )}
+                </div>
+                <Button
+                  size="sm"
+                  onClick={() => handleFatSecretEdit(item)}
                   className="ml-2"
                 >
                   <Edit className="w-4 h-4 mr-1" />
