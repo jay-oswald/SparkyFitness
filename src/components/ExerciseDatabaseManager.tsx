@@ -62,7 +62,7 @@ const ExerciseDatabaseManager = () => {
 
   const loadExercises = async () => {
     try {
-      let query = supabase
+      const query = supabase
         .from('exercises')
         .select('*')
         .order('name', { ascending: true });

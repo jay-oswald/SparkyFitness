@@ -286,6 +286,42 @@ export type Database = {
         }
         Relationships: []
       }
+      food_data_providers: {
+        Row: {
+          app_id: string | null
+          app_key: string | null
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          provider_name: string
+          provider_type: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          app_id?: string | null
+          app_key?: string | null
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          provider_name: string
+          provider_type: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          app_id?: string | null
+          app_key?: string | null
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          provider_name?: string
+          provider_type?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       food_entries: {
         Row: {
           created_at: string | null
@@ -439,10 +475,11 @@ export type Database = {
           is_custom: boolean | null
           monounsaturated_fat: number | null
           name: string
-          openfoodfacts_id: string | null
           polyunsaturated_fat: number | null
           potassium: number | null
           protein: number | null
+          provider_external_id: string | null
+          provider_type: string | null
           saturated_fat: number | null
           serving_size: number | null
           serving_unit: string | null
@@ -470,10 +507,11 @@ export type Database = {
           is_custom?: boolean | null
           monounsaturated_fat?: number | null
           name: string
-          openfoodfacts_id?: string | null
           polyunsaturated_fat?: number | null
           potassium?: number | null
           protein?: number | null
+          provider_external_id?: string | null
+          provider_type?: string | null
           saturated_fat?: number | null
           serving_size?: number | null
           serving_unit?: string | null
@@ -501,10 +539,11 @@ export type Database = {
           is_custom?: boolean | null
           monounsaturated_fat?: number | null
           name?: string
-          openfoodfacts_id?: string | null
           polyunsaturated_fat?: number | null
           potassium?: number | null
           protein?: number | null
+          provider_external_id?: string | null
+          provider_type?: string | null
           saturated_fat?: number | null
           serving_size?: number | null
           serving_unit?: string | null
@@ -674,6 +713,7 @@ export type Database = {
           auto_clear_history: string | null
           created_at: string
           date_format: string
+          default_food_data_provider_id: string | null
           default_measurement_unit: string
           default_weight_unit: string
           id: string
@@ -687,6 +727,7 @@ export type Database = {
           auto_clear_history?: string | null
           created_at?: string
           date_format?: string
+          default_food_data_provider_id?: string | null
           default_measurement_unit?: string
           default_weight_unit?: string
           id?: string
@@ -700,6 +741,7 @@ export type Database = {
           auto_clear_history?: string | null
           created_at?: string
           date_format?: string
+          default_food_data_provider_id?: string | null
           default_measurement_unit?: string
           default_weight_unit?: string
           id?: string
@@ -710,6 +752,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "user_preferences_default_food_data_provider_id_fkey"
+            columns: ["default_food_data_provider_id"]
+            isOneToOne: false
+            referencedRelation: "food_data_providers"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "user_preferences_user_id_fkey"
             columns: ["user_id"]

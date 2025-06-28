@@ -107,23 +107,23 @@ export const calculateFoodEntryNutrition = (entry: FoodEntry) => {
     return { calories: 0, protein: 0, carbs: 0, fat: 0 };
   }
 
-  let caloriesPerServing = food.calories || 0;
-  let proteinPerServing = food.protein || 0;
-  let carbsPerServing = food.carbs || 0;
-  let fatPerServing = food.fat || 0;
-  let saturatedFatPerServing = food.saturated_fat || 0;
-  let polyunsaturatedFatPerServing = food.polyunsaturated_fat || 0;
-  let monounsaturatedFatPerServing = food.monounsaturated_fat || 0;
-  let transFatPerServing = food.trans_fat || 0;
-  let cholesterolPerServing = food.cholesterol || 0;
-  let sodiumPerServing = food.sodium || 0;
-  let potassiumPerServing = food.potassium || 0;
-  let dietaryFiberPerServing = food.dietary_fiber || 0;
-  let sugarsPerServing = food.sugars || 0;
-  let vitaminAPerServing = food.vitamin_a || 0;
-  let vitaminCPerServing = food.vitamin_c || 0;
-  let calciumPerServing = food.calcium || 0;
-  let ironPerServing = food.iron || 0;
+  const caloriesPerServing = food.calories || 0;
+  const proteinPerServing = food.protein || 0;
+  const carbsPerServing = food.carbs || 0;
+  const fatPerServing = food.fat || 0;
+  const saturatedFatPerServing = food.saturated_fat || 0;
+  const polyunsaturatedFatPerServing = food.polyunsaturated_fat || 0;
+  const monounsaturatedFatPerServing = food.monounsaturated_fat || 0;
+  const transFatPerServing = food.trans_fat || 0;
+  const cholesterolPerServing = food.cholesterol || 0;
+  const sodiumPerServing = food.sodium || 0;
+  const potassiumPerServing = food.potassium || 0;
+  const dietaryFiberPerServing = food.dietary_fiber || 0;
+  const sugarsPerServing = food.sugars || 0;
+  const vitaminAPerServing = food.vitamin_a || 0;
+  const vitaminCPerServing = food.vitamin_c || 0;
+  const calciumPerServing = food.calcium || 0;
+  const ironPerServing = food.iron || 0;
 
   let nutrientValuesPerReferenceSize = {
     calories: food.calories || 0,

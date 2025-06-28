@@ -226,7 +226,7 @@ export const addFoodOption = async (userId: string, optionIndex: number, origina
         };
     }
 
-    let foodToUse = existingFoods && existingFoods.length > 0 ? existingFoods[0] : null;
+    const foodToUse = existingFoods && existingFoods.length > 0 ? existingFoods[0] : null;
 
     if (foodToUse) {
         foodId = foodToUse.id;

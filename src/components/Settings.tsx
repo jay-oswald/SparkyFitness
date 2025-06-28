@@ -14,6 +14,7 @@ import { toast } from "@/hooks/use-toast";
 import FamilyAccessManager from "./FamilyAccessManager";
 import AIServiceSettings from "./AIServiceSettings";
 import CustomCategoryManager from "./CustomCategoryManager";
+import FoodDataProviderSettings from "./FoodDataProviderSettings"; // Import FoodDataProviderSettings
 import { usePreferences } from "@/contexts/PreferencesContext"; // Import usePreferences
 
 interface Profile {
@@ -581,10 +582,13 @@ const Settings = () => {
        <FamilyAccessManager />
 
       {/* Custom Categories Management */}
-      <CustomCategoryManager 
-        categories={customCategories} 
+      <CustomCategoryManager
+        categories={customCategories}
         onCategoriesChange={setCustomCategories}
       />
+
+      {/* Food Data Provider Settings */}
+      <FoodDataProviderSettings />
 
       {/* AI Service Settings */}
       <AIServiceSettings />

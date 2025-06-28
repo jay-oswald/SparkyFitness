@@ -90,7 +90,7 @@ const EnhancedCustomFoodForm = ({ onSave, food }: EnhancedCustomFoodFormProps) =
       
       // Initialize variants with the primary food unit
       const primaryFoodUnit: FoodVariant = {
-        id: food.id, // Use food.id as the ID for the primary unit in the UI
+        id: food.id, // Keep food.id for existing foods
         serving_size: food.serving_size || 100,
         serving_unit: food.serving_unit || "g",
         calories: food.calories || 0,
@@ -113,7 +113,7 @@ const EnhancedCustomFoodForm = ({ onSave, food }: EnhancedCustomFoodFormProps) =
       };
       setVariants([primaryFoodUnit]);
 
-      if (food.id) {
+      if (food.id && isUUID(food.id)) { // Only load variants if food.id is a valid UUID
         loadExistingVariants();
       }
     } else {
@@ -143,7 +143,7 @@ const EnhancedCustomFoodForm = ({ onSave, food }: EnhancedCustomFoodFormProps) =
   }, [food]);
 
   const loadExistingVariants = async () => {
-    if (!food?.id) return;
+    if (!food?.id || !isUUID(food.id)) return; // Ensure food.id is a valid UUID
 
     try {
       const { data, error } = await supabase
@@ -736,6 +736,11 @@ const EnhancedCustomFoodForm = ({ onSave, food }: EnhancedCustomFoodFormProps) =
       </CardContent>
     </Card>
   );
+};
+
+const isUUID = (uuid: string) => {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(uuid);
 };
 
 export default EnhancedCustomFoodForm;

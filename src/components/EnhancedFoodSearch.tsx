@@ -1,5 +1,5 @@
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,6 +10,11 @@ import { Search, Plus, Loader2, Edit, Camera } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import EnhancedCustomFoodForm from './EnhancedCustomFoodForm';
 import BarcodeScanner from './BarcodeScanner';
+import { usePreferences } from "@/contexts/PreferencesContext";
+import { searchNutritionixFoods, getNutritionixNutrients, getNutritionixBrandedNutrients } from "@/services/NutritionixService";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useAuth } from "@/hooks/useAuth";
+import { TablesInsert } from "@/integrations/supabase/types";
 
 interface Food {
   id: string;
@@ -24,6 +29,20 @@ interface Food {
   serving_size: number;
   serving_unit: string;
   is_custom: boolean;
+  provider_external_id?: string;
+  provider_type?: string;
+  // Additional nutrients for comprehensive data
+  polyunsaturated_fat?: number;
+  monounsaturated_fat?: number;
+  trans_fat?: number;
+  cholesterol?: number;
+  potassium?: number;
+  dietary_fiber?: number;
+  sugars?: number;
+  vitamin_a?: number;
+  vitamin_c?: number;
+  calcium?: number;
+  iron?: number;
 }
 
 interface OpenFoodFactsProduct {
@@ -47,14 +66,50 @@ interface EnhancedFoodSearchProps {
 }
 
 const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
+  const { user } = useAuth();
+  const { defaultFoodDataProviderId, setDefaultFoodDataProviderId } = usePreferences();
   const [searchTerm, setSearchTerm] = useState('');
   const [foods, setFoods] = useState<Food[]>([]);
   const [openFoodFactsResults, setOpenFoodFactsResults] = useState<OpenFoodFactsProduct[]>([]);
+  const [nutritionixResults, setNutritionixResults] = useState<any[]>([]); // To store Nutritionix search results
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<'database' | 'openfoodfacts' | 'barcode'>('database');
+  const [activeTab, setActiveTab] = useState<'database' | 'online' | 'barcode'>('database');
   const [showEditDialog, setShowEditDialog] = useState(false);
-  const [editingProduct, setEditingProduct] = useState<OpenFoodFactsProduct | null>(null);
+  const [editingProduct, setEditingProduct] = useState<OpenFoodFactsProduct | Food | null>(null);
   const [showBarcodeScanner, setShowBarcodeScanner] = useState(false);
+  const [foodDataProviders, setFoodDataProviders] = useState<any[]>([]); // To store configured food data providers
+  const [selectedFoodDataProvider, setSelectedFoodDataProvider] = useState<string | null>(null); // To store the ID of the selected provider
+
+  // Load food data providers and set default
+  useEffect(() => {
+    const loadFoodDataProviders = async () => {
+      if (!user) return;
+      const { data, error } = await supabase
+        .from('food_data_providers')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error("Error loading food data providers:", error);
+        toast({
+          title: "Error",
+          description: "Failed to load food data providers.",
+          variant: "destructive",
+        });
+      } else {
+        setFoodDataProviders(data || []);
+        // Set default provider if available
+        if (defaultFoodDataProviderId) {
+          setSelectedFoodDataProvider(defaultFoodDataProviderId);
+        } else if (data && data.length > 0) {
+          // If no default is set, but providers exist, set the first one as selected
+          setSelectedFoodDataProvider(data[0].id);
+        }
+      }
+    };
+    loadFoodDataProviders();
+  }, [user, defaultFoodDataProviderId]);
 
   const searchDatabase = async () => {
     if (!searchTerm.trim()) return;
@@ -111,7 +166,7 @@ const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
 
      if (data.status === 1 && data.product) {
        setOpenFoodFactsResults([data.product]);
-       setActiveTab('openfoodfacts'); // Switch to OpenFoodFacts tab to display result
+       setActiveTab('online'); // Switch to Online tab to display result
        toast({
          title: 'Barcode scanned successfully',
          description: `Found product: ${data.product.product_name}`,
@@ -139,8 +194,9 @@ const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
     setShowEditDialog(true);
   };
 
-  const convertOpenFoodFactsToFood = (product: OpenFoodFactsProduct): any => {
-    const convertedFood = {
+  const convertOpenFoodFactsToFood = (product: OpenFoodFactsProduct): Food => {
+    const convertedFood: Food = {
+      id: undefined, // Let Supabase generate UUID
       name: product.product_name,
       brand: product.brands?.split(',')[0]?.trim() || '',
       calories: Math.round(product.nutriments['energy-kcal_100g'] || 0),
@@ -152,6 +208,8 @@ const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
       serving_size: 100,
       serving_unit: 'g',
       is_custom: false,
+      provider_external_id: product.code,
+      provider_type: 'openfoodfacts',
       // Additional nutrients for comprehensive data
       polyunsaturated_fat: 0,
       monounsaturated_fat: 0,
@@ -168,17 +226,14 @@ const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
     return convertedFood;
   };
 
-  const handleSaveEditedFood = async (foodData: any) => {
+  const handleSaveEditedFood = async (foodData: Food) => { // foodData is now the fully saved food from EnhancedCustomFoodForm
     try {
-      
-      // Food is already saved by the EnhancedCustomFoodForm
-      // Now we need to pass it to the meal selection
       onFoodSelect(foodData);
-      
+
       // Close dialog and clear state
       setShowEditDialog(false);
       setEditingProduct(null);
-      
+
       toast({
         title: 'Food added',
         description: `${foodData.name} has been added and is ready to be added to your meal`,
@@ -193,16 +248,90 @@ const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
     }
   };
 
-  const handleSearch = () => {
+  const handleSearch = async () => {
+    setLoading(true);
+    setFoods([]); // Clear previous results
+    setOpenFoodFactsResults([]);
+    setNutritionixResults([]);
+
+    if (!searchTerm.trim()) {
+      setLoading(false);
+      return;
+    }
+
     if (activeTab === 'database') {
-      searchDatabase();
-    } else if (activeTab === 'openfoodfacts') {
-      searchOpenFoodFacts();
-    } else if (activeTab === 'barcode') {
-      // Barcode scanning is handled by the BarcodeScanner component directly
-      // No action needed here for handleSearch
+      await searchDatabase();
+    } else if (activeTab === 'online') {
+      if (!selectedFoodDataProvider) {
+        toast({
+          title: "Error",
+          description: "Please select a food data provider from the dropdown.",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+
+      const provider = foodDataProviders.find(p => p.id === selectedFoodDataProvider);
+      if (provider?.provider_type === 'openfoodfacts') {
+        await searchOpenFoodFacts();
+      } else if (provider?.provider_type === 'nutritionix') {
+        const results = await searchNutritionixFoods(searchTerm, selectedFoodDataProvider);
+        setNutritionixResults(results);
+      } else {
+        toast({
+          title: "Error",
+          description: "Selected provider type is not supported for search.",
+          variant: "destructive",
+        });
+      }
+    }
+    setLoading(false);
+  };
+
+  const convertNutritionixToFood = (item: any, nutrientData: any): Food => {
+    return {
+      id: undefined, // Let Supabase generate UUID
+      name: nutrientData.name,
+      brand: nutrientData.brand,
+      calories: nutrientData.calories,
+      protein: nutrientData.protein,
+      carbs: nutrientData.carbohydrates,
+      fat: nutrientData.fat,
+      saturated_fat: nutrientData.saturated_fat,
+      sodium: nutrientData.sodium,
+      serving_size: nutrientData.serving_qty,
+      serving_unit: nutrientData.serving_unit,
+      is_custom: false,
+      provider_external_id: item.id,
+      provider_type: 'nutritionix',
+    };
+  };
+
+  const handleNutritionixEdit = async (item: any) => {
+    setLoading(true);
+    let nutrientData;
+    if (item.id && item.id.startsWith('nix_')) {
+      // It's a branded item, use nix_item_id to get full details
+      nutrientData = await getNutritionixBrandedNutrients(item.id, selectedFoodDataProvider);
+    } else {
+      // It's a common item, use natural language query
+      nutrientData = await getNutritionixNutrients(item.name, selectedFoodDataProvider);
+    }
+    setLoading(false);
+
+    if (nutrientData) {
+      setEditingProduct(convertNutritionixToFood(item, nutrientData)); // Convert to Food object for editing
+      setShowEditDialog(true);
+    } else {
+      toast({
+        title: "Error",
+        description: "Failed to retrieve detailed nutrition for this item.",
+        variant: "destructive",
+      });
     }
   };
+
 
   return (
     <div className="space-y-4">
@@ -214,23 +343,23 @@ const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
           Database
         </Button>
         <Button
-          variant={activeTab === 'openfoodfacts' ? 'default' : 'outline'}
-          onClick={() => setActiveTab('openfoodfacts')}
+          variant={activeTab === 'online' ? 'default' : 'outline'}
+          onClick={() => setActiveTab('online')}
         >
-          OpenFoodFacts
-         </Button>
-         <Button
-           variant={activeTab === 'barcode' ? 'default' : 'outline'}
-           onClick={() => {
-             setActiveTab('barcode');
-             setShowBarcodeScanner(true);
-           }}
-         >
-           <Camera className="w-4 h-4 mr-2" /> Scan Barcode
-         </Button>
-       </div>
+          Online
+        </Button>
+        <Button
+          variant={activeTab === 'barcode' ? 'default' : 'outline'}
+          onClick={() => {
+            setActiveTab('barcode');
+            setShowBarcodeScanner(true);
+          }}
+        >
+          <Camera className="w-4 h-4 mr-2" /> Scan Barcode
+        </Button>
+      </div>
 
-      <div className="flex space-x-2">
+      <div className="flex space-x-2 items-center">
         <Input
           placeholder="Search for foods..."
           value={searchTerm}
@@ -241,9 +370,49 @@ const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
         <Button onClick={handleSearch} disabled={loading}>
           {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
         </Button>
+        {activeTab === 'online' && (
+          <Select
+            value={selectedFoodDataProvider || ''}
+            onValueChange={(value) => {
+              setSelectedFoodDataProvider(value);
+              // Optionally, save the new default provider preference
+              setDefaultFoodDataProviderId(value);
+            }}
+          >
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Select Provider" />
+            </SelectTrigger>
+            <SelectContent>
+              {foodDataProviders.map(provider => (
+                <SelectItem key={provider.id} value={provider.id}>
+                  {provider.provider_name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
       </div>
 
       <div className="space-y-2 max-h-96 overflow-y-auto">
+        {loading && (
+          <div className="text-center py-8 text-gray-500">
+            <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2" />
+            Searching foods...
+          </div>
+        )}
+
+        {!loading && activeTab === 'database' && foods.length === 0 && searchTerm.trim() && (
+          <div className="text-center py-8 text-gray-500">
+            No foods found in your database.
+          </div>
+        )}
+
+        {!loading && activeTab === 'online' && openFoodFactsResults.length === 0 && nutritionixResults.length === 0 && searchTerm.trim() && (
+          <div className="text-center py-8 text-gray-500">
+            No foods found from the selected online provider.
+          </div>
+        )}
+
         {activeTab === 'database' && foods.map((food) => (
           <Card key={food.id} className="cursor-pointer hover:bg-gray-50" onClick={() => onFoodSelect(food)}>
             <CardContent className="p-4">
@@ -269,7 +438,7 @@ const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
           </Card>
         ))}
 
-        {activeTab === 'openfoodfacts' && openFoodFactsResults.map((product) => (
+        {activeTab === 'online' && openFoodFactsResults.length > 0 && openFoodFactsResults.map((product) => (
           <Card key={product.code} className="hover:bg-gray-50">
             <CardContent className="p-4">
               <div className="flex justify-between items-start">
@@ -299,6 +468,46 @@ const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
             </CardContent>
           </Card>
         ))}
+
+        {activeTab === 'online' && nutritionixResults.length > 0 && nutritionixResults.map((item) => (
+          <Card key={item.id} className="hover:bg-gray-50">
+            <CardContent className="p-4">
+              <div className="flex justify-between items-start">
+                <div className="flex-1">
+                  <div className="flex items-center space-x-2 mb-2">
+                    <h3 className="font-medium">{item.name}</h3>
+                    {item.brand && <Badge variant="secondary" className="text-xs">{item.brand}</Badge>}
+                    <Badge variant="outline" className="text-xs">Nutritionix</Badge>
+                  </div>
+                  {item.image && (
+                    <img src={item.image} alt={item.name} className="w-16 h-16 object-cover rounded-md mr-4" />
+                  )}
+                  {item.calories && (
+                    <div className="grid grid-cols-4 gap-2 text-sm text-gray-600 mt-1">
+                      <span><strong>{Math.round(item.calories)}</strong> cal</span>
+                      {item.protein && <span><strong>{Math.round(item.protein)}g</strong> protein</span>}
+                      {item.carbs && <span><strong>{Math.round(item.carbs)}g</strong> carbs</span>}
+                      {item.fat && <span><strong>{Math.round(item.fat)}g</strong> fat</span>}
+                    </div>
+                  )}
+                  {item.serving_size && item.serving_unit && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      Per {item.serving_size}{item.serving_unit}
+                    </p>
+                  )}
+                </div>
+                <Button
+                  size="sm"
+                  onClick={() => handleNutritionixEdit(item)}
+                  className="ml-2"
+                >
+                  <Edit className="w-4 h-4 mr-1" />
+                  Edit & Add
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
       {/* Edit Dialog for OpenFoodFacts products */}
@@ -309,7 +518,7 @@ const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
           </DialogHeader>
           {editingProduct && (
             <EnhancedCustomFoodForm
-              food={convertOpenFoodFactsToFood(editingProduct)}
+              food={(editingProduct && 'product_name' in editingProduct) ? convertOpenFoodFactsToFood(editingProduct as OpenFoodFactsProduct) : editingProduct as Food}
               onSave={handleSaveEditedFood}
             />
           )}
@@ -333,7 +542,6 @@ const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
             onClose={() => setShowBarcodeScanner(false)}
             isActive={showBarcodeScanner}
             cameraFacing="back"
-            continuousMode={false}
           />
         </DialogContent>
       </Dialog>
