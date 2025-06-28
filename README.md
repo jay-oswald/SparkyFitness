@@ -75,10 +75,10 @@ To get the SparkyFitness application running on your local machine, follow these
     *   **Create a new project on Supabase**: Go to [Supabase](https://app.supabase.com/) and create a new project. (You can also try setting up a local Supabase project if preferred.)
     *   Obtain your Supabase Project URL and Anon Key from your project settings (API section).
     *   **Important Note on Supabase Authentication:** Update your URL Configuration in Supabase Authentication settings to match your domain. This is crucial for your domain to work and for receiving email invites for sign-up. Supabase offers extensive security features and third-party SSO options; configure them as per your project's needs.
-        
+    *   Automated DB deployment to Supabase doesn't work with IPV4 if you have free version with Supabase. So, you need to configure your Network to use IPV6 connection. Oherwise DB migration will fail and you will need to deplopy manually.       
 
-Supabase CLI Installation:
-    *   Install the Supabase CLI by following the instructions at: [https://supabase.com/docs/guides/local-development/cli/getting-started?queryGroups=platform&platform=linux](https://supabase.com/docs/guides/local-development/cli/getting-started?queryGroups=platform&platform=linux)
+
+    
 
 ### Installation
 
@@ -115,3 +115,27 @@ Supabase CLI Installation:
         3.  Retrieve the access token by running `cat ~/.supabase/access-token`.
         4.  Update your `docker-compose.yml` or Portainer configuration with this token to redeploy.
         5.  After redeployment, log in to SparkyFitness and configure the AI service with your preferred provider.
+     
+
+### Manul Deployment of DB & Functions to Supabase
+**Method 1:  
+**If you don't have IPV6 network connection enabled, DB migration will fail as Supabase's free verssion doesn't support IPV4 direct connection.
+
+   1. Download latest release and unzip to your PC.
+   2. Navigate to the project folder. Docker needs to be up & running.
+   3. Run below commands. (functions deploy is needed only for AI configuration. If you don't need ChatBOT, you can skip it)
+``
+      supabase login  
+      supabase link  
+      supabase db push  
+      supabase functions deploy chat   
+``
+Re-run Docker compose. Front end App will start working.
+
+**Method 2:  
+   1. Download latest release and unzip to your PC.  
+   2. Navigate to the project folder.  
+   3. Go to supabase/migrations. Copy the SQL statements and run them in Supabase-->Project-->SQL Editor one by one in ASC order.  
+   4. [Optional] Do the same for supabase/functions/chat  if you require AI ChatBOT. Copy index.js and run it in Supabase-->Project-->Edge Function-->Deploy new function.  
+
+
