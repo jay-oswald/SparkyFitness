@@ -15,7 +15,7 @@ import { usePreferences } from "@/contexts/PreferencesContext";
 interface FoodDataProvider {
   id: string;
   provider_name: string;
-  provider_type: 'openfoodfacts' | 'nutritionix';
+  provider_type: 'openfoodfacts' | 'nutritionix' | 'fatsecret';
   app_id: string | null;
   app_key: string | null;
   is_active: boolean;
@@ -28,7 +28,7 @@ const FoodDataProviderSettings = () => {
   const [providers, setProviders] = useState<FoodDataProvider[]>([]);
   const [newProvider, setNewProvider] = useState({
     provider_name: '',
-    provider_type: 'openfoodfacts' as 'openfoodfacts' | 'nutritionix',
+    provider_type: 'openfoodfacts' as 'openfoodfacts' | 'nutritionix' | 'fatsecret',
     app_id: '',
     app_key: '',
     is_active: false,
@@ -64,7 +64,7 @@ const FoodDataProviderSettings = () => {
     } else {
       setProviders(data.map(provider => ({
         ...provider,
-        provider_type: provider.provider_type as 'openfoodfacts' | 'nutritionix'
+        provider_type: provider.provider_type as 'openfoodfacts' | 'nutritionix' | 'fatsecret'
       })) || []);
     }
     setLoading(false);
@@ -80,7 +80,7 @@ const FoodDataProviderSettings = () => {
       return;
     }
 
-    if (newProvider.provider_type === 'nutritionix' && (!newProvider.app_id || !newProvider.app_key)) {
+    if ((newProvider.provider_type === 'nutritionix' || newProvider.provider_type === 'fatsecret') && (!newProvider.app_id || !newProvider.app_key)) {
       toast({
         title: "Error",
         description: `Please provide App ID and App Key for ${newProvider.provider_type}`,
@@ -254,6 +254,7 @@ const FoodDataProviderSettings = () => {
   const getProviderTypes = () => [
     { value: "openfoodfacts", label: "OpenFoodFacts" },
     { value: "nutritionix", label: "Nutritionix" },
+    { value: "fatsecret", label: "FatSecret" },
   ];
 
   return (
@@ -291,7 +292,7 @@ const FoodDataProviderSettings = () => {
                   <Label htmlFor="new_provider_type">Provider Type</Label>
                   <Select
                     value={newProvider.provider_type}
-                    onValueChange={(value) => setNewProvider(prev => ({ ...prev, provider_type: value as 'openfoodfacts' | 'nutritionix', app_id: '', app_key: '' }))}
+                    onValueChange={(value) => setNewProvider(prev => ({ ...prev, provider_type: value as 'openfoodfacts' | 'nutritionix' | 'fatsecret', app_id: '', app_key: '' }))}
                   >
                     <SelectTrigger>
                       <SelectValue />
@@ -307,7 +308,7 @@ const FoodDataProviderSettings = () => {
                 </div>
               </div>
 
-              {newProvider.provider_type === 'nutritionix' && (
+              {(newProvider.provider_type === 'nutritionix' || newProvider.provider_type === 'fatsecret') && (
                 <>
                   <div>
                     <Label htmlFor="new_app_id">App ID / Consumer Key</Label>
@@ -379,7 +380,7 @@ const FoodDataProviderSettings = () => {
                             <Label>Provider Type</Label>
                             <Select
                               value={editData.provider_type || ''}
-                              onValueChange={(value) => setEditData(prev => ({ ...prev, provider_type: value as 'openfoodfacts' | 'nutritionix', app_id: '', app_key: '' }))}
+                              onValueChange={(value) => setEditData(prev => ({ ...prev, provider_type: value as 'openfoodfacts' | 'nutritionix' | 'fatsecret', app_id: '', app_key: '' }))}
                             >
                               <SelectTrigger>
                                 <SelectValue />
@@ -395,7 +396,7 @@ const FoodDataProviderSettings = () => {
                           </div>
                         </div>
 
-                        {editData.provider_type === 'nutritionix' && (
+                        {(editData.provider_type === 'nutritionix' || editData.provider_type === 'fatsecret') && (
                           <>
                             <div>
                               <Label>App ID / Consumer Key</Label>

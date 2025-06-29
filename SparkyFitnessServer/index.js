@@ -14,6 +14,11 @@ app.use(cors({
 }));
 app.use(express.json()); // For parsing application/json
 
+// Test route
+app.get('/test', (req, res) => {
+  res.send('Test route is working!');
+});
+
 const FATSECRET_OAUTH_TOKEN_URL = "https://oauth.fatsecret.com/connect/token";
 const FATSECRET_API_BASE_URL = "https://platform.fatsecret.com/rest";
 
@@ -27,6 +32,8 @@ async function getFatSecretAccessToken(clientId, clientSecret) {
   }
 
   try {
+    console.log(`Attempting to get FatSecret Access Token from: ${FATSECRET_OAUTH_TOKEN_URL}`);
+    console.log(`Using Client ID: ${clientId}, Client Secret: ${clientSecret ? '********' : 'N/A'}`); // Mask secret
     const response = await fetch(FATSECRET_OAUTH_TOKEN_URL, {
       method: "POST",
       headers: {
@@ -64,16 +71,6 @@ app.use('/api/fatsecret', async (req, res, next) => {
   if (!providerId) {
     return res.status(400).json({ error: "Missing x-provider-id header" });
   }
-
-  // In a real application, you would fetch these from your database (Supabase)
-  // For this example, we'll use environment variables for simplicity.
-  // You would replace this with a call to your Supabase client to fetch
-  // the app_id and app_key based on the providerId.
-  // Example:
-  // const { data, error } = await supabase.from('food_data_providers').select('app_id, app_key').eq('id', providerId).single();
-  // if (error || !data) { ... }
-  // req.clientId = data.app_id;
-  // req.clientSecret = data.app_key;
 
   // Initialize Supabase client
   const supabaseUrl = process.env.SUPABASE_URL;
@@ -115,10 +112,15 @@ app.get('/api/fatsecret/search', async (req, res) => {
 
   try {
     const accessToken = await getFatSecretAccessToken(clientId, clientSecret);
+    const searchUrl = `${FATSECRET_API_BASE_URL}?${new URLSearchParams({
+      method: "foods.search",
+      search_expression: query,
+      format: "json",
+    }).toString()}`;
+    console.log(`FatSecret Search URL: ${searchUrl}`);
+    console.log(`Using Access Token: ${accessToken ? '********' : 'N/A'}`); // Mask token
     const response = await fetch(
-      `${FATSECRET_API_BASE_URL}/foods/search.v3?${new URLSearchParams({
-        search_expression: query,
-      }).toString()}`,
+      searchUrl,
       {
         method: "GET",
         headers: {
@@ -160,10 +162,15 @@ app.get('/api/fatsecret/nutrients', async (req, res) => {
 
   try {
     const accessToken = await getFatSecretAccessToken(clientId, clientSecret);
+    const nutrientsUrl = `${FATSECRET_API_BASE_URL}?${new URLSearchParams({
+      method: "food.get",
+      food_id: foodId,
+      format: "json",
+    }).toString()}`;
+    console.log(`FatSecret Nutrients URL: ${nutrientsUrl}`);
+    console.log(`Using Access Token: ${accessToken ? '********' : 'N/A'}`); // Mask token
     const response = await fetch(
-      `${FATSECRET_API_BASE_URL}/food.get.v4?${new URLSearchParams({
-        food_id: foodId,
-      }).toString()}`,
+      nutrientsUrl,
       {
         method: "GET",
         headers: {
@@ -192,6 +199,11 @@ app.get('/api/fatsecret/nutrients', async (req, res) => {
     console.error("Error in FatSecret nutrient proxy:", error);
     res.status(500).json({ error: error.message });
   }
+});
+
+// Catch-all for 404 Not Found
+app.use((req, res, next) => {
+  res.status(404).json({ error: "Not Found", message: `The requested URL ${req.originalUrl} was not found on this server.` });
 });
 
 app.listen(PORT, () => {

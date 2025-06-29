@@ -44,13 +44,11 @@ interface FatSecretServing {
 }
 
 interface FatSecretSearchResponse {
-  foods_search: {
+  foods: {
     max_results: string;
     total_results: string;
     page_number: string;
-    results: {
-      food: FatSecretFoodItem[];
-    };
+    food: FatSecretFoodItem[]; // Corrected: 'food' array is directly under 'foods'
   };
 }
 
@@ -91,8 +89,8 @@ export const searchFatSecretFoods = async (query: string, providerId: string) =>
     }
 
     const data: FatSecretSearchResponse = await response.json();
-    if (data.foods_search && data.foods_search.results && data.foods_search.results.food) {
-      return data.foods_search.results.food.map(item => ({
+    if (data.foods && data.foods.food) { // Corrected: Check for 'foods' and 'food' directly
+      return data.foods.food.map(item => ({
         id: item.food_id,
         name: item.food_name,
         brand: item.brand_name || null,
