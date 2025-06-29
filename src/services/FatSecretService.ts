@@ -89,22 +89,43 @@ export const searchFatSecretFoods = async (query: string, providerId: string) =>
     }
 
     const data: FatSecretSearchResponse = await response.json();
-    if (data.foods && data.foods.food) { // Corrected: Check for 'foods' and 'food' directly
-      return data.foods.food.map(item => ({
-        id: item.food_id,
-        name: item.food_name,
-        brand: item.brand_name || null,
-        food_type: item.food_type,
-        description: item.food_description,
-        source: "FatSecret",
-        // Basic nutrient info from search results (if available, otherwise will fetch detailed later)
-        calories: item.servings?.serving[0]?.calories ? parseFloat(item.servings.serving[0].calories) : 0,
-        protein: item.servings?.serving[0]?.protein ? parseFloat(item.servings.serving[0].protein) : 0,
-        carbs: item.servings?.serving[0]?.carbohydrate ? parseFloat(item.servings.serving[0].carbohydrate) : 0,
-        fat: item.servings?.serving[0]?.fat ? parseFloat(item.servings.serving[0].fat) : 0,
-        serving_size: item.servings?.serving[0]?.metric_serving_amount ? parseFloat(item.servings.serving[0].metric_serving_amount) : 0,
-        serving_unit: item.servings?.serving[0]?.metric_serving_unit || 'g',
-      }));
+    if (data.foods && data.foods.food) {
+      const detailedFoods: any[] = [];
+      for (const item of data.foods.food) {
+        // For each food found in search, fetch its detailed nutrients using food.get.v4
+        const nutrientData = await getFatSecretNutrients(item.food_id, providerId);
+        if (nutrientData) {
+          detailedFoods.push({
+            id: item.food_id,
+            name: nutrientData.name,
+            brand: nutrientData.brand || null,
+            food_type: item.food_type, // Keep original food_type from search
+            description: item.food_description, // Keep original description from search
+            source: "FatSecret",
+            calories: nutrientData.calories,
+            protein: nutrientData.protein,
+            carbs: nutrientData.carbohydrates,
+            fat: nutrientData.fat,
+            serving_size: nutrientData.serving_qty,
+            serving_unit: nutrientData.serving_unit,
+            // Include other detailed nutrients if needed for initial display
+            saturated_fat: nutrientData.saturated_fat,
+            polyunsaturated_fat: nutrientData.polyunsaturated_fat,
+            monounsaturated_fat: nutrientData.monounsaturated_fat,
+            trans_fat: nutrientData.trans_fat,
+            cholesterol: nutrientData.cholesterol,
+            sodium: nutrientData.sodium,
+            potassium: nutrientData.potassium,
+            dietary_fiber: nutrientData.dietary_fiber,
+            sugars: nutrientData.sugars,
+            vitamin_a: nutrientData.vitamin_a,
+            vitamin_c: nutrientData.vitamin_c,
+            calcium: nutrientData.calcium,
+            iron: nutrientData.iron,
+          });
+        }
+      }
+      return detailedFoods;
     }
     return [];
   } catch (error) {

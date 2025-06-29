@@ -163,7 +163,7 @@ app.get('/api/fatsecret/nutrients', async (req, res) => {
   try {
     const accessToken = await getFatSecretAccessToken(clientId, clientSecret);
     const nutrientsUrl = `${FATSECRET_API_BASE_URL}?${new URLSearchParams({
-      method: "food.get",
+      method: "food.get.v4",
       food_id: foodId,
       format: "json",
     }).toString()}`;
