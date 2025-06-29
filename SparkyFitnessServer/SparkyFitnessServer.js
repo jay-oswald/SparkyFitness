@@ -25,6 +25,10 @@ const FATSECRET_API_BASE_URL = "https://platform.fatsecret.com/rest";
 let fatSecretAccessToken = null;
 let tokenExpiryTime = 0;
 
+// In-memory cache for FatSecret food nutrient data
+const foodNutrientCache = new Map();
+const CACHE_DURATION_MS = 5 * 60 * 1000; // 5 minutes
+
 // Function to get FatSecret OAuth 2.0 Access Token
 async function getFatSecretAccessToken(clientId, clientSecret) {
   if (fatSecretAccessToken && Date.now() < tokenExpiryTime) {
@@ -160,6 +164,13 @@ app.get('/api/fatsecret/nutrients', async (req, res) => {
     return res.status(400).json({ error: "Missing foodId" });
   }
 
+  // Check cache first
+  const cachedData = foodNutrientCache.get(foodId);
+  if (cachedData && Date.now() < cachedData.expiry) {
+    console.log(`Returning cached data for foodId: ${foodId}`);
+    return res.json(cachedData.data);
+  }
+
   try {
     const accessToken = await getFatSecretAccessToken(clientId, clientSecret);
     const nutrientsUrl = `${FATSECRET_API_BASE_URL}?${new URLSearchParams({
@@ -175,25 +186,29 @@ app.get('/api/fatsecret/nutrients', async (req, res) => {
         method: "GET",
         headers: {
           Authorization: `Bearer ${accessToken}`,
-          "Content-Type": "application/json", // Keep this for now, as it was in their example
-          "Accept": "application/json", // Add Accept header
+          "Content-Type": "application/json",
+          "Accept": "application/json",
         }
       }
     );
 
     if (!response.ok) {
-      const errorText = await response.text(); // Get raw response text
+      const errorText = await response.text();
       console.error("FatSecret Food Get API error:", errorText);
       try {
         const errorData = JSON.parse(errorText);
         return res.status(response.status).json({ error: errorData.message || response.statusText });
       } catch (jsonError) {
-        // If it's not JSON, return the raw text as an error
         return res.status(response.status).json({ error: `FatSecret API returned non-JSON error: ${errorText}` });
       }
     }
 
     const data = await response.json();
+    // Store in cache
+    foodNutrientCache.set(foodId, {
+      data: data,
+      expiry: Date.now() + CACHE_DURATION_MS
+    });
     res.json(data);
   } catch (error) {
     console.error("Error in FatSecret nutrient proxy:", error);

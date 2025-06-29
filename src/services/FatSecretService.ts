@@ -2,16 +2,20 @@ import { toast } from "@/hooks/use-toast";
 
 const PROXY_BASE_URL = import.meta.env.VITE_SPARKY_FITNESS_SERVER_URL || "http://localhost:3010/api/fatsecret"; // URL of your Node.js proxy server
 
-interface FatSecretFoodItem {
+export interface FatSecretFoodItem {
   food_id: string;
   food_name: string;
   brand_name?: string;
   food_type: string;
   food_url: string;
   food_description: string;
-  servings?: {
-    serving: FatSecretServing[];
-  };
+  // Add parsed basic nutrients from food_description
+  calories?: number;
+  protein?: number;
+  carbs?: number;
+  fat?: number;
+  serving_size?: number;
+  serving_unit?: string;
 }
 
 interface FatSecretServing {
@@ -65,6 +69,33 @@ interface FatSecretFoodGetResponse {
   };
 }
 
+// Helper function to parse food_description for nutrients and serving info
+const parseFoodDescription = (description: string) => {
+  const caloriesMatch = description.match(/Calories: (\d+)kcal/);
+  const fatMatch = description.match(/Fat: ([\d.]+)g/);
+  const carbsMatch = description.match(/Carbs: ([\d.]+)g/);
+  const proteinMatch = description.match(/Protein: ([\d.]+)g/);
+
+  // Extract serving size and unit (e.g., "Per 1 serving", "Per 100g")
+  const servingMatch = description.match(/Per ([\d.]+) (.+?) -/);
+  let serving_size: number | undefined;
+  let serving_unit: string | undefined;
+
+  if (servingMatch) {
+    serving_size = parseFloat(servingMatch[1]);
+    serving_unit = servingMatch[2].trim();
+  }
+
+  return {
+    calories: caloriesMatch ? parseFloat(caloriesMatch[1]) : 0,
+    fat: fatMatch ? parseFloat(fatMatch[1]) : 0,
+    carbs: carbsMatch ? parseFloat(carbsMatch[1]) : 0,
+    protein: proteinMatch ? parseFloat(proteinMatch[1]) : 0,
+    serving_size,
+    serving_unit,
+  };
+};
+
 export const searchFatSecretFoods = async (query: string, providerId: string) => {
   try {
     const response = await fetch(
@@ -90,42 +121,23 @@ export const searchFatSecretFoods = async (query: string, providerId: string) =>
 
     const data: FatSecretSearchResponse = await response.json();
     if (data.foods && data.foods.food) {
-      const detailedFoods: any[] = [];
-      for (const item of data.foods.food) {
-        // For each food found in search, fetch its detailed nutrients using food.get.v4
-        const nutrientData = await getFatSecretNutrients(item.food_id, providerId);
-        if (nutrientData) {
-          detailedFoods.push({
-            id: item.food_id,
-            name: nutrientData.name,
-            brand: nutrientData.brand || null,
-            food_type: item.food_type, // Keep original food_type from search
-            description: item.food_description, // Keep original description from search
-            source: "FatSecret",
-            calories: nutrientData.calories,
-            protein: nutrientData.protein,
-            carbs: nutrientData.carbohydrates,
-            fat: nutrientData.fat,
-            serving_size: nutrientData.serving_qty,
-            serving_unit: nutrientData.serving_unit,
-            // Include other detailed nutrients if needed for initial display
-            saturated_fat: nutrientData.saturated_fat,
-            polyunsaturated_fat: nutrientData.polyunsaturated_fat,
-            monounsaturated_fat: nutrientData.monounsaturated_fat,
-            trans_fat: nutrientData.trans_fat,
-            cholesterol: nutrientData.cholesterol,
-            sodium: nutrientData.sodium,
-            potassium: nutrientData.potassium,
-            dietary_fiber: nutrientData.dietary_fiber,
-            sugars: nutrientData.sugars,
-            vitamin_a: nutrientData.vitamin_a,
-            vitamin_c: nutrientData.vitamin_c,
-            calcium: nutrientData.calcium,
-            iron: nutrientData.iron,
-          });
-        }
-      }
-      return detailedFoods;
+      return data.foods.food.map(item => {
+        const parsedData = parseFoodDescription(item.food_description);
+        return {
+          food_id: item.food_id,
+          food_name: item.food_name,
+          brand_name: item.brand_name || null,
+          food_type: item.food_type,
+          food_url: item.food_url,
+          food_description: item.food_description, // Keep original for now, will remove from display in frontend
+          calories: parsedData.calories,
+          protein: parsedData.protein,
+          carbs: parsedData.carbs,
+          fat: parsedData.fat,
+          serving_size: parsedData.serving_size,
+          serving_unit: parsedData.serving_unit,
+        };
+      });
     }
     return [];
   } catch (error) {

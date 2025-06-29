@@ -12,7 +12,7 @@ import EnhancedCustomFoodForm from './EnhancedCustomFoodForm';
 import BarcodeScanner from './BarcodeScanner';
 import { usePreferences } from "@/contexts/PreferencesContext";
 import { searchNutritionixFoods, getNutritionixNutrients, getNutritionixBrandedNutrients } from "@/services/NutritionixService";
-import { searchFatSecretFoods, getFatSecretNutrients } from "@/services/FatSecretService";
+import { searchFatSecretFoods, getFatSecretNutrients, FatSecretFoodItem } from "@/services/FatSecretService";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/hooks/useAuth";
 import { TablesInsert } from "@/integrations/supabase/types";
@@ -73,7 +73,7 @@ const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
   const [foods, setFoods] = useState<Food[]>([]);
   const [openFoodFactsResults, setOpenFoodFactsResults] = useState<OpenFoodFactsProduct[]>([]);
   const [nutritionixResults, setNutritionixResults] = useState<any[]>([]); // To store Nutritionix search results
-  const [fatSecretResults, setFatSecretResults] = useState<any[]>([]); // To store FatSecret search results
+  const [fatSecretResults, setFatSecretResults] = useState<FatSecretFoodItem[]>([]); // To store FatSecret search results
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'database' | 'online' | 'barcode'>('database');
   const [showEditDialog, setShowEditDialog] = useState(false);
@@ -338,11 +338,11 @@ const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
     }
   };
 
-  const convertFatSecretToFood = (item: any, nutrientData: any): Food => {
+  const convertFatSecretToFood = (item: FatSecretFoodItem, nutrientData: any): Food => {
     return {
       id: undefined, // Let Supabase generate UUID
       name: nutrientData.name,
-      brand: nutrientData.brand,
+      brand: nutrientData.brand || item.brand_name || null, // Use detailed brand if available, else from search
       calories: nutrientData.calories,
       protein: nutrientData.protein,
       carbs: nutrientData.carbohydrates,
@@ -352,7 +352,7 @@ const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
       serving_size: nutrientData.serving_qty,
       serving_unit: nutrientData.serving_unit,
       is_custom: false,
-      provider_external_id: item.id,
+      provider_external_id: item.food_id, // Use food_id from FatSecretFoodItem
       provider_type: 'fatsecret',
       polyunsaturated_fat: nutrientData.polyunsaturated_fat,
       monounsaturated_fat: nutrientData.monounsaturated_fat,
@@ -368,9 +368,10 @@ const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
     };
   };
 
-  const handleFatSecretEdit = async (item: any) => {
+  const handleFatSecretEdit = async (item: FatSecretFoodItem) => {
     setLoading(true);
-    const nutrientData = await getFatSecretNutrients(item.id, selectedFoodDataProvider);
+    // Only fetch detailed nutrients when "Edit & Add" is clicked
+    const nutrientData = await getFatSecretNutrients(item.food_id, selectedFoodDataProvider);
     setLoading(false);
 
     if (nutrientData) {
@@ -563,21 +564,21 @@ const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
         ))}
 
         {activeTab === 'online' && fatSecretResults.length > 0 && fatSecretResults.map((item) => (
-          <Card key={item.id} className="hover:bg-gray-50">
+          <Card key={item.food_id} className="hover:bg-gray-50">
             <CardContent className="p-4">
               <div className="flex justify-between items-start">
                 <div className="flex-1">
                   <div className="flex items-center space-x-2 mb-2">
-                    <h3 className="font-medium">{item.name}</h3>
-                    {item.brand && <Badge variant="secondary" className="text-xs">{item.brand}</Badge>}
+                    <h3 className="font-medium">{item.food_name}</h3>
+                    {item.brand_name && <Badge variant="secondary" className="text-xs">{item.brand_name}</Badge>}
                     <Badge variant="outline" className="text-xs">FatSecret</Badge>
                   </div>
-                  {item.calories && (
+                  {item.calories !== undefined && item.protein !== undefined && item.carbs !== undefined && item.fat !== undefined && (
                     <div className="grid grid-cols-4 gap-2 text-sm text-gray-600 mt-1">
                       <span><strong>{Math.round(item.calories)}</strong> cal</span>
-                      {item.protein && <span><strong>{Math.round(item.protein)}g</strong> protein</span>}
-                      {item.carbs && <span><strong>{Math.round(item.carbs)}g</strong> carbs</span>}
-                      {item.fat && <span><strong>{Math.round(item.fat)}g</strong> fat</span>}
+                      <span><strong>{Math.round(item.protein)}g</strong> protein</span>
+                      <span><strong>{Math.round(item.carbs)}g</strong> carbs</span>
+                      <span><strong>{Math.round(item.fat)}g</strong> fat</span>
                     </div>
                   )}
                   {item.serving_size && item.serving_unit && (
