@@ -2,7 +2,6 @@
 
 SparkyFitness is a comprehensive fitness tracking and management application designed to help users monitor their nutrition, exercise, and body measurements. It provides tools for daily progress tracking, goal setting, and insightful reports to support a healthy lifestyle.
 
-## ✨ Features
 
 ## ✨ Features
 
@@ -60,6 +59,11 @@ SparkyFitness is a comprehensive fitness tracking and management application des
 
 * **Switch between light and dark mode**
 * **Designed with a minimal, distraction-free interface**
+
+### Need Help?
+* **Join discord**
+  https://discord.gg/vcnMT5cPEA
+* **Post in discussion**
 
 
 ![image](https://github.com/user-attachments/assets/ccc7f34e-a663-405f-a4d4-a9888c3197bc)
