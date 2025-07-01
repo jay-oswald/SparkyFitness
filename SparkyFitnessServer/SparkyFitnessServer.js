@@ -419,29 +419,69 @@ async function getOrCreateActiveCaloriesExercise(userId) {
 
 // Helper function to upsert exercise entry data
 async function upsertExerciseEntryData(userId, exerciseId, caloriesBurned, date) {
+  console.log("upsertExerciseEntryData received date parameter:", date);
   // For active calories, we don't have a duration, so we can set it to 0 or a small default.
   // The primary value is calories_burned.
   const { data, error } = await supabase
     .from('exercise_entries')
-    .upsert(
-      {
-        user_id: userId,
-        exercise_id: exerciseId,
-        entry_date: date,
-        calories_burned: caloriesBurned,
-        duration_minutes: 0, // No duration for active calories from Apple Health
-        notes: 'Active calories logged from Apple Health.',
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: ['user_id', 'exercise_id', 'entry_date'], ignoreDuplicates: false }
-    )
-    .select();
+    // For active calories, we don't have a duration, so we can set it to 0 or a small default.
+    // The primary value is calories_burned.
+    // First, check if an entry for this specific "Active Calories" exercise already exists for the user and date.
+    const { data: existingEntry, error: selectError } = await supabase
+      .from('exercise_entries')
+      .select('id, calories_burned')
+      .eq('user_id', userId)
+      .eq('exercise_id', exerciseId)
+      .eq('entry_date', date)
+      .single();
 
-  if (error) {
-    console.error("Error upserting exercise entry data:", error);
-    throw new Error(`Failed to save exercise entry data: ${error.message}`);
-  }
-  return data;
+    if (selectError && selectError.code !== 'PGRST116') { // PGRST116 means no rows found
+      console.error("Error checking for existing active calories exercise entry:", selectError);
+      throw new Error(`Failed to check existing active calories exercise entry: ${selectError.message}`);
+    }
+
+    let result;
+    if (existingEntry) {
+      // If an entry exists, update its calories_burned by adding the new value
+      console.log(`Existing active calories entry found for ${date}, updating calories from ${existingEntry.calories_burned} to ${caloriesBurned}.`);
+      const { data, error } = await supabase
+        .from('exercise_entries')
+        .update({
+          calories_burned: caloriesBurned, // Overwrite with the latest total from Apple Health
+          notes: 'Active calories logged from Apple Health (updated).',
+        })
+        .eq('id', existingEntry.id)
+        .select();
+
+      if (error) {
+        console.error("Error updating active calories exercise entry:", error);
+        throw new Error(`Failed to update active calories exercise entry: ${error.message}`);
+      }
+      result = data;
+    } else {
+      // If no entry exists, insert a new one
+      console.log(`No existing active calories entry found for ${date}, inserting new entry.`);
+      const { data, error } = await supabase
+        .from('exercise_entries')
+        .insert(
+          {
+            user_id: userId,
+            exercise_id: exerciseId,
+            entry_date: date,
+            calories_burned: caloriesBurned,
+            duration_minutes: 0, // No duration for active calories from Apple Health
+            notes: 'Active calories logged from Apple Health.',
+          }
+        )
+        .select();
+
+      if (error) {
+        console.error("Error inserting active calories exercise entry:", error);
+        throw new Error(`Failed to insert active calories exercise entry: ${error.message}`);
+      }
+      result = data;
+    }
+    return result;
 }
 
 // New endpoint for receiving health data
@@ -487,6 +527,7 @@ app.post('/api/health-data', express.text({ type: '*/*' }), async (req, res) => 
 
   const userId = req.userId; // Set by the API key authentication middleware
   console.log("User ID from API Key authentication:", userId);
+  console.log("Parsed healthDataArray:", JSON.stringify(healthDataArray, null, 2));
 
   const processedResults = [];
   const errors = [];
@@ -507,7 +548,7 @@ app.post('/api/health-data', express.text({ type: '*/*' }), async (req, res) => 
       if (isNaN(dateObj.getTime())) {
         throw new Error(`Invalid date received from shortcut: '${date}'.`);
       }
-      parsedDate = format(dateObj, 'yyyy-MM-dd');
+      parsedDate = dateObj.toISOString().split('T')[0]; // Ensure UTC date string
     } catch (e) {
       console.error("Date parsing error:", e);
       errors.push({ error: `Invalid date format for entry: ${JSON.stringify(dataEntry)}. Error: ${e.message}`, entry: dataEntry });
@@ -537,7 +578,7 @@ app.post('/api/health-data', express.text({ type: '*/*' }), async (req, res) => 
           console.log("Water data upsert result:", JSON.stringify(result, null, 2));
           processedResults.push({ type, status: 'success', data: result });
           break;
-        case 'active_calories':
+        case 'Active Calories':
           const activeCaloriesValue = parseFloat(value);
           if (isNaN(activeCaloriesValue) || activeCaloriesValue < 0) {
             errors.push({ error: "Invalid value for active_calories. Must be a non-negative number.", entry: dataEntry });

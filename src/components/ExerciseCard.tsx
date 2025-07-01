@@ -349,7 +349,9 @@ const ExerciseCard = ({ selectedDate, onExerciseChange }: ExerciseCardProps) => 
                   <div>
                     <span className="font-medium">{entry.exercises?.name || 'Unknown Exercise'}</span>
                     <div className="text-sm text-gray-500">
-                      {entry.duration_minutes} minutes • {Math.round(entry.calories_burned)} calories
+                      {entry.exercises?.name === "Active Calories (Apple Health)"
+                        ? `${Math.round(entry.calories_burned)} active calories`
+                        : `${entry.duration_minutes} minutes • ${Math.round(entry.calories_burned)} calories`}
                     </div>
                     {entry.notes && (
                       <div className="text-xs text-gray-400">{entry.notes}</div>
