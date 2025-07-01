@@ -2,17 +2,27 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors'); // Import cors
 const { createClient } = require('@supabase/supabase-js'); // Import Supabase client
+const { format } = require('date-fns'); // Import date-fns for date formatting
 
 const app = express();
 const PORT = process.env.SPARKY_FITNESS_SERVER_PORT || 3010;
+
+// Initialize Supabase client globally
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+if (!supabaseUrl || !supabaseServiceRoleKey) {
+  console.error("Supabase URL or Service Role Key not configured in environment variables.");
+  process.exit(1); // Exit if essential Supabase config is missing
+}
+const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
 // Use cors middleware to allow requests from your frontend
 app.use(cors({
   origin: 'http://localhost:8080', // Allow requests from your frontend's origin
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], // Explicitly allow common methods
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-provider-id'], // Explicitly allow headers, including custom ones
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-provider-id', 'x-api-key'], // Explicitly allow headers, including custom ones
 }));
-app.use(express.json()); // For parsing application/json
 
 // Test route
 app.get('/test', (req, res) => {
@@ -75,17 +85,6 @@ app.use('/api/fatsecret', async (req, res, next) => {
   if (!providerId) {
     return res.status(400).json({ error: "Missing x-provider-id header" });
   }
-
-  // Initialize Supabase client
-  const supabaseUrl = process.env.SUPABASE_URL;
-  const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!supabaseUrl || !supabaseServiceRoleKey) {
-    console.error("Supabase URL or Service Role Key not configured in environment variables.");
-    return res.status(500).json({ error: "Supabase configuration missing on server." });
-  }
-
-  const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
   // Fetch API keys from Supabase based on providerId
   const { data, error } = await supabase
@@ -213,6 +212,363 @@ app.get('/api/fatsecret/nutrients', async (req, res) => {
   } catch (error) {
     console.error("Error in FatSecret nutrient proxy:", error);
     res.status(500).json({ error: error.message });
+  }
+});
+
+// Middleware to authenticate API key for health data submission
+app.use('/api/health-data', async (req, res, next) => {
+  const apiKey = req.headers['authorization']?.split(' ')[1] || req.headers['x-api-key'];
+
+  if (!apiKey) {
+    return res.status(401).json({ error: "Unauthorized: Missing API Key" });
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('user_api_keys')
+      .select('user_id, permissions')
+      .eq('api_key', apiKey)
+      .eq('is_active', true)
+      .single();
+
+    if (error || !data) {
+      console.error("API Key validation error:", error);
+      return res.status(401).json({ error: "Unauthorized: Invalid or inactive API Key" });
+    }
+
+    if (!data.permissions || !data.permissions.health_data_write) {
+      return res.status(403).json({ error: "Forbidden: API Key does not have health_data_write permission" });
+    }
+
+    req.userId = data.user_id;
+    req.permissions = data.permissions;
+    next();
+  } catch (error) {
+    console.error("Error during API Key authentication:", error);
+    res.status(500).json({ error: "Internal server error during authentication." });
+  }
+});
+
+// Helper function to upsert step data
+async function upsertStepData(userId, value, date) {
+  console.log("Processing step data for user:", userId, "date:", date, "value:", value);
+
+  // First, try to find an existing record for the user and date
+  const { data: existingRecord, error: selectError } = await supabase
+    .from('check_in_measurements')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('entry_date', date)
+    .single();
+
+  if (selectError && selectError.code !== 'PGRST116') { // PGRST116 means no rows found
+    console.error("Error checking for existing step data:", selectError);
+    throw new Error(`Failed to check existing step data: ${selectError.message}`);
+  }
+
+  let result;
+  if (existingRecord) {
+    // If record exists, update only the steps field
+    console.log("Existing record found, updating steps.");
+    const { data, error } = await supabase
+      .from('check_in_measurements')
+      .update({
+        steps: value,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('user_id', userId)
+      .eq('entry_date', date)
+      .select();
+
+    if (error) {
+      console.error("Error updating step data:", error);
+      throw new Error(`Failed to update step data: ${error.message}`);
+    }
+    result = data;
+  } else {
+    // If no record exists, insert a new one
+    console.log("No existing record found, inserting new step data.");
+    const { data, error } = await supabase
+      .from('check_in_measurements')
+      .insert({
+        user_id: userId,
+        entry_date: date,
+        steps: value,
+        updated_at: new Date().toISOString(),
+      })
+      .select();
+
+    if (error) {
+      console.error("Error inserting step data:", error);
+      throw new Error(`Failed to insert step data: ${error.message}`);
+    }
+    result = data;
+  }
+  return result;
+
+  if (error) {
+    console.error("Error upserting step data:", error);
+    throw new Error(`Failed to save step data: ${error.message}`);
+  }
+  return data;
+}
+
+// Helper function to upsert water data
+async function upsertWaterData(userId, value, date) {
+  console.log("Processing water data for user:", userId, "date:", date, "value:", value);
+
+  const { data: existingRecord, error: selectError } = await supabase
+    .from('water_intake')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('entry_date', date)
+    .single();
+
+  if (selectError && selectError.code !== 'PGRST116') {
+    console.error("Error checking for existing water data:", selectError);
+    throw new Error(`Failed to check existing water data: ${selectError.message}`);
+  }
+
+  let result;
+  if (existingRecord) {
+    console.log("Existing record found, updating water intake.");
+    const { data, error } = await supabase
+      .from('water_intake')
+      .update({
+        glasses_consumed: value,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('user_id', userId)
+      .eq('entry_date', date)
+      .select();
+
+    if (error) {
+      console.error("Error updating water data:", error);
+      throw new Error(`Failed to update water data: ${error.message}`);
+    }
+    result = data;
+  } else {
+    console.log("No existing record found, inserting new water data.");
+    const { data, error } = await supabase
+      .from('water_intake')
+      .insert({
+        user_id: userId,
+        entry_date: date,
+        glasses_consumed: value,
+        updated_at: new Date().toISOString(),
+      })
+      .select();
+
+    if (error) {
+      console.error("Error inserting water data:", error);
+      throw new Error(`Failed to insert water data: ${error.message}`);
+    }
+    result = data;
+  }
+  return result;
+
+  if (error) {
+    console.error("Error upserting water data:", error);
+    throw new Error(`Failed to save water data: ${error.message}`);
+  }
+  return data;
+}
+
+// Helper function to get or create a default "Active Calories" exercise
+async function getOrCreateActiveCaloriesExercise(userId) {
+  const exerciseName = "Active Calories (Apple Health)";
+  let { data: exercise, error } = await supabase
+    .from('exercises')
+    .select('id')
+    .eq('name', exerciseName)
+    .eq('user_id', userId)
+    .single();
+
+  if (error && error.code !== 'PGRST116') { // PGRST116 means no rows found
+    console.error("Error fetching active calories exercise:", error);
+    throw new Error(`Failed to retrieve active calories exercise: ${error.message}`);
+  }
+
+  if (!exercise) {
+    // Exercise not found, create it
+    console.log(`Creating default exercise: ${exerciseName} for user ${userId}`);
+    const { data: newExercise, error: createError } = await supabase
+      .from('exercises')
+      .insert([
+        {
+          user_id: userId,
+          name: exerciseName,
+          category: 'Cardio', // Or a more appropriate category
+          calories_per_hour: 600, // A placeholder, as actual calories are provided by Apple Health
+          description: 'Automatically logged active calories from Apple Health via iPhone shortcut.',
+          is_custom: true,
+          shared_with_public: false,
+        }
+      ])
+      .select('id')
+      .single();
+
+    if (createError) {
+      console.error("Error creating active calories exercise:", createError);
+      throw new Error(`Failed to create active calories exercise: ${createError.message}`);
+    }
+    exercise = newExercise;
+  }
+  return exercise.id;
+}
+
+// Helper function to upsert exercise entry data
+async function upsertExerciseEntryData(userId, exerciseId, caloriesBurned, date) {
+  // For active calories, we don't have a duration, so we can set it to 0 or a small default.
+  // The primary value is calories_burned.
+  const { data, error } = await supabase
+    .from('exercise_entries')
+    .upsert(
+      {
+        user_id: userId,
+        exercise_id: exerciseId,
+        entry_date: date,
+        calories_burned: caloriesBurned,
+        duration_minutes: 0, // No duration for active calories from Apple Health
+        notes: 'Active calories logged from Apple Health.',
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: ['user_id', 'exercise_id', 'entry_date'], ignoreDuplicates: false }
+    )
+    .select();
+
+  if (error) {
+    console.error("Error upserting exercise entry data:", error);
+    throw new Error(`Failed to save exercise entry data: ${error.message}`);
+  }
+  return data;
+}
+
+// New endpoint for receiving health data
+app.post('/api/health-data', express.text({ type: '*/*' }), async (req, res) => {
+  console.log("Request Content-Type:", req.headers['content-type']);
+  console.log("Type of req.body:", typeof req.body);
+  const rawBody = req.body;
+  console.log("Received raw health data request body:", rawBody);
+
+  let healthDataArray = [];
+  if (rawBody.startsWith('[') && rawBody.endsWith(']')) {
+    // Already a valid JSON array
+    try {
+      healthDataArray = JSON.parse(rawBody);
+    } catch (e) {
+      console.error("Error parsing JSON array body:", e);
+      return res.status(400).json({ error: "Invalid JSON array format." });
+    }
+  } else if (rawBody.includes('}{')) {
+    // Concatenated JSON objects
+    const jsonStrings = rawBody.split('}{').map((part, index, arr) => {
+      if (index === 0) return part + '}';
+      if (index === arr.length - 1) return '{' + part;
+      return '{' + part + '}';
+    });
+    for (const jsonStr of jsonStrings) {
+      try {
+        healthDataArray.push(JSON.parse(jsonStr));
+      } catch (parseError) {
+        console.error("Error parsing individual concatenated JSON string:", jsonStr, parseError);
+        // Continue processing other valid parts
+      }
+    }
+  } else {
+    // Assume it's a single JSON object
+    try {
+      healthDataArray.push(JSON.parse(rawBody));
+    } catch (e) {
+      console.error("Error parsing single JSON body:", e);
+      return res.status(400).json({ error: "Invalid single JSON format." });
+    }
+  }
+
+  const userId = req.userId; // Set by the API key authentication middleware
+  console.log("User ID from API Key authentication:", userId);
+
+  const processedResults = [];
+  const errors = [];
+
+  for (const dataEntry of healthDataArray) {
+    const { value, type, unit, date } = dataEntry;
+
+    if (!value || !type || !date) {
+      errors.push({ error: "Missing required fields: value, type, date in one of the entries", entry: dataEntry });
+      continue;
+    }
+
+    let parsedDate;
+    try {
+      console.log("Received date string for parsing:", date);
+      const dateObj = new Date(date);
+      console.log("Parsed date object (using new Date()):", dateObj);
+      if (isNaN(dateObj.getTime())) {
+        throw new Error(`Invalid date received from shortcut: '${date}'.`);
+      }
+      parsedDate = format(dateObj, 'yyyy-MM-dd');
+    } catch (e) {
+      console.error("Date parsing error:", e);
+      errors.push({ error: `Invalid date format for entry: ${JSON.stringify(dataEntry)}. Error: ${e.message}`, entry: dataEntry });
+      continue;
+    }
+
+    try {
+      let result;
+      switch (type) {
+        case 'step':
+          const stepValue = parseInt(value, 10);
+          if (isNaN(stepValue) || !Number.isInteger(stepValue)) {
+            errors.push({ error: "Invalid value for step. Must be an integer.", entry: dataEntry });
+            break;
+          }
+          result = await upsertStepData(userId, stepValue, parsedDate);
+          console.log("Step data upsert result:", JSON.stringify(result, null, 2));
+          processedResults.push({ type, status: 'success', data: result });
+          break;
+        case 'water':
+          const waterValue = parseInt(value, 10);
+          if (isNaN(waterValue) || !Number.isInteger(waterValue)) {
+            errors.push({ error: "Invalid value for water. Must be an integer.", entry: dataEntry });
+            break;
+          }
+          result = await upsertWaterData(userId, waterValue, parsedDate);
+          console.log("Water data upsert result:", JSON.stringify(result, null, 2));
+          processedResults.push({ type, status: 'success', data: result });
+          break;
+        case 'active_calories':
+          const activeCaloriesValue = parseFloat(value);
+          if (isNaN(activeCaloriesValue) || activeCaloriesValue < 0) {
+            errors.push({ error: "Invalid value for active_calories. Must be a non-negative number.", entry: dataEntry });
+            break;
+          }
+          const exerciseId = await getOrCreateActiveCaloriesExercise(userId);
+          result = await upsertExerciseEntryData(userId, exerciseId, activeCaloriesValue, parsedDate);
+          console.log("Active Calories upsert result:", JSON.stringify(result, null, 2));
+          processedResults.push({ type, status: 'success', data: result });
+          break;
+        default:
+          errors.push({ error: `Unsupported health data type: ${type}`, entry: dataEntry });
+          break;
+      }
+    } catch (error) {
+      console.error(`Error processing ${type} data for entry ${JSON.stringify(dataEntry)}:`, error);
+      errors.push({ error: `Failed to process ${type} data: ${error.message}`, entry: dataEntry });
+    }
+  }
+
+  if (errors.length > 0) {
+    return res.status(400).json({
+      message: "Some health data entries could not be processed.",
+      processed: processedResults,
+      errors: errors
+    });
+  } else {
+    res.status(200).json({
+      message: "All health data successfully processed.",
+      processed: processedResults
+    });
   }
 });
 

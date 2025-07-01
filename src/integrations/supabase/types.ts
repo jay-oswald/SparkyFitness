@@ -630,6 +630,42 @@ export type Database = {
         }
         Relationships: []
       }
+      user_api_keys: {
+        Row: {
+          api_key: string
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          last_used_at: string | null
+          permissions: Json
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          api_key: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          last_used_at?: string | null
+          permissions?: Json
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          api_key?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          last_used_at?: string | null
+          permissions?: Json
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_goals: {
         Row: {
           calcium: number | null
@@ -820,6 +856,10 @@ export type Database = {
         Args: { p_email: string }
         Returns: string
       }
+      generate_user_api_key: {
+        Args: { p_user_id: string; p_description?: string }
+        Returns: string
+      }
       get_accessible_users: {
         Args: { p_user_id: string }
         Returns: {
@@ -876,6 +916,14 @@ export type Database = {
           p_calcium?: number
           p_iron?: number
         }
+        Returns: undefined
+      }
+      revoke_all_user_api_keys: {
+        Args: { p_user_id: string }
+        Returns: undefined
+      }
+      revoke_user_api_key: {
+        Args: { p_user_id: string; p_api_key: string }
         Returns: undefined
       }
     }

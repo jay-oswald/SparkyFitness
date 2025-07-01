@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
-import { Save, Upload, User, Settings as SettingsIcon, Lock, Camera } from "lucide-react";
+import { Save, Upload, User, Settings as SettingsIcon, Lock, Camera, ClipboardCopy, Copy, Eye, EyeOff, KeyRound } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "@/hooks/use-toast";
@@ -68,11 +68,18 @@ const Settings = () => {
   const [loading, setLoading] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
 
+  // State for API Key Management
+  const [apiKeys, setApiKeys] = useState<any[]>([]);
+  const [showApiKey, setShowApiKey] = useState<string | null>(null); // Stores the ID of the key to show
+  const [newApiKeyDescription, setNewApiKeyDescription] = useState<string>('');
+  const [generatingApiKey, setGeneratingApiKey] = useState(false);
+
   useEffect(() => {
     if (user) {
       loadProfile();
       loadPreferences();
       loadCustomCategories();
+      loadApiKeys(); // Load API keys
       setNewEmail(user.email || ''); // Initialize newEmail here
     }
   }, [user]);
@@ -92,6 +99,87 @@ const Settings = () => {
       setCustomCategories(data || []);
     } catch (error) {
       console.error('Error loading custom categories:', error);
+    }
+  };
+
+  const loadApiKeys = async () => {
+    if (!user) return;
+    try {
+      const { data, error } = await supabase
+        .from('user_api_keys')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setApiKeys(data || []);
+    } catch (error) {
+      console.error('Error loading API keys:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load API keys",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleGenerateApiKey = async () => {
+    if (!user) return;
+    setGeneratingApiKey(true);
+    try {
+      // Call the Supabase function to generate a new API key
+      const { data, error } = await supabase.rpc('generate_user_api_key', {
+        p_user_id: user.id,
+        p_description: newApiKeyDescription || null
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "New API key generated successfully!",
+      });
+      setNewApiKeyDescription('');
+      loadApiKeys(); // Reload keys to show the new one
+    } catch (error) {
+      console.error('Error generating API key:', error);
+      toast({
+        title: "Error",
+        description: `Failed to generate API key: ${error.message}`,
+        variant: "destructive",
+      });
+    } finally {
+      setGeneratingApiKey(false);
+    }
+  };
+
+  const handleRevokeApiKey = async (apiKeyId: string) => {
+    if (!user) return;
+    setLoading(true); // Use general loading for this
+    try {
+      // Update the API key to inactive
+      const { error } = await supabase
+        .from('user_api_keys')
+        .update({ is_active: false, updated_at: new Date().toISOString() })
+        .eq('id', apiKeyId)
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "API key revoked successfully!",
+      });
+      loadApiKeys(); // Reload keys
+    } catch (error) {
+      console.error('Error revoking API key:', error);
+      toast({
+        title: "Error",
+        description: `Failed to revoke API key: ${error.message}`,
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -592,6 +680,87 @@ const Settings = () => {
 
       {/* AI Service Settings */}
       <AIServiceSettings />
+
+      {/* API Key Management */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <KeyRound className="h-5 w-5" />
+            API Key Management
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Generate API keys to securely submit data from external applications like iPhone Shortcuts.
+            These keys are tied to your account and can be revoked at any time.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <Input
+              placeholder="Description (e.g., 'iPhone Health Shortcut')"
+              value={newApiKeyDescription}
+              onChange={(e) => setNewApiKeyDescription(e.target.value)}
+              className="flex-grow"
+            />
+            <Button onClick={handleGenerateApiKey} disabled={generatingApiKey}>
+              <Save className="h-4 w-4 mr-2" />
+              {generatingApiKey ? 'Generating...' : 'Generate New Key'}
+            </Button>
+          </div>
+
+          <Separator />
+
+          <div className="space-y-3">
+            {apiKeys.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No API keys generated yet.</p>
+            ) : (
+              apiKeys.map((key) => (
+                <div key={key.id} className="flex items-center space-x-2 p-2 border rounded-md">
+                  <div className="flex-grow">
+                    <p className="font-medium">{key.description || 'No Description'}</p>
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <span className="font-mono text-xs">
+                        {showApiKey === key.id ? key.api_key : '********************'}
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setShowApiKey(showApiKey === key.id ? null : key.id)}
+                        className="h-auto p-1"
+                      >
+                        {showApiKey === key.id ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          navigator.clipboard.writeText(key.api_key);
+                          toast({ title: "Copied!", description: "API key copied to clipboard." });
+                        }}
+                        className="h-auto p-1"
+                      >
+                        <ClipboardCopy className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Created: {new Date(key.created_at).toLocaleDateString()}
+                      {key.last_used_at && ` | Last Used: ${new Date(key.last_used_at).toLocaleDateString()}`}
+                      {!key.is_active && ' | (Inactive)'}
+                    </p>
+                  </div>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => handleRevokeApiKey(key.id)}
+                    disabled={!key.is_active || loading}
+                  >
+                    Revoke
+                  </Button>
+                </div>
+              ))
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Account Security */}
       <Card>
