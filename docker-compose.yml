@@ -4,15 +4,30 @@ services:
   sparkyfitness-frontend:
     image: codewithcj/sparkyfitness:latest
     ports:
-      - "3004:3000"
+      - "3004:3000" # Frontend port
     environment:
       NODE_ENV: production
       VITE_SUPABASE_URL: ${VITE_SUPABASE_URL}
       VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY}
-      SUPABASE_PROJECT_REF: ${SUPABASE_PROJECT_REF}      
+      SUPABASE_PROJECT_REF: ${SUPABASE_PROJECT_REF}
       VITE_SUPABASE_DB_PASSWORD: ${VITE_SUPABASE_DB_PASSWORD}
+      TZ: America/New_York # Set your timezone
       #Below variable is optional. needed only to enable ChatBOT
       SUPABASE_ACCESS_TOKEN: ${SUPABASE_ACCESS_TOKEN}
+    networks:
+      - sparky-fitness-ipv6-net
+    restart: always
+
+  sparkyfitness-server:
+    image: codewithcj/sparkyfitness-server:latest 
+    ports:
+      - "3010:3010" # Backend port
+    environment:
+      SPARKY_FITNESS_SERVER_PORT: 3010
+      LOG_LEVEL: ${LOG_LEVEL} # Use LOG_LEVEL from host .env
+      SUPABASE_URL: ${VITE_SUPABASE_URL}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
+      SUPABASE_ACCESS_TOKEN: ${SUPABASE_ACCESS_TOKEN} # For backend chatbot
     networks:
       - sparky-fitness-ipv6-net
     restart: always

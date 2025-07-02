@@ -4,6 +4,41 @@ const cors = require('cors'); // Import cors
 const { createClient } = require('@supabase/supabase-js'); // Import Supabase client
 const { format } = require('date-fns'); // Import date-fns for date formatting
 
+// Define logging levels
+const LOG_LEVELS = {
+  DEBUG: 0,
+  INFO: 1,
+  WARN: 2,
+  ERROR: 3,
+  SILENT: 4,
+};
+
+// Get desired log level from environment variable, default to INFO
+const currentLogLevel = LOG_LEVELS[process.env.LOG_LEVEL?.toUpperCase()] || LOG_LEVELS.INFO;
+
+// Custom logger function
+function log(level, message, ...args) {
+  if (LOG_LEVELS[level.toUpperCase()] >= currentLogLevel) {
+    const timestamp = new Date().toISOString();
+    switch (level.toUpperCase()) {
+      case 'DEBUG':
+        console.debug(`[${timestamp}] [DEBUG] ${message}`, ...args);
+        break;
+      case 'INFO':
+        console.info(`[${timestamp}] [INFO] ${message}`, ...args);
+        break;
+      case 'WARN':
+        console.warn(`[${timestamp}] [WARN] ${message}`, ...args);
+        break;
+      case 'ERROR':
+        console.error(`[${timestamp}] [ERROR] ${message}`, ...args);
+        break;
+      default:
+        console.log(`[${timestamp}] [UNKNOWN] ${message}`, ...args);
+    }
+  }
+}
+
 const app = express();
 const PORT = process.env.SPARKY_FITNESS_SERVER_PORT || 3010;
 
@@ -12,7 +47,7 @@ const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 if (!supabaseUrl || !supabaseServiceRoleKey) {
-  console.error("Supabase URL or Service Role Key not configured in environment variables.");
+  log('error', "Supabase URL or Service Role Key not configured in environment variables.");
   process.exit(1); // Exit if essential Supabase config is missing
 }
 const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
@@ -24,10 +59,6 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'x-provider-id', 'x-api-key'], // Explicitly allow headers, including custom ones
 }));
 
-// Test route
-app.get('/test', (req, res) => {
-  res.send('Test route is working!');
-});
 
 const FATSECRET_OAUTH_TOKEN_URL = "https://oauth.fatsecret.com/connect/token";
 const FATSECRET_API_BASE_URL = "https://platform.fatsecret.com/rest";
@@ -46,8 +77,8 @@ async function getFatSecretAccessToken(clientId, clientSecret) {
   }
 
   try {
-    console.log(`Attempting to get FatSecret Access Token from: ${FATSECRET_OAUTH_TOKEN_URL}`);
-    console.log(`Using Client ID: ${clientId}, Client Secret: ${clientSecret ? '********' : 'N/A'}`); // Mask secret
+    log('info', `Attempting to get FatSecret Access Token from: ${FATSECRET_OAUTH_TOKEN_URL}`);
+    log('debug', `Using Client ID: ${clientId}, Client Secret: ${clientSecret ? '********' : 'N/A'}`); // Mask secret
     const response = await fetch(FATSECRET_OAUTH_TOKEN_URL, {
       method: "POST",
       headers: {
@@ -63,7 +94,7 @@ async function getFatSecretAccessToken(clientId, clientSecret) {
 
     if (!response.ok) {
       const errorData = await response.json();
-      console.error("FatSecret OAuth Token API error:", errorData);
+      log('error', "FatSecret OAuth Token API error:", errorData);
       throw new Error(`FatSecret authentication failed: ${errorData.error_description || response.statusText}`);
     }
 
@@ -73,7 +104,7 @@ async function getFatSecretAccessToken(clientId, clientSecret) {
 
     return fatSecretAccessToken;
   } catch (error) {
-    console.error("Network error during FatSecret OAuth token acquisition:", error);
+    log('error', "Network error during FatSecret OAuth token acquisition:", error);
     throw new Error("Network error during FatSecret authentication. Please try again.");
   }
 }
@@ -94,7 +125,7 @@ app.use('/api/fatsecret', async (req, res, next) => {
     .single();
 
   if (error || !data?.app_id || !data?.app_key) {
-    console.error("Error fetching FatSecret API keys from Supabase:", error);
+    log('error', "Error fetching FatSecret API keys from Supabase:", error);
     return res.status(500).json({ error: "Failed to retrieve FatSecret API keys from database. Please check provider configuration." });
   }
 
@@ -120,8 +151,8 @@ app.get('/api/fatsecret/search', async (req, res) => {
       search_expression: query,
       format: "json",
     }).toString()}`;
-    console.log(`FatSecret Search URL: ${searchUrl}`);
-    console.log(`Using Access Token: ${accessToken ? '********' : 'N/A'}`); // Mask token
+    log('info', `FatSecret Search URL: ${searchUrl}`);
+    log('debug', `Using Access Token: ${accessToken ? '********' : 'N/A'}`); // Mask token
     const response = await fetch(
       searchUrl,
       {
@@ -136,7 +167,7 @@ app.get('/api/fatsecret/search', async (req, res) => {
 
     if (!response.ok) {
       const errorText = await response.text(); // Get raw response text
-      console.error("FatSecret Food Search API error:", errorText);
+      log('error', "FatSecret Food Search API error:", errorText);
       try {
         const errorData = JSON.parse(errorText);
         return res.status(response.status).json({ error: errorData.message || response.statusText });
@@ -149,7 +180,7 @@ app.get('/api/fatsecret/search', async (req, res) => {
     const data = await response.json();
     res.json(data);
   } catch (error) {
-    console.error("Error in FatSecret search proxy:", error);
+    log('error', "Error in FatSecret search proxy:", error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -166,7 +197,7 @@ app.get('/api/fatsecret/nutrients', async (req, res) => {
   // Check cache first
   const cachedData = foodNutrientCache.get(foodId);
   if (cachedData && Date.now() < cachedData.expiry) {
-    console.log(`Returning cached data for foodId: ${foodId}`);
+    log('info', `Returning cached data for foodId: ${foodId}`);
     return res.json(cachedData.data);
   }
 
@@ -177,8 +208,8 @@ app.get('/api/fatsecret/nutrients', async (req, res) => {
       food_id: foodId,
       format: "json",
     }).toString()}`;
-    console.log(`FatSecret Nutrients URL: ${nutrientsUrl}`);
-    console.log(`Using Access Token: ${accessToken ? '********' : 'N/A'}`); // Mask token
+    log('info', `FatSecret Nutrients URL: ${nutrientsUrl}`);
+    log('debug', `Using Access Token: ${accessToken ? '********' : 'N/A'}`); // Mask token
     const response = await fetch(
       nutrientsUrl,
       {
@@ -193,7 +224,7 @@ app.get('/api/fatsecret/nutrients', async (req, res) => {
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("FatSecret Food Get API error:", errorText);
+      log('error', "FatSecret Food Get API error:", errorText);
       try {
         const errorData = JSON.parse(errorText);
         return res.status(response.status).json({ error: errorData.message || response.statusText });
@@ -210,7 +241,7 @@ app.get('/api/fatsecret/nutrients', async (req, res) => {
     });
     res.json(data);
   } catch (error) {
-    console.error("Error in FatSecret nutrient proxy:", error);
+    log('error', "Error in FatSecret nutrient proxy:", error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -232,7 +263,7 @@ app.use('/api/health-data', async (req, res, next) => {
       .single();
 
     if (error || !data) {
-      console.error("API Key validation error:", error);
+      log('error', "API Key validation error:", error);
       return res.status(401).json({ error: "Unauthorized: Invalid or inactive API Key" });
     }
 
@@ -244,14 +275,14 @@ app.use('/api/health-data', async (req, res, next) => {
     req.permissions = data.permissions;
     next();
   } catch (error) {
-    console.error("Error during API Key authentication:", error);
+    log('error', "Error during API Key authentication:", error);
     res.status(500).json({ error: "Internal server error during authentication." });
   }
 });
 
 // Helper function to upsert step data
 async function upsertStepData(userId, value, date) {
-  console.log("Processing step data for user:", userId, "date:", date, "value:", value);
+  log('info', "Processing step data for user:", userId, "date:", date, "value:", value);
 
   // First, try to find an existing record for the user and date
   const { data: existingRecord, error: selectError } = await supabase
@@ -262,14 +293,14 @@ async function upsertStepData(userId, value, date) {
     .single();
 
   if (selectError && selectError.code !== 'PGRST116') { // PGRST116 means no rows found
-    console.error("Error checking for existing step data:", selectError);
+    log('error', "Error checking for existing step data:", selectError);
     throw new Error(`Failed to check existing step data: ${selectError.message}`);
   }
 
   let result;
   if (existingRecord) {
     // If record exists, update only the steps field
-    console.log("Existing record found, updating steps.");
+    log('info', "Existing record found, updating steps.");
     const { data, error } = await supabase
       .from('check_in_measurements')
       .update({
@@ -281,13 +312,13 @@ async function upsertStepData(userId, value, date) {
       .select();
 
     if (error) {
-      console.error("Error updating step data:", error);
+      log('error', "Error updating step data:", error);
       throw new Error(`Failed to update step data: ${error.message}`);
     }
     result = data;
   } else {
     // If no record exists, insert a new one
-    console.log("No existing record found, inserting new step data.");
+    log('info', "No existing record found, inserting new step data.");
     const { data, error } = await supabase
       .from('check_in_measurements')
       .insert({
@@ -299,7 +330,7 @@ async function upsertStepData(userId, value, date) {
       .select();
 
     if (error) {
-      console.error("Error inserting step data:", error);
+      log('error', "Error inserting step data:", error);
       throw new Error(`Failed to insert step data: ${error.message}`);
     }
     result = data;
@@ -307,7 +338,7 @@ async function upsertStepData(userId, value, date) {
   return result;
 
   if (error) {
-    console.error("Error upserting step data:", error);
+    log('error', "Error upserting step data:", error);
     throw new Error(`Failed to save step data: ${error.message}`);
   }
   return data;
@@ -315,7 +346,7 @@ async function upsertStepData(userId, value, date) {
 
 // Helper function to upsert water data
 async function upsertWaterData(userId, value, date) {
-  console.log("Processing water data for user:", userId, "date:", date, "value:", value);
+  log('info', "Processing water data for user:", userId, "date:", date, "value:", value);
 
   const { data: existingRecord, error: selectError } = await supabase
     .from('water_intake')
@@ -325,13 +356,13 @@ async function upsertWaterData(userId, value, date) {
     .single();
 
   if (selectError && selectError.code !== 'PGRST116') {
-    console.error("Error checking for existing water data:", selectError);
+    log('error', "Error checking for existing water data:", selectError);
     throw new Error(`Failed to check existing water data: ${selectError.message}`);
   }
 
   let result;
   if (existingRecord) {
-    console.log("Existing record found, updating water intake.");
+    log('info', "Existing record found, updating water intake.");
     const { data, error } = await supabase
       .from('water_intake')
       .update({
@@ -343,12 +374,12 @@ async function upsertWaterData(userId, value, date) {
       .select();
 
     if (error) {
-      console.error("Error updating water data:", error);
+      log('error', "Error updating water data:", error);
       throw new Error(`Failed to update water data: ${error.message}`);
     }
     result = data;
   } else {
-    console.log("No existing record found, inserting new water data.");
+    log('info', "No existing record found, inserting new water data.");
     const { data, error } = await supabase
       .from('water_intake')
       .insert({
@@ -360,7 +391,7 @@ async function upsertWaterData(userId, value, date) {
       .select();
 
     if (error) {
-      console.error("Error inserting water data:", error);
+      log('error', "Error inserting water data:", error);
       throw new Error(`Failed to insert water data: ${error.message}`);
     }
     result = data;
@@ -368,7 +399,7 @@ async function upsertWaterData(userId, value, date) {
   return result;
 
   if (error) {
-    console.error("Error upserting water data:", error);
+    log('error', "Error upserting water data:", error);
     throw new Error(`Failed to save water data: ${error.message}`);
   }
   return data;
@@ -376,7 +407,7 @@ async function upsertWaterData(userId, value, date) {
 
 // Helper function to get or create a default "Active Calories" exercise
 async function getOrCreateActiveCaloriesExercise(userId) {
-  const exerciseName = "Active Calories (Apple Health)";
+  const exerciseName = "Active Calories";
   let { data: exercise, error } = await supabase
     .from('exercises')
     .select('id')
@@ -385,13 +416,13 @@ async function getOrCreateActiveCaloriesExercise(userId) {
     .single();
 
   if (error && error.code !== 'PGRST116') { // PGRST116 means no rows found
-    console.error("Error fetching active calories exercise:", error);
+    log('error', "Error fetching active calories exercise:", error);
     throw new Error(`Failed to retrieve active calories exercise: ${error.message}`);
   }
 
   if (!exercise) {
     // Exercise not found, create it
-    console.log(`Creating default exercise: ${exerciseName} for user ${userId}`);
+    log('info', `Creating default exercise: ${exerciseName} for user ${userId}`);
     const { data: newExercise, error: createError } = await supabase
       .from('exercises')
       .insert([
@@ -400,7 +431,7 @@ async function getOrCreateActiveCaloriesExercise(userId) {
           name: exerciseName,
           category: 'Cardio', // Or a more appropriate category
           calories_per_hour: 600, // A placeholder, as actual calories are provided by Apple Health
-          description: 'Automatically logged active calories from Apple Health via iPhone shortcut.',
+          description: 'Automatically logged active calories from a health tracking shortcut.',
           is_custom: true,
           shared_with_public: false,
         }
@@ -409,7 +440,7 @@ async function getOrCreateActiveCaloriesExercise(userId) {
       .single();
 
     if (createError) {
-      console.error("Error creating active calories exercise:", createError);
+      log('error', "Error creating active calories exercise:", createError);
       throw new Error(`Failed to create active calories exercise: ${createError.message}`);
     }
     exercise = newExercise;
@@ -419,7 +450,7 @@ async function getOrCreateActiveCaloriesExercise(userId) {
 
 // Helper function to upsert exercise entry data
 async function upsertExerciseEntryData(userId, exerciseId, caloriesBurned, date) {
-  console.log("upsertExerciseEntryData received date parameter:", date);
+  log('info', "upsertExerciseEntryData received date parameter:", date);
   // For active calories, we don't have a duration, so we can set it to 0 or a small default.
   // The primary value is calories_burned.
   const { data, error } = await supabase
@@ -436,14 +467,14 @@ async function upsertExerciseEntryData(userId, exerciseId, caloriesBurned, date)
       .single();
 
     if (selectError && selectError.code !== 'PGRST116') { // PGRST116 means no rows found
-      console.error("Error checking for existing active calories exercise entry:", selectError);
+      log('error', "Error checking for existing active calories exercise entry:", selectError);
       throw new Error(`Failed to check existing active calories exercise entry: ${selectError.message}`);
     }
 
     let result;
     if (existingEntry) {
       // If an entry exists, update its calories_burned by adding the new value
-      console.log(`Existing active calories entry found for ${date}, updating calories from ${existingEntry.calories_burned} to ${caloriesBurned}.`);
+      log('info', `Existing active calories entry found for ${date}, updating calories from ${existingEntry.calories_burned} to ${caloriesBurned}.`);
       const { data, error } = await supabase
         .from('exercise_entries')
         .update({
@@ -454,13 +485,13 @@ async function upsertExerciseEntryData(userId, exerciseId, caloriesBurned, date)
         .select();
 
       if (error) {
-        console.error("Error updating active calories exercise entry:", error);
+        log('error', "Error updating active calories exercise entry:", error);
         throw new Error(`Failed to update active calories exercise entry: ${error.message}`);
       }
       result = data;
     } else {
       // If no entry exists, insert a new one
-      console.log(`No existing active calories entry found for ${date}, inserting new entry.`);
+      log('info', `No existing active calories entry found for ${date}, inserting new entry.`);
       const { data, error } = await supabase
         .from('exercise_entries')
         .insert(
@@ -476,7 +507,7 @@ async function upsertExerciseEntryData(userId, exerciseId, caloriesBurned, date)
         .select();
 
       if (error) {
-        console.error("Error inserting active calories exercise entry:", error);
+        log('error', "Error inserting active calories exercise entry:", error);
         throw new Error(`Failed to insert active calories exercise entry: ${error.message}`);
       }
       result = data;
@@ -486,10 +517,10 @@ async function upsertExerciseEntryData(userId, exerciseId, caloriesBurned, date)
 
 // New endpoint for receiving health data
 app.post('/api/health-data', express.text({ type: '*/*' }), async (req, res) => {
-  console.log("Request Content-Type:", req.headers['content-type']);
-  console.log("Type of req.body:", typeof req.body);
+  log('info', "Request Content-Type:", req.headers['content-type']);
+  log('info', "Type of req.body:", typeof req.body);
   const rawBody = req.body;
-  console.log("Received raw health data request body:", rawBody);
+  log('debug', "Received raw health data request body:", rawBody);
 
   let healthDataArray = [];
   if (rawBody.startsWith('[') && rawBody.endsWith(']')) {
@@ -497,7 +528,7 @@ app.post('/api/health-data', express.text({ type: '*/*' }), async (req, res) => 
     try {
       healthDataArray = JSON.parse(rawBody);
     } catch (e) {
-      console.error("Error parsing JSON array body:", e);
+      log('error', "Error parsing JSON array body:", e);
       return res.status(400).json({ error: "Invalid JSON array format." });
     }
   } else if (rawBody.includes('}{')) {
@@ -511,7 +542,7 @@ app.post('/api/health-data', express.text({ type: '*/*' }), async (req, res) => 
       try {
         healthDataArray.push(JSON.parse(jsonStr));
       } catch (parseError) {
-        console.error("Error parsing individual concatenated JSON string:", jsonStr, parseError);
+        log('error', "Error parsing individual concatenated JSON string:", jsonStr, parseError);
         // Continue processing other valid parts
       }
     }
@@ -520,14 +551,14 @@ app.post('/api/health-data', express.text({ type: '*/*' }), async (req, res) => 
     try {
       healthDataArray.push(JSON.parse(rawBody));
     } catch (e) {
-      console.error("Error parsing single JSON body:", e);
+      log('error', "Error parsing single JSON body:", e);
       return res.status(400).json({ error: "Invalid single JSON format." });
     }
   }
 
   const userId = req.userId; // Set by the API key authentication middleware
-  console.log("User ID from API Key authentication:", userId);
-  console.log("Parsed healthDataArray:", JSON.stringify(healthDataArray, null, 2));
+  log('info', "User ID from API Key authentication:", userId);
+  log('debug', "Parsed healthDataArray:", JSON.stringify(healthDataArray, null, 2));
 
   const processedResults = [];
   const errors = [];
@@ -542,15 +573,15 @@ app.post('/api/health-data', express.text({ type: '*/*' }), async (req, res) => 
 
     let parsedDate;
     try {
-      console.log("Received date string for parsing:", date);
+      log('debug', "Received date string for parsing:", date);
       const dateObj = new Date(date);
-      console.log("Parsed date object (using new Date()):", dateObj);
+      log('debug', "Parsed date object (using new Date()):", dateObj);
       if (isNaN(dateObj.getTime())) {
         throw new Error(`Invalid date received from shortcut: '${date}'.`);
       }
       parsedDate = dateObj.toISOString().split('T')[0]; // Ensure UTC date string
     } catch (e) {
-      console.error("Date parsing error:", e);
+      log('error', "Date parsing error:", e);
       errors.push({ error: `Invalid date format for entry: ${JSON.stringify(dataEntry)}. Error: ${e.message}`, entry: dataEntry });
       continue;
     }
@@ -565,7 +596,7 @@ app.post('/api/health-data', express.text({ type: '*/*' }), async (req, res) => 
             break;
           }
           result = await upsertStepData(userId, stepValue, parsedDate);
-          console.log("Step data upsert result:", JSON.stringify(result, null, 2));
+          log('info', "Step data upsert result:", JSON.stringify(result, null, 2));
           processedResults.push({ type, status: 'success', data: result });
           break;
         case 'water':
@@ -575,7 +606,7 @@ app.post('/api/health-data', express.text({ type: '*/*' }), async (req, res) => 
             break;
           }
           result = await upsertWaterData(userId, waterValue, parsedDate);
-          console.log("Water data upsert result:", JSON.stringify(result, null, 2));
+          log('info', "Water data upsert result:", JSON.stringify(result, null, 2));
           processedResults.push({ type, status: 'success', data: result });
           break;
         case 'Active Calories':
@@ -586,7 +617,7 @@ app.post('/api/health-data', express.text({ type: '*/*' }), async (req, res) => 
           }
           const exerciseId = await getOrCreateActiveCaloriesExercise(userId);
           result = await upsertExerciseEntryData(userId, exerciseId, activeCaloriesValue, parsedDate);
-          console.log("Active Calories upsert result:", JSON.stringify(result, null, 2));
+          log('info', "Active Calories upsert result:", JSON.stringify(result, null, 2));
           processedResults.push({ type, status: 'success', data: result });
           break;
         default:
@@ -594,7 +625,7 @@ app.post('/api/health-data', express.text({ type: '*/*' }), async (req, res) => 
           break;
       }
     } catch (error) {
-      console.error(`Error processing ${type} data for entry ${JSON.stringify(dataEntry)}:`, error);
+      log('error', `Error processing ${type} data for entry ${JSON.stringify(dataEntry)}:`, error);
       errors.push({ error: `Failed to process ${type} data: ${error.message}`, entry: dataEntry });
     }
   }
@@ -619,5 +650,5 @@ app.use((req, res, next) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`SparkyFitnessServer listening on port ${PORT}`);
+  log('info', `SparkyFitnessServer listening on port ${PORT}`);
 });
