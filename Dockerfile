@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.4
 
 # Stage 1: Build React frontend
-FROM node:20-alpine AS builder
+FROM node:20-slim AS builder
 
 WORKDIR /app
 
@@ -19,11 +19,11 @@ ARG VITE_SUPABASE_ANON_KEY
 RUN npm run build
 
 # Stage 2: Runtime container
-FROM node:20-alpine
+FROM node:20-slim
 
 WORKDIR /app
 
-RUN apk add --no-cache bash curl nano && \
+RUN apt-get update && apt-get install -y bash curl nano && \
     ARCH=$(uname -m) && \
     echo "Detected architecture: $ARCH" && \
     if [ "$ARCH" = "x86_64" ]; then \
@@ -41,15 +41,17 @@ RUN apk add --no-cache bash curl nano && \
 
 COPY init_supabase.sh ./
 COPY supabase/ /app/supabase/
-RUN chmod +x init_supabase.sh
+RUN sed -i 's/\r$//' init_supabase.sh && chmod +x init_supabase.sh
 
 
 COPY --from=builder /app/dist ./dist
 
 EXPOSE 3000
 
+#CMD ["sh", "-c", "set -x && ./init_supabase.sh && echo 'Listing dist directory contents:' && ls -l dist && echo 'Listing dist/assets directory contents:' && ls -l dist/assets && echo 'Files found by find:' && find dist -type f -name '*.js' -print -exec echo {} \\; && echo 'VITE_SUPABASE_URL is: '$VITE_SUPABASE_URL && echo 'VITE_SUPABASE_ANON_KEY is: '$VITE_SUPABASE_ANON_KEY && find dist -type f -name '*.js' -print0 | xargs -0 -I {} sed -i \"s|__VITE_SUPABASE_URL__|$VITE_SUPABASE_URL|g\" {} && find dist -type f -name '*.js' -print0 | xargs -0 -I {} sed -i \"s|__VITE_SUPABASE_ANON_KEY__|$VITE_SUPABASE_ANON_KEY|g\" {} && serve -s dist -l 3000"]
+
 CMD ["sh", "-c", "\
-  ./init_supabase.sh && \
+  bash ./init_supabase.sh; \
   echo 'Listing dist directory contents:' && ls -l dist && \
   echo 'Listing dist/assets directory contents:' && ls -l dist/assets && \
   echo 'Files found by find:' && find dist -type f -name '*.js' -print -exec echo {} \\; && \
