@@ -1,17 +1,11 @@
 import { toast } from "@/hooks/use-toast";
-
-// Define the base URL for your backend API
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3010";
+import { apiCall } from './api'; // Import apiCall
 
 // Function to fetch food data provider details from your backend
 const fetchFoodDataProvider = async (providerId: string) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/food-data-providers/${providerId}`);
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || "Failed to fetch food data provider details.");
-    }
-    return response.json();
+    const data = await apiCall(`/api/food-data-providers/${providerId}`);
+    return data;
   } catch (error) {
     console.error("Error fetching food data provider:", error);
     toast({
@@ -87,23 +81,11 @@ export const searchNutritionixFoods = async (query: string, defaultFoodDataProvi
   };
 
   try {
-    const response = await fetch(`${NUTRITIONIX_API_BASE_URL}/search/instant?query=${encodeURIComponent(query)}`, {
+    const data: NutritionixInstantSearchResponse = await apiCall(`${NUTRITIONIX_API_BASE_URL}/search/instant?query=${encodeURIComponent(query)}`, {
       method: "GET",
       headers: headers,
+      externalApi: true, // Mark as external API call
     });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      console.error("Nutritionix Instant Search API error:", errorData);
-      toast({
-        title: "Error",
-        description: `Nutritionix search failed: ${errorData.message || response.statusText}`,
-        variant: "destructive",
-      });
-      return [];
-    }
-
-    const data: NutritionixInstantSearchResponse = await response.json();
     const commonFoodsPromises = (data.common || []).map(async (item) => {
       const nutrientData = await getNutritionixNutrients(item.food_name, defaultFoodDataProviderId);
       return {
@@ -172,24 +154,12 @@ export const getNutritionixNutrients = async (query: string, defaultFoodDataProv
   };
 
   try {
-    const response = await fetch(`${NUTRITIONIX_API_BASE_URL}/natural/nutrients`, {
+    const data: NutritionixNutrientsResponse = await apiCall(`${NUTRITIONIX_API_BASE_URL}/natural/nutrients`, {
       method: "POST",
       headers: headers,
-      body: JSON.stringify({ query: query }),
+      body: { query: query },
+      externalApi: true, // Mark as external API call
     });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      console.error("Nutritionix Natural Nutrients API error:", errorData);
-      toast({
-        title: "Error",
-        description: `Nutritionix nutrient lookup failed: ${errorData.message || response.statusText}`,
-        variant: "destructive",
-      });
-      return null;
-    }
-
-    const data: NutritionixNutrientsResponse = await response.json();
     if (data.foods && data.foods.length > 0) {
       const food = data.foods[0]; // Assuming the first food is the most relevant
       return {
@@ -244,24 +214,12 @@ export const getNutritionixBrandedNutrients = async (nixItemId: string, defaultF
   };
 
   try {
-    const response = await fetch(`${NUTRITIONIX_API_BASE_URL}/search/item`, {
+    const data = await apiCall(`${NUTRITIONIX_API_BASE_URL}/search/item`, {
       method: "POST",
       headers: headers,
-      body: JSON.stringify({ nix_item_id: nixItemId }),
+      body: { nix_item_id: nixItemId },
+      externalApi: true, // Mark as external API call
     });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      console.error("Nutritionix Branded Item API error:", errorData);
-      toast({
-        title: "Error",
-        description: `Nutritionix branded item lookup failed: ${errorData.message || response.statusText}`,
-        variant: "destructive",
-      });
-      return null;
-    }
-
-    const data = await response.json();
     if (data.foods && data.foods.length > 0) {
       const food = data.foods[0];
       const getNutrientValue = (attr_id: number) => food.full_nutrients?.find(n => n.attr_id === attr_id)?.value || 0;

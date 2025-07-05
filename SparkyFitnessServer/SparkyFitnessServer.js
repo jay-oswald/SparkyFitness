@@ -3,6 +3,7 @@ const fs = require('fs');
 require('dotenv').config({ path: path.resolve(__dirname, '../.env') }); // Load .env from root directory
 
 const express = require('express');
+const jwt = require('jsonwebtoken'); // Import jsonwebtoken
 
 // Debugging: Log when the process is about to exit
 
@@ -78,15 +79,43 @@ app.use(cors({
 // Middleware to parse JSON bodies for all incoming requests
 app.use(express.json());
 
+// JWT Authentication Middleware
+const authenticateToken = (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
+
+  if (token == null) {
+    log('warn', 'Authentication: No token provided.');
+    return res.status(401).json({ error: 'Authentication: No token provided.' });
+  }
+
+  jwt.verify(token, JWT_SECRET, (err, user) => {
+    if (err) {
+      log('warn', 'Authentication: Invalid or expired token.', err.message);
+      return res.status(403).json({ error: 'Authentication: Invalid or expired token.' });
+    }
+    req.userId = user.userId; // Attach userId from JWT payload to request
+    next();
+  });
+};
+
 const FATSECRET_OAUTH_TOKEN_URL = "https://oauth.fatsecret.com/connect/token";
 const FATSECRET_API_BASE_URL = "https://platform.fatsecret.com/rest";
 
 // Encryption key from environment variables
 const ENCRYPTION_KEY = process.env.SPARKY_FITNESS_API_ENCRYPTION_KEY;
+const JWT_SECRET = process.env.JWT_SECRET; // Get JWT secret from environment variables
+
 console.log('DEBUG: ENCRYPTION_KEY value:', ENCRYPTION_KEY ? 'Set' : 'Not Set');
+console.log('DEBUG: JWT_SECRET value:', JWT_SECRET ? 'Set' : 'Not Set');
 
 if (!ENCRYPTION_KEY) {
   log('error', 'SPARKY_FITNESS_API_ENCRYPTION_KEY is not set in environment variables.');
+  process.exit(1);
+}
+
+if (!JWT_SECRET) {
+  log('error', 'JWT_SECRET is not set in environment variables. Please generate a strong secret.');
   process.exit(1);
 }
 
@@ -200,12 +229,8 @@ app.use('/api/fatsecret', async (req, res, next) => {
 });
 
 // New endpoint to fetch food data provider details
-app.get('/api/food-data-providers', async (req, res) => {
-  const { userId } = req.query;
-
-  if (!userId) {
-    return res.status(400).json({ error: "Missing user ID" });
-  }
+app.get('/api/food-data-providers', authenticateToken, async (req, res) => {
+  const userId = req.userId; // Get userId from authenticated token
 
   try {
     const client = await pool.connect();
@@ -223,19 +248,32 @@ app.get('/api/food-data-providers', async (req, res) => {
 });
 
 // New endpoint to fetch food data providers by user ID (path parameter)
-app.get('/api/food-data-providers/user/:userId', async (req, res) => {
-  const { userId } = req.params;
+// This endpoint might be used for family access, so we need to check authorization
+app.get('/api/food-data-providers/user/:targetUserId', authenticateToken, async (req, res) => {
+  const authenticatedUserId = req.userId; // User making the request
+  const targetUserId = req.params.targetUserId; // User whose data is being requested
 
-  if (!userId) {
-    return res.status(400).json({ error: "Missing user ID" });
+  if (!targetUserId) {
+    return res.status(400).json({ error: "Missing target user ID" });
   }
 
-  let client; // Declare client outside try block
+  // Authorization check: Ensure authenticated user can access targetUserId's data
+  const client = await pool.connect();
   try {
-    client = await pool.connect(); // Assign client here
+    const canAccessResult = await client.query(
+      `SELECT public.can_access_user_data($1, $2, $3) AS can_access`,
+      [targetUserId, 'food_list', authenticatedUserId] // Check 'food_list' permission
+    );
+    const canAccess = canAccessResult.rows[0].can_access;
+
+    if (!canAccess) {
+      client.release();
+      return res.status(403).json({ error: "Forbidden: You do not have permission to access this user's food data providers." });
+    }
+
     const result = await client.query(
       'SELECT id, provider_name, provider_type, encrypted_app_id, app_id_iv, app_id_tag, encrypted_app_key, app_key_iv, app_key_tag, is_active FROM food_data_providers WHERE user_id = $1 ORDER BY created_at DESC',
-      [userId]
+      [targetUserId]
     );
     const providers = await Promise.all(result.rows.map(async (row) => {
       let decryptedAppId = null;
@@ -277,11 +315,12 @@ app.get('/api/food-data-providers/user/:userId', async (req, res) => {
 });
 
 // New endpoint to create a food data provider
-app.post('/api/food-data-providers', async (req, res) => {
-  const { provider_name, provider_type, app_id, app_key, user_id, is_active } = req.body;
+app.post('/api/food-data-providers', authenticateToken, async (req, res) => {
+  const authenticatedUserId = req.userId; // Get userId from authenticated token
+  const { provider_name, provider_type, app_id, app_key, is_active } = req.body; // user_id is no longer from body
 
-  if (!provider_name || !provider_type || !user_id) {
-    return res.status(400).json({ error: 'Provider name, type, and user ID are required.' });
+  if (!provider_name || !provider_type) {
+    return res.status(400).json({ error: 'Provider name and type are required.' });
   }
 
   let encryptedAppId = null;
@@ -324,7 +363,7 @@ app.post('/api/food-data-providers', async (req, res) => {
         created_at, updated_at
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now(), now()) RETURNING id`,
       [
-        provider_name, provider_type, user_id, is_active,
+        provider_name, provider_type, authenticatedUserId, is_active, // Use authenticatedUserId
         encryptedAppId, appIdIv, appIdTag,
         encryptedAppKey, appKeyIv, appKeyTag
       ]
@@ -339,12 +378,13 @@ app.post('/api/food-data-providers', async (req, res) => {
 });
 
 // New endpoint to update a food data provider
-app.put('/api/food-data-providers/:id', async (req, res) => {
+app.put('/api/food-data-providers/:id', authenticateToken, async (req, res) => {
+  const authenticatedUserId = req.userId; // Get userId from authenticated token
   const { id } = req.params;
-  const { provider_name, provider_type, app_id, app_key, user_id, is_active } = req.body;
+  const { provider_name, provider_type, app_id, app_key, is_active } = req.body; // user_id is no longer from body
 
-  if (!id || !user_id) {
-    return res.status(400).json({ error: 'Provider ID and User ID are required.' });
+  if (!id) {
+    return res.status(400).json({ error: 'Provider ID is required.' });
   }
 
   let encryptedAppId = null;
@@ -397,7 +437,7 @@ app.put('/api/food-data-providers/:id', async (req, res) => {
         provider_name, provider_type, is_active,
         encryptedAppId, appIdIv, appIdTag,
         encryptedAppKey, appKeyIv, appKeyTag,
-        id, user_id
+        id, authenticatedUserId // Use authenticatedUserId
       ]
     );
 
@@ -414,15 +454,27 @@ app.put('/api/food-data-providers/:id', async (req, res) => {
   }
 });
 
-app.get('/api/food-data-providers/:id', async (req, res) => {
+app.get('/api/food-data-providers/:id', authenticateToken, async (req, res) => {
+  const authenticatedUserId = req.userId; // Get userId from authenticated token
   const providerId = req.params.id;
 
   if (!providerId) {
     return res.status(400).json({ error: "Missing provider ID" });
   }
 
+  // Authorization check: Ensure authenticated user owns this provider
+  const client = await pool.connect();
   try {
-    const client = await pool.connect();
+    const checkOwnership = await client.query(
+      'SELECT 1 FROM food_data_providers WHERE id = $1 AND user_id = $2',
+      [providerId, authenticatedUserId]
+    );
+
+    if (checkOwnership.rowCount === 0) {
+      client.release();
+      return res.status(403).json({ error: "Forbidden: You do not have permission to access this food data provider." });
+    }
+
     const result = await client.query(
       'SELECT encrypted_app_id, app_id_iv, app_id_tag, encrypted_app_key, app_key_iv, app_key_tag FROM food_data_providers WHERE id = $1',
       [providerId]
@@ -634,59 +686,41 @@ async function upsertStepData(userId, value, date) {
     client.release();
   }
 
-  let result;
+  let result; // Declared once at the top of the function scope
   if (existingRecord) {
     // If record exists, update only the steps field
     log('info', "Existing record found, updating steps.");
     const updateClient = await pool.connect();
     try {
-      const result = await updateClient.query(
+      const updateResult = await updateClient.query(
         'UPDATE check_in_measurements SET steps = $1, updated_at = $2 WHERE user_id = $3 AND entry_date = $4 RETURNING *',
         [value, new Date().toISOString(), userId, date]
       );
-      result = result.rows[0];
+      result = updateResult.rows[0];
     } catch (error) {
       log('error', "Error updating step data:", error);
       throw new Error(`Failed to update step data: ${error.message}`);
     } finally {
       updateClient.release();
     }
-
-    if (error) {
-      log('error', "Error updating step data:", error);
-      throw new Error(`Failed to update step data: ${error.message}`);
-    }
-    result = data;
   } else {
     // If no record exists, insert a new one
     log('info', "No existing record found, inserting new step data.");
     const insertClient = await pool.connect();
     try {
-      const result = await insertClient.query(
+      const insertResult = await insertClient.query(
         'INSERT INTO check_in_measurements (user_id, entry_date, steps, updated_at) VALUES ($1, $2, $3, $4) RETURNING *',
         [userId, date, value, new Date().toISOString()]
       );
-      result = result.rows[0];
+      result = insertResult.rows[0];
     } catch (error) {
       log('error', "Error inserting step data:", error);
       throw new Error(`Failed to insert step data: ${error.message}`);
     } finally {
       insertClient.release();
     }
-
-    if (error) {
-      log('error', "Error inserting step data:", error);
-      throw new Error(`Failed to insert step data: ${error.message}`);
-    }
-    result = data;
   }
   return result;
-
-  if (error) {
-    log('error', "Error upserting step data:", error);
-    throw new Error(`Failed to save step data: ${error.message}`);
-  }
-  return data;
 }
 
 // Helper function to upsert water data
@@ -708,72 +742,68 @@ async function upsertWaterData(userId, value, date) {
     client.release();
   }
 
-  let result;
+  let result; // Declared once at the top of the function scope
   if (existingRecord) {
     log('info', "Existing record found, updating water intake.");
     const updateClient = await pool.connect();
     try {
-      const result = await updateClient.query(
+      const updateResult = await updateClient.query(
         'UPDATE water_intake SET glasses_consumed = $1, updated_at = $2 WHERE user_id = $3 AND entry_date = $4 RETURNING *',
         [value, new Date().toISOString(), userId, date]
       );
-      result = result.rows[0];
+      result = updateResult.rows[0];
     } catch (error) {
       log('error', "Error updating water data:", error);
       throw new Error(`Failed to update water data: ${error.message}`);
     } finally {
       updateClient.release();
     }
-
-    if (error) {
-      log('error', "Error updating water data:", error);
-      throw new Error(`Failed to update water data: ${error.message}`);
-    }
-    result = data;
   } else {
     log('info', "No existing record found, inserting new water data.");
     const insertClient = await pool.connect();
     try {
-      const result = await insertClient.query(
+      const insertResult = await insertClient.query(
         'INSERT INTO water_intake (user_id, entry_date, glasses_consumed, updated_at) VALUES ($1, $2, $3, $4) RETURNING *',
         [userId, date, value, new Date().toISOString()]
       );
-      result = result.rows[0];
+      result = insertResult.rows[0];
     } catch (error) {
       log('error', "Error inserting water data:", error);
       throw new Error(`Failed to insert water data: ${error.message}`);
     } finally {
       insertClient.release();
     }
-
-    if (error) {
-      log('error', "Error inserting water data:", error);
-      throw new Error(`Failed to insert water data: ${error.message}`);
-    }
-    result = data;
   }
   return result;
-
-  if (error) {
-    log('error', "Error upserting water data:", error);
-    throw new Error(`Failed to save water data: ${error.message}`);
-  }
-  return data;
 }
 
 // Endpoint to fetch water intake for a specific user and date
-app.get('/api/water-intake/:userId/:date', async (req, res) => {
-  const { userId, date } = req.params;
+app.get('/api/water-intake/:targetUserId/:date', authenticateToken, async (req, res) => {
+  const authenticatedUserId = req.userId; // User making the request
+  const targetUserId = req.params.targetUserId; // User whose data is being requested
+  const { date } = req.params;
 
-  if (!userId || !date) {
-    return res.status(400).json({ error: 'User ID and date are required.' });
+  if (!targetUserId || !date) {
+    return res.status(400).json({ error: 'Target User ID and date are required.' });
   }
 
   const client = await pool.connect();
   try {
+    // Authorization check: Ensure authenticated user can access targetUserId's data
+    const canAccessResult = await client.query(
+      `SELECT public.can_access_user_data($1, $2, $3) AS can_access`,
+      [targetUserId, 'checkin', authenticatedUserId] // Assuming 'checkin' permission covers water intake
+    );
+    const canAccess = canAccessResult.rows[0].can_access;
+
+    if (!canAccess) {
+      client.release();
+      return res.status(403).json({ error: "Forbidden: You do not have permission to access this user's water intake." });
+    }
+
     const result = await client.query(
       'SELECT glasses_consumed FROM water_intake WHERE user_id = $1 AND entry_date = $2',
-      [userId, date]
+      [targetUserId, date]
     );
     const waterData = result.rows[0];
 
@@ -791,24 +821,41 @@ app.get('/api/water-intake/:userId/:date', async (req, res) => {
 });
 
 // Endpoint to upsert water intake
-app.post('/api/water-intake', async (req, res) => {
-  const { user_id, entry_date, glasses_consumed } = req.body;
+app.post('/api/water-intake', authenticateToken, async (req, res) => {
+  const authenticatedUserId = req.userId; // Get userId from authenticated token
+  const { user_id, entry_date, glasses_consumed } = req.body; // user_id is the target user
 
   if (!user_id || !entry_date || glasses_consumed === undefined) {
     return res.status(400).json({ error: 'User ID, entry date, and glasses consumed are required.' });
   }
 
+  const client = await pool.connect();
   try {
+    // Authorization check: Ensure authenticated user can write to targetUserId's data
+    const canAccessResult = await client.query(
+      `SELECT public.can_access_user_data($1, $2, $3) AS can_access`,
+      [user_id, 'checkin', authenticatedUserId] // Assuming 'checkin' permission covers water intake
+    );
+    const canAccess = canAccessResult.rows[0].can_access;
+
+    if (!canAccess) {
+      client.release();
+      return res.status(403).json({ error: "Forbidden: You do not have permission to update this user's water intake." });
+    }
+
     const result = await upsertWaterData(user_id, glasses_consumed, entry_date);
     res.status(200).json(result);
   } catch (error) {
     log('error', 'Error upserting water intake:', error);
     res.status(500).json({ error: error.message });
+  } finally {
+    client.release();
   }
 });
 
 // Endpoint to fetch water intake by ID
-app.get('/api/water-intake/entry/:id', async (req, res) => {
+app.get('/api/water-intake/entry/:id', authenticateToken, async (req, res) => {
+  const authenticatedUserId = req.userId; // User making the request
   const { id } = req.params;
 
   if (!id) {
@@ -817,6 +864,30 @@ app.get('/api/water-intake/entry/:id', async (req, res) => {
 
   const client = await pool.connect();
   try {
+    // First, get the user_id associated with this water intake entry
+    const entryResult = await client.query(
+      'SELECT user_id FROM water_intake WHERE id = $1',
+      [id]
+    );
+    const entryOwnerId = entryResult.rows[0]?.user_id;
+
+    if (!entryOwnerId) {
+      client.release();
+      return res.status(404).json({ error: 'Water intake entry not found.' });
+    }
+
+    // Authorization check: Ensure authenticated user can access this entry's owner's data
+    const canAccessResult = await client.query(
+      `SELECT public.can_access_user_data($1, $2, $3) AS can_access`,
+      [entryOwnerId, 'checkin', authenticatedUserId] // Assuming 'checkin' permission covers water intake
+    );
+    const canAccess = canAccessResult.rows[0].can_access;
+
+    if (!canAccess) {
+      client.release();
+      return res.status(403).json({ error: "Forbidden: You do not have permission to access this water intake entry." });
+    }
+
     const result = await client.query(
       'SELECT * FROM water_intake WHERE id = $1',
       [id]
@@ -837,9 +908,10 @@ app.get('/api/water-intake/entry/:id', async (req, res) => {
 });
 
 // Endpoint to update water intake
-app.put('/api/water-intake/:id', express.json(), async (req, res) => {
+app.put('/api/water-intake/:id', authenticateToken, express.json(), async (req, res) => {
+  const authenticatedUserId = req.userId; // User making the request
   const { id } = req.params;
-  const { user_id, entry_date, glasses_consumed } = req.body;
+  const { user_id, entry_date, glasses_consumed } = req.body; // user_id is the target user
 
   if (!id || !user_id) {
     return res.status(400).json({ error: 'Water Intake Entry ID and User ID are required.' });
@@ -847,6 +919,18 @@ app.put('/api/water-intake/:id', express.json(), async (req, res) => {
 
   const client = await pool.connect();
   try {
+    // Authorization check: Ensure authenticated user can update targetUserId's data
+    const canAccessResult = await client.query(
+      `SELECT public.can_access_user_data($1, $2, $3) AS can_access`,
+      [user_id, 'checkin', authenticatedUserId] // Assuming 'checkin' permission covers water intake
+    );
+    const canAccess = canAccessResult.rows[0].can_access;
+
+    if (!canAccess) {
+      client.release();
+      return res.status(403).json({ error: "Forbidden: You do not have permission to update this user's water intake." });
+    }
+
     const result = await client.query(
       `UPDATE water_intake SET
         glasses_consumed = COALESCE($1, glasses_consumed),
@@ -871,19 +955,32 @@ app.put('/api/water-intake/:id', express.json(), async (req, res) => {
 });
 
 // Endpoint to delete water intake
-app.delete('/api/water-intake/:id', async (req, res) => {
+app.delete('/api/water-intake/:id', authenticateToken, async (req, res) => {
+  const authenticatedUserId = req.userId; // User making the request
   const { id } = req.params;
-  const { userId } = req.body; // Assuming userId is sent in the body for authorization
+  const { userId: targetUserId } = req.body; // Assuming userId is sent in the body for authorization
 
-  if (!id || !userId) {
+  if (!id || !targetUserId) {
     return res.status(400).json({ error: 'Water Intake Entry ID and User ID are required.' });
   }
 
   const client = await pool.connect();
   try {
+    // Authorization check: Ensure authenticated user can delete targetUserId's data
+    const canAccessResult = await client.query(
+      `SELECT public.can_access_user_data($1, $2, $3) AS can_access`,
+      [targetUserId, 'checkin', authenticatedUserId] // Assuming 'checkin' permission covers water intake
+    );
+    const canAccess = canAccessResult.rows[0].can_access;
+
+    if (!canAccess) {
+      client.release();
+      return res.status(403).json({ error: "Forbidden: You do not have permission to delete this user's water intake." });
+    }
+
     const result = await client.query(
       'DELETE FROM water_intake WHERE id = $1 AND user_id = $2 RETURNING id',
-      [id, userId]
+      [id, targetUserId]
     );
 
     if (result.rowCount === 0) {
@@ -1162,8 +1259,10 @@ app.post('/api/auth/login', async (req, res) => {
       return res.status(401).json({ error: 'Invalid credentials.' });
     }
 
-    // For now, return user ID. In a real app, generate and return a JWT.
-    res.status(200).json({ message: 'Login successful', userId: user.id });
+    // Generate JWT
+    const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '1h' }); // Token expires in 1 hour
+
+    res.status(200).json({ message: 'Login successful', userId: user.id, token });
 
   } catch (error) {
     log('error', 'Error during user login:', error);
@@ -1180,8 +1279,9 @@ app.post('/api/auth/logout', (req, res) => {
 });
 
 // Endpoint to upsert check-in measurements
-app.post('/api/measurements/check-in', express.json(), async (req, res) => {
-  const { user_id, entry_date, ...measurements } = req.body;
+app.post('/api/measurements/check-in', authenticateToken, express.json(), async (req, res) => {
+  const authenticatedUserId = req.userId; // Get userId from authenticated token
+  const { user_id, entry_date, ...measurements } = req.body; // user_id is the target user
 
   if (!user_id || !entry_date) {
     return res.status(400).json({ error: 'User ID and entry date are required.' });
@@ -1189,6 +1289,18 @@ app.post('/api/measurements/check-in', express.json(), async (req, res) => {
 
   const client = await pool.connect();
   try {
+    // Authorization check: Ensure authenticated user can write to targetUserId's data
+    const canAccessResult = await client.query(
+      `SELECT public.can_access_user_data($1, $2, $3) AS can_access`,
+      [user_id, 'checkin', authenticatedUserId]
+    );
+    const canAccess = canAccessResult.rows[0].can_access;
+
+    if (!canAccess) {
+      client.release();
+      return res.status(403).json({ error: "Forbidden: You do not have permission to update this user's check-in measurements." });
+    }
+
     // Check if a record exists for the user and date
     const existingRecord = await client.query(
       'SELECT * FROM check_in_measurements WHERE user_id = $1 AND entry_date = $2',
@@ -1221,18 +1333,32 @@ app.post('/api/measurements/check-in', express.json(), async (req, res) => {
 });
 
 // Endpoint to fetch check-in measurements for a specific user and date
-app.get('/api/measurements/check-in/:userId/:date', async (req, res) => {
-  const { userId, date } = req.params;
+app.get('/api/measurements/check-in/:targetUserId/:date', authenticateToken, async (req, res) => {
+  const authenticatedUserId = req.userId; // User making the request
+  const targetUserId = req.params.targetUserId; // User whose data is being requested
+  const { date } = req.params;
 
-  if (!userId || !date) {
-    return res.status(400).json({ error: 'User ID and date are required.' });
+  if (!targetUserId || !date) {
+    return res.status(400).json({ error: 'Target User ID and date are required.' });
   }
 
   const client = await pool.connect();
   try {
+    // Authorization check: Ensure authenticated user can access targetUserId's data
+    const canAccessResult = await client.query(
+      `SELECT public.can_access_user_data($1, $2, $3) AS can_access`,
+      [targetUserId, 'checkin', authenticatedUserId]
+    );
+    const canAccess = canAccessResult.rows[0].can_access;
+
+    if (!canAccess) {
+      client.release();
+      return res.status(403).json({ error: "Forbidden: You do not have permission to access this user's check-in measurements." });
+    }
+
     const result = await client.query(
       'SELECT * FROM check_in_measurements WHERE user_id = $1 AND entry_date = $2',
-      [userId, date]
+      [targetUserId, date]
     );
     const measurement = result.rows[0];
 
@@ -1251,9 +1377,10 @@ app.get('/api/measurements/check-in/:userId/:date', async (req, res) => {
 });
 
 // Endpoint to update check-in measurements
-app.put('/api/measurements/check-in/:id', express.json(), async (req, res) => {
+app.put('/api/measurements/check-in/:id', authenticateToken, express.json(), async (req, res) => {
+  const authenticatedUserId = req.userId; // User making the request
   const { id } = req.params;
-  const { user_id, entry_date, weight, neck, waist, hips, steps } = req.body;
+  const { user_id, entry_date, weight, neck, waist, hips, steps } = req.body; // user_id is the target user
 
   if (!id || !user_id || !entry_date) {
     return res.status(400).json({ error: 'ID, User ID, and entry date are required.' });
@@ -1261,6 +1388,18 @@ app.put('/api/measurements/check-in/:id', express.json(), async (req, res) => {
 
   const client = await pool.connect();
   try {
+    // Authorization check: Ensure authenticated user can update targetUserId's data
+    const canAccessResult = await client.query(
+      `SELECT public.can_access_user_data($1, $2, $3) AS can_access`,
+      [user_id, 'checkin', authenticatedUserId]
+    );
+    const canAccess = canAccessResult.rows[0].can_access;
+
+    if (!canAccess) {
+      client.release();
+      return res.status(403).json({ error: "Forbidden: You do not have permission to update this user's check-in measurements." });
+    }
+
     const result = await client.query(
       `UPDATE check_in_measurements SET
         weight = COALESCE($1, weight),
@@ -1288,19 +1427,32 @@ app.put('/api/measurements/check-in/:id', express.json(), async (req, res) => {
 });
 
 // Endpoint to delete check-in measurements
-app.delete('/api/measurements/check-in/:id', async (req, res) => {
+app.delete('/api/measurements/check-in/:id', authenticateToken, async (req, res) => {
+  const authenticatedUserId = req.userId; // User making the request
   const { id } = req.params;
-  const { userId } = req.body; // Assuming userId is sent in the body for authorization
+  const { userId: targetUserId } = req.body; // Assuming userId is sent in the body for authorization
 
-  if (!id || !userId) {
+  if (!id || !targetUserId) {
     return res.status(400).json({ error: 'Check-in Measurement ID and User ID are required.' });
   }
 
   const client = await pool.connect();
   try {
+    // Authorization check: Ensure authenticated user can delete targetUserId's data
+    const canAccessResult = await client.query(
+      `SELECT public.can_access_user_data($1, $2, $3) AS can_access`,
+      [targetUserId, 'checkin', authenticatedUserId]
+    );
+    const canAccess = canAccessResult.rows[0].can_access;
+
+    if (!canAccess) {
+      client.release();
+      return res.status(403).json({ error: "Forbidden: You do not have permission to delete this user's check-in measurements." });
+    }
+
     const result = await client.query(
       'DELETE FROM check_in_measurements WHERE id = $1 AND user_id = $2 RETURNING id',
-      [id, userId]
+      [id, targetUserId]
     );
 
     if (result.rowCount === 0) {
@@ -1316,349 +1468,190 @@ app.delete('/api/measurements/check-in/:id', async (req, res) => {
   }
 });
 
-// Endpoint to search for a custom category
-app.get('/api/measurements/custom-categories/:userId/:name', async (req, res) => {
-  const { userId, name } = req.params;
+// Endpoint to upsert check-in measurements
+app.post('/api/measurements/check-in', authenticateToken, express.json(), async (req, res) => {
+  const authenticatedUserId = req.userId; // Get userId from authenticated token
+  const { user_id, entry_date, ...measurements } = req.body; // user_id is the target user
 
-  if (!userId || !name) {
-    return res.status(400).json({ error: 'User ID and category name are required.' });
+  if (!user_id || !entry_date) {
+    return res.status(400).json({ error: 'User ID and entry date are required.' });
   }
 
   const client = await pool.connect();
   try {
-    const result = await client.query(
-      'SELECT id FROM custom_categories WHERE user_id = $1 AND name = $2',
-      [userId, name]
+    // Authorization check: Ensure authenticated user can write to targetUserId's data
+    const canAccessResult = await client.query(
+      `SELECT public.can_access_user_data($1, $2, $3) AS can_access`,
+      [user_id, 'checkin', authenticatedUserId]
     );
-    const category = result.rows[0];
+    const canAccess = canAccessResult.rows[0].can_access;
 
-    if (!category) {
-      return res.status(200).json({}); // Return empty object if not found
+    if (!canAccess) {
+      client.release();
+      return res.status(403).json({ error: "Forbidden: You do not have permission to update this user's check-in measurements." });
     }
 
-    res.status(200).json(category);
+    // Check if a record exists for the user and date
+    const existingRecord = await client.query(
+      'SELECT * FROM check_in_measurements WHERE user_id = $1 AND entry_date = $2',
+      [user_id, entry_date]
+    );
+
+    let query;
+    let values;
+    if (existingRecord.rows.length > 0) {
+      // Update existing record
+      const fields = Object.keys(measurements).map((key, index) => `${key} = $${index + 3}`).join(', ');
+      values = [user_id, entry_date, ...Object.values(measurements), new Date().toISOString()];
+      query = `UPDATE check_in_measurements SET ${fields}, updated_at = $${values.length} WHERE user_id = $1 AND entry_date = $2 RETURNING *`;
+    } else {
+      // Insert new record
+      const cols = ['user_id', 'entry_date', ...Object.keys(measurements), 'created_at', 'updated_at'];
+      const placeholders = cols.map((_, index) => `$${index + 1}`).join(', ');
+      values = [user_id, entry_date, ...Object.values(measurements), new Date().toISOString(), new Date().toISOString()];
+      query = `INSERT INTO check_in_measurements (${cols.join(', ')}) VALUES (${placeholders}) RETURNING *`;
+    }
+
+    const result = await client.query(query, values);
+    res.status(200).json(result.rows[0]);
   } catch (error) {
-    log('error', 'Error searching custom category:', error);
+    log('error', 'Error upserting check-in measurements:', error);
     res.status(500).json({ error: 'Internal server error.' });
   } finally {
     client.release();
   }
 });
 
-// Endpoint to fetch a custom category by ID
-app.get('/api/measurements/custom-categories/id/:id', async (req, res) => {
-  const { id } = req.params;
+// Endpoint to fetch check-in measurements for a specific user and date
+app.get('/api/measurements/check-in/:targetUserId/:date', authenticateToken, async (req, res) => {
+  const authenticatedUserId = req.userId; // User making the request
+  const targetUserId = req.params.targetUserId; // User whose data is being requested
+  const { date } = req.params;
 
-  if (!id) {
-    return res.status(400).json({ error: 'Category ID is required.' });
+  if (!targetUserId || !date) {
+    return res.status(400).json({ error: 'Target User ID and date are required.' });
   }
 
   const client = await pool.connect();
   try {
-    const result = await client.query(
-      'SELECT id, user_id, name, frequency, measurement_type FROM custom_categories WHERE id = $1',
-      [id]
+    // Authorization check: Ensure authenticated user can access targetUserId's data
+    const canAccessResult = await client.query(
+      `SELECT public.can_access_user_data($1, $2, $3) AS can_access`,
+      [targetUserId, 'checkin', authenticatedUserId]
     );
-    const category = result.rows[0];
+    const canAccess = canAccessResult.rows[0].can_access;
 
-    if (!category) {
-      return res.status(200).json({}); // Return empty object if not found
+    if (!canAccess) {
+      client.release();
+      return res.status(403).json({ error: "Forbidden: You do not have permission to access this user's check-in measurements." });
     }
 
-    res.status(200).json(category);
+    const result = await client.query(
+      'SELECT * FROM check_in_measurements WHERE user_id = $1 AND entry_date = $2',
+      [targetUserId, date]
+    );
+    const measurement = result.rows[0];
+
+    if (!measurement) {
+      // Return an empty object if no measurement is found, instead of a 404
+      return res.status(200).json({});
+    }
+
+    res.status(200).json(measurement);
   } catch (error) {
-    log('error', 'Error fetching custom category by ID:', error);
+    log('error', 'Error fetching check-in measurement:', error);
     res.status(500).json({ error: 'Internal server error.' });
   } finally {
     client.release();
   }
 });
 
-// Endpoint to update a custom category
-app.put('/api/measurements/custom-categories/:id', express.json(), async (req, res) => {
+// Endpoint to update check-in measurements
+app.put('/api/measurements/check-in/:id', authenticateToken, express.json(), async (req, res) => {
+  const authenticatedUserId = req.userId; // User making the request
   const { id } = req.params;
-  const { user_id, name, frequency, measurement_type } = req.body;
+  const { user_id, entry_date, weight, neck, waist, hips, steps } = req.body; // user_id is the target user
 
-  if (!id || !user_id) {
-    return res.status(400).json({ error: 'Category ID and User ID are required.' });
+  if (!id || !user_id || !entry_date) {
+    return res.status(400).json({ error: 'ID, User ID, and entry date are required.' });
   }
 
   const client = await pool.connect();
   try {
+    // Authorization check: Ensure authenticated user can update targetUserId's data
+    const canAccessResult = await client.query(
+      `SELECT public.can_access_user_data($1, $2, $3) AS can_access`,
+      [user_id, 'checkin', authenticatedUserId]
+    );
+    const canAccess = canAccessResult.rows[0].can_access;
+
+    if (!canAccess) {
+      client.release();
+      return res.status(403).json({ error: "Forbidden: You do not have permission to update this user's check-in measurements." });
+    }
+
     const result = await client.query(
-      `UPDATE custom_categories SET
-        name = COALESCE($1, name),
-        frequency = COALESCE($2, frequency),
-        measurement_type = COALESCE($3, measurement_type),
+      `UPDATE check_in_measurements SET
+        weight = COALESCE($1, weight),
+        neck = COALESCE($2, neck),
+        waist = COALESCE($3, waist),
+        hips = COALESCE($4, hips),
+        steps = COALESCE($5, steps),
         updated_at = now()
-      WHERE id = $4 AND user_id = $5
+      WHERE id = $6 AND user_id = $7 AND entry_date = $8
       RETURNING *`,
-      [name, frequency, measurement_type, id, user_id]
+      [weight, neck, waist, hips, steps, id, user_id, entry_date]
     );
 
     if (result.rowCount === 0) {
-      return res.status(404).json({ error: 'Custom category not found or not authorized to update.' });
+      return res.status(404).json({ error: 'Check-in measurement not found or not authorized to update.' });
     }
 
     res.status(200).json(result.rows[0]);
   } catch (error) {
-    log('error', 'Error updating custom category:', error);
+    log('error', 'Error updating check-in measurement:', error);
     res.status(500).json({ error: 'Internal server error.' });
   } finally {
     client.release();
   }
 });
 
-// Endpoint to delete a custom category
-app.delete('/api/measurements/custom-categories/:id', async (req, res) => {
+// Endpoint to delete check-in measurements
+app.delete('/api/measurements/check-in/:id', authenticateToken, async (req, res) => {
+  const authenticatedUserId = req.userId; // User making the request
   const { id } = req.params;
-  const { userId } = req.query; // Correctly extract userId from query parameters
+  const { userId: targetUserId } = req.body; // Assuming userId is sent in the body for authorization
 
-  if (!id || !userId) {
-    return res.status(400).json({ error: 'Category ID and User ID are required.' });
+  if (!id || !targetUserId) {
+    return res.status(400).json({ error: 'Check-in Measurement ID and User ID are required.' });
   }
 
   const client = await pool.connect();
   try {
+    // Authorization check: Ensure authenticated user can delete targetUserId's data
+    const canAccessResult = await client.query(
+      `SELECT public.can_access_user_data($1, $2, $3) AS can_access`,
+      [targetUserId, 'checkin', authenticatedUserId]
+    );
+    const canAccess = canAccessResult.rows[0].can_access;
+
+    if (!canAccess) {
+      client.release();
+      return res.status(403).json({ error: "Forbidden: You do not have permission to delete this user's check-in measurements." });
+    }
+
     const result = await client.query(
-      'DELETE FROM custom_categories WHERE id = $1 AND user_id = $2 RETURNING id',
-      [id, userId]
+      'DELETE FROM check_in_measurements WHERE id = $1 AND user_id = $2 RETURNING id',
+      [id, targetUserId]
     );
 
     if (result.rowCount === 0) {
-      return res.status(404).json({ error: 'Custom category not found or not authorized to delete.' });
+      return res.status(404).json({ error: 'Check-in measurement not found or not authorized to delete.' });
     }
 
-    res.status(200).json({ message: 'Custom category deleted successfully.' });
+    res.status(200).json({ message: 'Check-in measurement deleted successfully.' });
   } catch (error) {
-    log('error', 'Error deleting custom category:', error);
-    res.status(500).json({ error: 'Internal server error.' });
-  } finally {
-    client.release();
-  }
-});
-
-// Endpoint to create a custom category
-app.post('/api/custom-categories', express.json(), async (req, res) => {
-  const { user_id, name, frequency, measurement_type } = req.body;
-
-  if (!user_id || !name || !frequency || !measurement_type) {
-    return res.status(400).json({ error: 'User ID, name, frequency, and measurement type are required.' });
-  }
-
-  const client = await pool.connect();
-  try {
-    const result = await client.query(
-      'INSERT INTO custom_categories (user_id, name, frequency, measurement_type, created_at, updated_at) VALUES ($1, $2, $3, $4, now(), now()) RETURNING *',
-      [user_id, name, frequency, measurement_type]
-    );
-    res.status(201).json(result.rows[0]);
-  } catch (error) {
-    log('error', 'Error creating custom category:', error);
-    res.status(500).json({ error: 'Internal server error.' });
-  } finally {
-    client.release();
-  }
-});
-
-// Endpoint to insert custom measurement entry
-app.post('/api/measurements/custom-entries', express.json(), async (req, res) => {
-  const { user_id, category_id, entry_date, value, entry_timestamp } = req.body;
-
-  if (!user_id || !category_id || !entry_date || value === undefined || !entry_timestamp) {
-    return res.status(400).json({ error: 'User ID, category ID, entry date, value, and entry timestamp are required.' });
-  }
-
-  const client = await pool.connect();
-  try {
-    const result = await client.query(
-      'INSERT INTO custom_measurements (user_id, category_id, entry_date, value, entry_timestamp, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, now(), now()) RETURNING *',
-      [user_id, category_id, entry_date, value, entry_timestamp]
-    );
-    res.status(201).json(result.rows[0]);
-  } catch (error) {
-    log('error', 'Error inserting custom measurement entry:', error);
-    res.status(500).json({ error: 'Internal server error.' });
-  } finally {
-    client.release();
-  }
-});
-
-// Endpoint to fetch a custom measurement entry by ID
-app.get('/api/measurements/custom-entries/:id', async (req, res) => {
-  const { id } = req.params;
-
-  if (!id) {
-    return res.status(400).json({ error: 'Entry ID is required.' });
-  }
-
-  const client = await pool.connect();
-  try {
-    const result = await client.query(
-      'SELECT * FROM custom_measurements WHERE id = $1',
-      [id]
-    );
-    const entry = result.rows[0];
-
-    if (!entry) {
-      return res.status(200).json({}); // Return empty object if not found
-    }
-
-    res.status(200).json(entry);
-  } catch (error) {
-    log('error', 'Error fetching custom measurement entry:', error);
-    res.status(500).json({ error: 'Internal server error.' });
-  } finally {
-    client.release();
-  }
-});
-
-// Endpoint to update a custom measurement entry
-app.put('/api/measurements/custom-entries/:id', express.json(), async (req, res) => {
-  const { id } = req.params;
-  const { user_id, category_id, entry_date, value, entry_timestamp } = req.body;
-
-  if (!id || !user_id) {
-    return res.status(400).json({ error: 'Entry ID and User ID are required.' });
-  }
-
-  const client = await pool.connect();
-  try {
-    const result = await client.query(
-      `UPDATE custom_measurements SET
-        category_id = COALESCE($1, category_id),
-        entry_date = COALESCE($2, entry_date),
-        value = COALESCE($3, value),
-        entry_timestamp = COALESCE($4, entry_timestamp),
-        updated_at = now()
-      WHERE id = $5 AND user_id = $6
-      RETURNING *`,
-      [category_id, entry_date, value, entry_timestamp, id, user_id]
-    );
-
-    if (result.rowCount === 0) {
-      return res.status(404).json({ error: 'Custom measurement entry not found or not authorized to update.' });
-    }
-
-    res.status(200).json(result.rows[0]);
-  } catch (error) {
-    log('error', 'Error updating custom measurement entry:', error);
-    res.status(500).json({ error: 'Internal server error.' });
-  } finally {
-    client.release();
-  }
-});
-
-// Endpoint to delete a custom measurement entry
-app.delete('/api/measurements/custom-entries/:id', async (req, res) => {
-  const { id } = req.params;
-  const { userId } = req.body; // Assuming userId is sent in the body for authorization
-
-  if (!id || !userId) {
-    return res.status(400).json({ error: 'Entry ID and User ID are required.' });
-  }
-
-  const client = await pool.connect();
-  try {
-    const result = await client.query(
-      'DELETE FROM custom_measurements WHERE id = $1 AND user_id = $2 RETURNING id',
-      [id, userId]
-    );
-
-    if (result.rowCount === 0) {
-      return res.status(404).json({ error: 'Custom measurement entry not found or not authorized to delete.' });
-    }
-
-    res.status(200).json({ message: 'Custom measurement entry deleted successfully.' });
-  } catch (error) {
-    log('error', 'Error deleting custom measurement entry:', error);
-    res.status(500).json({ error: 'Internal server error.' });
-  } finally {
-    client.release();
-  }
-});
-
-app.get('/api/measurements/custom-entries/:userId/:date', async (req, res) => {
-  const { userId, date } = req.params;
-
-  if (!userId || !date) {
-    return res.status(400).json({ error: 'User ID and date are required.' });
-  }
-
-  const client = await pool.connect();
-  try {
-    const result = await client.query(
-      `SELECT cm.*, cc.name AS custom_category_name, cc.measurement_type, cc.frequency
-       FROM custom_measurements cm
-       JOIN custom_categories cc ON cm.category_id = cc.id
-       WHERE cm.user_id = $1 AND cm.entry_date = $2`,
-      [userId, date]
-    );
-    res.status(200).json(result.rows || []);
-  } catch (error) {
-    log('error', 'Error fetching custom measurements by user and date:', error);
-    res.status(500).json({ error: 'Internal server error.' });
-  } finally {
-    client.release();
-  }
-});
-
-app.get('/api/measurements/custom-entries', async (req, res) => {
-  const { userId, limit, orderBy, filter } = req.query;
-
-  if (!userId) {
-    return res.status(400).json({ error: 'User ID is required.' });
-  }
-
-  let query = `
-    SELECT cm.*, cc.name AS custom_category_name, cc.measurement_type, cc.frequency
-    FROM custom_measurements cm
-    JOIN custom_categories cc ON cm.category_id = cc.id
-    WHERE cm.user_id = $1
-  `;
-  const queryParams = [userId];
-  let paramIndex = 2;
-
-  if (filter) {
-    // Basic filter parsing, assuming format like "value.gt.0"
-    const [field, operator, value] = filter.split('.');
-    if (field && operator && value) {
-      let sqlOperator = '';
-      switch (operator) {
-        case 'eq': sqlOperator = '='; break;
-        case 'gt': sqlOperator = '>'; break;
-        case 'lt': sqlOperator = '<'; break;
-        case 'gte': sqlOperator = '>='; break;
-        case 'lte': sqlOperator = '<='; break;
-        case 'neq': sqlOperator = '!='; break;
-        default: sqlOperator = '='; // Default to equals
-      }
-      query += ` AND cm.${field} ${sqlOperator} $${paramIndex++}`;
-      queryParams.push(value);
-    }
-  }
-
-  if (orderBy) {
-    // Basic order by parsing, assuming format like "entry_timestamp.desc"
-    const [field, direction] = orderBy.split('.');
-    if (field && (direction === 'asc' || direction === 'desc')) {
-      query += ` ORDER BY cm.${field} ${direction.toUpperCase()}`;
-    }
-  } else {
-    query += ` ORDER BY cm.entry_date DESC, cm.entry_timestamp DESC`; // Default order
-  }
-
-  if (limit) {
-    query += ` LIMIT $${paramIndex++}`;
-    queryParams.push(parseInt(limit, 10));
-  }
-
-  const client = await pool.connect();
-  try {
-    const result = await client.query(query, queryParams);
-    res.status(200).json(result.rows || []);
-  } catch (error) {
-    log('error', 'Error fetching custom measurements:', error);
+    log('error', 'Error deleting check-in measurement:', error);
     res.status(500).json({ error: 'Internal server error.' });
   } finally {
     client.release();
@@ -1727,7 +1720,10 @@ app.post('/api/auth/register', async (req, res) => {
         [userId]
       );
 
-      res.status(201).json({ message: 'User registered successfully', userId });
+      // Generate JWT
+      const token = jwt.sign({ userId: userId }, JWT_SECRET, { expiresIn: '1h' }); // Token expires in 1 hour
+
+      res.status(201).json({ message: 'User registered successfully', userId, token });
     } catch (error) {
       if (error.code === '23505') { // Unique violation
         return res.status(409).json({ error: 'User with this email already exists.' });
@@ -1825,18 +1821,31 @@ app.post('/api/user/revoke-api-key', async (req, res) => {
   }
 });
 
-app.post('/api/user/revoke-all-api-keys', async (req, res) => {
-  const { userId } = req.body;
+app.post('/api/user/revoke-all-api-keys', authenticateToken, async (req, res) => {
+  const authenticatedUserId = req.userId; // Get userId from authenticated token
+  const { userId: targetUserId } = req.body; // targetUserId is the user for whom the API keys are revoked
 
-  if (!userId) {
-    return res.status(400).json({ error: 'User ID is required.' });
+  if (!targetUserId) {
+    return res.status(400).json({ error: 'Target User ID is required.' });
   }
 
   const client = await pool.connect();
   try {
+    // Authorization check: Ensure authenticated user can revoke all API keys for targetUserId
+    const canAccessResult = await client.query(
+      `SELECT public.can_access_user_data($1, $2, $3) AS can_access`,
+      [targetUserId, 'api_keys', authenticatedUserId] // Assuming 'api_keys' permission covers revoking all API keys
+    );
+    const canAccess = canAccessResult.rows[0].can_access;
+
+    if (!canAccess) {
+      client.release();
+      return res.status(403).json({ error: "Forbidden: You do not have permission to revoke all API keys for this user." });
+    }
+
     await client.query(
       'UPDATE user_api_keys SET is_active = FALSE, updated_at = now() WHERE user_id = $1',
-      [userId]
+      [targetUserId]
     );
 
     res.status(200).json({ message: 'All API keys revoked successfully for the user.' });
@@ -1883,18 +1892,31 @@ app.get('/api/users/accessible-users', async (req, res) => {
 });
 
 // Endpoint to fetch user profile by ID
-app.get('/api/profiles/:userId', async (req, res) => {
-  const { userId } = req.params;
+app.get('/api/profiles/:targetUserId', authenticateToken, async (req, res) => {
+  const authenticatedUserId = req.userId; // User making the request
+  const { targetUserId } = req.params;
 
-  if (!userId) {
-    return res.status(400).json({ error: 'User ID is required.' });
+  if (!targetUserId) {
+    return res.status(400).json({ error: 'Target User ID is required.' });
   }
 
   const client = await pool.connect();
   try {
+    // Authorization check: Ensure authenticated user can access targetUserId's data
+    const canAccessResult = await client.query(
+      `SELECT public.can_access_user_data($1, $2, $3) AS can_access`,
+      [targetUserId, 'profile', authenticatedUserId] // Assuming 'profile' permission covers user profiles
+    );
+    const canAccess = canAccessResult.rows[0].can_access;
+
+    if (!canAccess) {
+      client.release();
+      return res.status(403).json({ error: "Forbidden: You do not have permission to access this user's profile." });
+    }
+
     const result = await client.query(
       'SELECT id, full_name, phone_number, date_of_birth, bio, avatar_url FROM profiles WHERE id = $1',
-      [userId]
+      [targetUserId]
     );
     const profile = result.rows[0];
 
@@ -1912,16 +1934,29 @@ app.get('/api/profiles/:userId', async (req, res) => {
 });
 
 // Endpoint to update user profile by ID
-app.put('/api/profiles/:userId', express.json(), async (req, res) => {
-  const { userId } = req.params;
+app.put('/api/profiles/:targetUserId', authenticateToken, express.json(), async (req, res) => {
+  const authenticatedUserId = req.userId; // User making the request
+  const { targetUserId } = req.params;
   const { full_name, phone_number, date_of_birth, bio, avatar_url } = req.body;
 
-  if (!userId) {
-    return res.status(400).json({ error: 'User ID is required.' });
+  if (!targetUserId) {
+    return res.status(400).json({ error: 'Target User ID is required.' });
   }
 
   const client = await pool.connect();
   try {
+    // Authorization check: Ensure authenticated user can update targetUserId's data
+    const canAccessResult = await client.query(
+      `SELECT public.can_access_user_data($1, $2, $3) AS can_access`,
+      [targetUserId, 'profile', authenticatedUserId] // Assuming 'profile' permission covers user profiles
+    );
+    const canAccess = canAccessResult.rows[0].can_access;
+
+    if (!canAccess) {
+      client.release();
+      return res.status(403).json({ error: "Forbidden: You do not have permission to update this user's profile." });
+    }
+
     const result = await client.query(
       `UPDATE profiles
        SET full_name = COALESCE($2, full_name),
@@ -1932,7 +1967,7 @@ app.put('/api/profiles/:userId', express.json(), async (req, res) => {
            updated_at = now()
        WHERE id = $1
        RETURNING *`,
-      [userId, full_name, phone_number, date_of_birth, bio, avatar_url]
+      [targetUserId, full_name, phone_number, date_of_birth, bio, avatar_url]
     );
 
     if (result.rowCount === 0) {
@@ -1949,18 +1984,31 @@ app.put('/api/profiles/:userId', express.json(), async (req, res) => {
 });
 
 // Endpoint to fetch user API keys
-app.get('/api/user-api-keys/:userId', async (req, res) => {
-  const { userId } = req.params;
+app.get('/api/user-api-keys/:targetUserId', authenticateToken, async (req, res) => {
+  const authenticatedUserId = req.userId; // User making the request
+  const { targetUserId } = req.params;
 
-  if (!userId) {
-    return res.status(400).json({ error: 'User ID is required.' });
+  if (!targetUserId) {
+    return res.status(400).json({ error: 'Target User ID is required.' });
   }
 
   const client = await pool.connect();
   try {
+    // Authorization check: Ensure authenticated user can access targetUserId's data
+    const canAccessResult = await client.query(
+      `SELECT public.can_access_user_data($1, $2, $3) AS can_access`,
+      [targetUserId, 'api_keys', authenticatedUserId] // Assuming 'api_keys' permission covers user API keys
+    );
+    const canAccess = canAccessResult.rows[0].can_access;
+
+    if (!canAccess) {
+      client.release();
+      return res.status(403).json({ error: "Forbidden: You do not have permission to access this user's API keys." });
+    }
+
     const result = await client.query(
       'SELECT id, description, api_key, created_at, last_used_at, is_active FROM user_api_keys WHERE user_id = $1 ORDER BY created_at DESC',
-      [userId]
+      [targetUserId]
     );
     res.status(200).json(result.rows);
   } catch (error) {
@@ -1972,21 +2020,34 @@ app.get('/api/user-api-keys/:userId', async (req, res) => {
 });
 
 // Endpoint to generate a new API key
-app.post('/api/user/generate-api-key', express.json(), async (req, res) => {
-  const { userId, description } = req.body;
+app.post('/api/user/generate-api-key', authenticateToken, express.json(), async (req, res) => {
+  const authenticatedUserId = req.userId; // Get userId from authenticated token
+  const { userId: targetUserId, description } = req.body; // targetUserId is the user for whom the API key is generated
 
-  if (!userId) {
-    return res.status(400).json({ error: 'User ID is required.' });
+  if (!targetUserId) {
+    return res.status(400).json({ error: 'Target User ID is required.' });
   }
 
   const client = await pool.connect();
   try {
+    // Authorization check: Ensure authenticated user can generate API keys for targetUserId
+    const canAccessResult = await client.query(
+      `SELECT public.can_access_user_data($1, $2, $3) AS can_access`,
+      [targetUserId, 'api_keys', authenticatedUserId] // Assuming 'api_keys' permission covers generating API keys
+    );
+    const canAccess = canAccessResult.rows[0].can_access;
+
+    if (!canAccess) {
+      client.release();
+      return res.status(403).json({ error: "Forbidden: You do not have permission to generate API keys for this user." });
+    }
+
     const newApiKey = uuidv4(); // Generate a UUID for the API key
 
     const result = await client.query(
       `INSERT INTO user_api_keys (user_id, api_key, description, permissions, created_at, updated_at)
        VALUES ($1, $2, $3, $4, now(), now()) RETURNING id, api_key, description, created_at, is_active`,
-      [userId, newApiKey, description, { health_data_write: true }] // Default permission
+      [targetUserId, newApiKey, description, { health_data_write: true }] // Default permission
     );
 
     res.status(201).json({ message: 'API key generated successfully', apiKey: result.rows[0] });
@@ -1999,18 +2060,31 @@ app.post('/api/user/generate-api-key', express.json(), async (req, res) => {
 });
 
 // Endpoint to revoke an API key
-app.post('/api/user/revoke-api-key', express.json(), async (req, res) => {
-  const { userId, apiKeyId } = req.body;
+app.post('/api/user/revoke-api-key', authenticateToken, express.json(), async (req, res) => {
+  const authenticatedUserId = req.userId; // Get userId from authenticated token
+  const { userId: targetUserId, apiKeyId } = req.body; // targetUserId is the user for whom the API key is revoked
 
-  if (!userId || !apiKeyId) {
-    return res.status(400).json({ error: 'User ID and API Key ID are required.' });
+  if (!targetUserId || !apiKeyId) {
+    return res.status(400).json({ error: 'Target User ID and API Key ID are required.' });
   }
 
   const client = await pool.connect();
   try {
+    // Authorization check: Ensure authenticated user can revoke API keys for targetUserId
+    const canAccessResult = await client.query(
+      `SELECT public.can_access_user_data($1, $2, $3) AS can_access`,
+      [targetUserId, 'api_keys', authenticatedUserId] // Assuming 'api_keys' permission covers revoking API keys
+    );
+    const canAccess = canAccessResult.rows[0].can_access;
+
+    if (!canAccess) {
+      client.release();
+      return res.status(403).json({ error: "Forbidden: You do not have permission to revoke API keys for this user." });
+    }
+
     const result = await client.query(
       'UPDATE user_api_keys SET is_active = FALSE, updated_at = now() WHERE id = $1 AND user_id = $2 RETURNING *',
-      [apiKeyId, userId]
+      [apiKeyId, targetUserId]
     );
 
     if (result.rowCount === 0) {
@@ -2170,15 +2244,28 @@ app.get('/api/access/check-family-access', async (req, res) => {
 });
 
 // Endpoint to fetch family access entries for a user (as owner or family member)
-app.get('/api/family-access', async (req, res) => {
-  const { owner_user_id } = req.query;
+app.get('/api/family-access', authenticateToken, async (req, res) => {
+  const authenticatedUserId = req.userId; // User making the request
+  const { owner_user_id: targetUserId } = req.query;
 
-  if (!owner_user_id) {
-    return res.status(400).json({ error: 'Owner User ID is required.' });
+  if (!targetUserId) {
+    return res.status(400).json({ error: 'Target User ID is required.' });
   }
 
   const client = await pool.connect();
   try {
+    // Authorization check: Ensure authenticated user can access targetUserId's family access entries
+    const canAccessResult = await client.query(
+      `SELECT public.can_access_user_data($1, $2, $3) AS can_access`,
+      [targetUserId, 'family_access', authenticatedUserId] // Assuming 'family_access' permission covers family access entries
+    );
+    const canAccess = canAccessResult.rows[0].can_access;
+
+    if (!canAccess) {
+      client.release();
+      return res.status(403).json({ error: "Forbidden: You do not have permission to access this user's family access entries." });
+    }
+
     const result = await client.query(
       `SELECT fa.id, fa.owner_user_id, fa.family_user_id, fa.family_email, fa.access_permissions,
               fa.access_start_date, fa.access_end_date, fa.is_active, fa.status,
@@ -2188,7 +2275,7 @@ app.get('/api/family-access', async (req, res) => {
        LEFT JOIN profiles p_family ON fa.family_user_id = p_family.id
        WHERE fa.owner_user_id = $1
        ORDER BY fa.created_at DESC`,
-      [owner_user_id]
+      [targetUserId]
     );
     res.status(200).json(result.rows || []); // Return empty array if no entries found
   } catch (error) {
@@ -2199,15 +2286,28 @@ app.get('/api/family-access', async (req, res) => {
   }
 });
 
-app.get('/api/family-access/:userId', async (req, res) => {
-  const { userId } = req.params;
+app.get('/api/family-access/:userId', authenticateToken, async (req, res) => {
+  const authenticatedUserId = req.userId; // User making the request
+  const { userId: targetUserId } = req.params;
 
-  if (!userId) {
-    return res.status(400).json({ error: 'User ID is required.' });
+  if (!targetUserId) {
+    return res.status(400).json({ error: 'Target User ID is required.' });
   }
 
   const client = await pool.connect();
   try {
+    // Authorization check: Ensure authenticated user can access targetUserId's family access entries
+    const canAccessResult = await client.query(
+      `SELECT public.can_access_user_data($1, $2, $3) AS can_access`,
+      [targetUserId, 'family_access', authenticatedUserId] // Assuming 'family_access' permission covers family access entries
+    );
+    const canAccess = canAccessResult.rows[0].can_access;
+
+    if (!canAccess) {
+      client.release();
+      return res.status(403).json({ error: "Forbidden: You do not have permission to access this user's family access entries." });
+    }
+
     const result = await client.query(
       `SELECT fa.id, fa.owner_user_id, fa.family_user_id, fa.family_email, fa.access_permissions,
               fa.access_start_date, fa.access_end_date, fa.is_active, fa.status,
@@ -2217,7 +2317,7 @@ app.get('/api/family-access/:userId', async (req, res) => {
        LEFT JOIN profiles p_family ON fa.family_user_id = p_family.id
        WHERE fa.owner_user_id = $1 OR fa.family_user_id = $1
        ORDER BY fa.created_at DESC`,
-      [userId]
+      [targetUserId]
     );
     res.status(200).json(result.rows || []); // Return empty array if no entries found
   } catch (error) {
@@ -2229,19 +2329,32 @@ app.get('/api/family-access/:userId', async (req, res) => {
 });
 
 // Endpoint to create a new family access entry
-app.post('/api/family-access', express.json(), async (req, res) => {
-  const { owner_user_id, family_user_id, family_email, access_permissions, access_end_date, status } = req.body;
+app.post('/api/family-access', authenticateToken, express.json(), async (req, res) => {
+  const authenticatedUserId = req.userId; // User making the request
+  const { owner_user_id: targetOwnerUserId, family_user_id, family_email, access_permissions, access_end_date, status } = req.body;
 
-  if (!owner_user_id || !family_user_id || !family_email || !access_permissions) {
+  if (!targetOwnerUserId || !family_user_id || !family_email || !access_permissions) {
     return res.status(400).json({ error: 'Owner User ID, Family User ID, Family Email, and Access Permissions are required.' });
   }
 
   const client = await pool.connect();
   try {
+    // Authorization check: Ensure authenticated user can create family access entries for targetOwnerUserId
+    const canAccessResult = await client.query(
+      `SELECT public.can_access_user_data($1, $2, $3) AS can_access`,
+      [targetOwnerUserId, 'family_access', authenticatedUserId] // Assuming 'family_access' permission covers creating family access entries
+    );
+    const canAccess = canAccessResult.rows[0].can_access;
+
+    if (!canAccess) {
+      client.release();
+      return res.status(403).json({ error: "Forbidden: You do not have permission to create family access entries for this user." });
+    }
+
     const result = await client.query(
       `INSERT INTO family_access (owner_user_id, family_user_id, family_email, access_permissions, access_end_date, status, created_at, updated_at)
        VALUES ($1, $2, $3, $4, $5, COALESCE($6, 'pending'), now(), now()) RETURNING *`,
-      [owner_user_id, family_user_id, family_email, access_permissions, access_end_date, status]
+      [targetOwnerUserId, family_user_id, family_email, access_permissions, access_end_date, status]
     );
     res.status(201).json(result.rows[0]);
   } catch (error) {
@@ -2253,16 +2366,29 @@ app.post('/api/family-access', express.json(), async (req, res) => {
 });
 
 // Endpoint to update a family access entry
-app.put('/api/family-access/:id', express.json(), async (req, res) => {
+app.put('/api/family-access/:id', authenticateToken, express.json(), async (req, res) => {
+  const authenticatedUserId = req.userId; // User making the request
   const { id } = req.params;
-  const { owner_user_id, family_user_id, access_permissions, access_end_date, is_active, status } = req.body;
+  const { owner_user_id: targetOwnerUserId, family_user_id, access_permissions, access_end_date, is_active, status } = req.body;
 
-  if (!id || !owner_user_id) { // owner_user_id to ensure authorization
+  if (!id || !targetOwnerUserId) { // targetOwnerUserId to ensure authorization
     return res.status(400).json({ error: 'Family Access ID and Owner User ID are required.' });
   }
 
   const client = await pool.connect();
   try {
+    // Authorization check: Ensure authenticated user can update family access entries for targetOwnerUserId
+    const canAccessResult = await client.query(
+      `SELECT public.can_access_user_data($1, $2, $3) AS can_access`,
+      [targetOwnerUserId, 'family_access', authenticatedUserId] // Assuming 'family_access' permission covers updating family access entries
+    );
+    const canAccess = canAccessResult.rows[0].can_access;
+
+    if (!canAccess) {
+      client.release();
+      return res.status(403).json({ error: "Forbidden: You do not have permission to update this user's family access entry." });
+    }
+
     const result = await client.query(
       `UPDATE family_access SET
         access_permissions = COALESCE($1, access_permissions),
@@ -2272,7 +2398,7 @@ app.put('/api/family-access/:id', express.json(), async (req, res) => {
         updated_at = now()
       WHERE id = $5 AND owner_user_id = $6
       RETURNING *`,
-      [access_permissions, access_end_date, is_active, status, id, owner_user_id]
+      [access_permissions, access_end_date, is_active, status, id, targetOwnerUserId]
     );
 
     if (result.rowCount === 0) {
@@ -2289,19 +2415,32 @@ app.put('/api/family-access/:id', express.json(), async (req, res) => {
 });
 
 // Endpoint to delete a family access entry
-app.delete('/api/family-access/:id', async (req, res) => {
+app.delete('/api/family-access/:id', authenticateToken, async (req, res) => {
+  const authenticatedUserId = req.userId; // User making the request
   const { id } = req.params;
-  const { ownerUserId } = req.body; // Owner User ID to ensure authorization
+  const { ownerUserId: targetOwnerUserId } = req.body; // Target Owner User ID to ensure authorization
 
-  if (!id || !ownerUserId) {
-    return res.status(400).json({ error: 'Family Access ID and Owner User ID are required.' });
+  if (!id || !targetOwnerUserId) {
+    return res.status(400).json({ error: 'Family Access ID and Target Owner User ID are required.' });
   }
 
   const client = await pool.connect();
   try {
+    // Authorization check: Ensure authenticated user can delete family access entries for targetOwnerUserId
+    const canAccessResult = await client.query(
+      `SELECT public.can_access_user_data($1, $2, $3) AS can_access`,
+      [targetOwnerUserId, 'family_access', authenticatedUserId] // Assuming 'family_access' permission covers deleting family access entries
+    );
+    const canAccess = canAccessResult.rows[0].can_access;
+
+    if (!canAccess) {
+      client.release();
+      return res.status(403).json({ error: "Forbidden: You do not have permission to delete this user's family access entry." });
+    }
+
     const result = await client.query(
       'DELETE FROM family_access WHERE id = $1 AND owner_user_id = $2 RETURNING id',
-      [id, ownerUserId]
+      [id, targetOwnerUserId]
     );
 
     if (result.rowCount === 0) {
@@ -2319,18 +2458,19 @@ app.delete('/api/family-access/:id', async (req, res) => {
 
 
 
-app.post('/api/chat/clear-old-history', async (req, res) => {
+app.post('/api/chat/clear-old-history', authenticateToken, async (req, res) => {
+  const authenticatedUserId = req.userId; // User making the request
   const client = await pool.connect();
   try {
+    // First, check if the authenticated user has permission to clear their own history
+    // This endpoint doesn't take a targetUserId, so it implicitly operates on the authenticated user's data.
+    // No explicit can_access_user_data check is needed here as it's a self-service action.
+
     await client.query(`
       DELETE FROM sparky_chat_history
-      WHERE user_id IN (
-        SELECT user_id
-        FROM user_preferences
-        WHERE auto_clear_history = '7days'
-      )
+      WHERE user_id = $1
       AND created_at < NOW() - INTERVAL '7 days'
-    `);
+    `, [authenticatedUserId]);
     res.status(200).json({ message: 'Old chat history cleared successfully.' });
   } catch (error) {
     log('error', 'Error clearing old chat history:', error);
@@ -2341,15 +2481,28 @@ app.post('/api/chat/clear-old-history', async (req, res) => {
 });
 
 // New endpoint to fetch goals for a specific user and date using query parameters (for client-side compatibility)
-app.get('/api/goals', async (req, res) => {
-  const { userId, selectedDate } = req.query;
+app.get('/api/goals', authenticateToken, async (req, res) => {
+  const authenticatedUserId = req.userId; // User making the request
+  const { userId: targetUserId, selectedDate } = req.query;
 
-  if (!userId || !selectedDate) {
-    return res.status(400).json({ error: 'User ID and selectedDate are required.' });
+  if (!targetUserId || !selectedDate) {
+    return res.status(400).json({ error: 'Target User ID and selectedDate are required.' });
   }
 
   const client = await pool.connect();
   try {
+    // Authorization check: Ensure authenticated user can access targetUserId's data
+    const canAccessResult = await client.query(
+      `SELECT public.can_access_user_data($1, $2, $3) AS can_access`,
+      [targetUserId, 'goals', authenticatedUserId] // Assuming 'goals' permission covers user goals
+    );
+    const canAccess = canAccessResult.rows[0].can_access;
+
+    if (!canAccess) {
+      client.release();
+      return res.status(403).json({ error: "Forbidden: You do not have permission to access this user's goals." });
+    }
+
     // First try to get goal for the exact date
     let result = await client.query(
       `SELECT calories, protein, carbs, fat, water_goal,
@@ -2359,7 +2512,7 @@ app.get('/api/goals', async (req, res) => {
        FROM user_goals
        WHERE user_id = $1 AND goal_date = $2
        LIMIT 1`,
-      [userId, selectedDate]
+      [targetUserId, selectedDate]
     );
 
     let goals = result.rows[0];
@@ -2376,7 +2529,7 @@ app.get('/api/goals', async (req, res) => {
            AND (goal_date < $2 OR goal_date IS NULL)
          ORDER BY goal_date DESC NULLS LAST
          LIMIT 1`,
-        [userId, selectedDate]
+        [targetUserId, selectedDate]
       );
       goals = result.rows[0];
     }
@@ -2401,15 +2554,28 @@ app.get('/api/goals', async (req, res) => {
 });
 
 // Existing endpoint for goals with path parameters (if needed elsewhere)
-app.get('/api/goals/for-date', async (req, res) => {
-  const { userId, date } = req.query;
+app.get('/api/goals/for-date', authenticateToken, async (req, res) => {
+  const authenticatedUserId = req.userId; // User making the request
+  const { userId: targetUserId, date } = req.query;
 
-  if (!userId || !date) {
-    return res.status(400).json({ error: 'User ID and date are required.' });
+  if (!targetUserId || !date) {
+    return res.status(400).json({ error: 'Target User ID and date are required.' });
   }
 
   const client = await pool.connect();
   try {
+    // Authorization check: Ensure authenticated user can access targetUserId's data
+    const canAccessResult = await client.query(
+      `SELECT public.can_access_user_data($1, $2, $3) AS can_access`,
+      [targetUserId, 'goals', authenticatedUserId] // Assuming 'goals' permission covers user goals
+    );
+    const canAccess = canAccessResult.rows[0].can_access;
+
+    if (!canAccess) {
+      client.release();
+      return res.status(403).json({ error: "Forbidden: You do not have permission to access this user's goals." });
+    }
+
     // First try to get goal for the exact date
     let result = await client.query(
       `SELECT calories, protein, carbs, fat, water_goal,
@@ -2419,7 +2585,7 @@ app.get('/api/goals/for-date', async (req, res) => {
        FROM user_goals
        WHERE user_id = $1 AND goal_date = $2
        LIMIT 1`,
-      [userId, date]
+      [targetUserId, date]
     );
 
     let goals = result.rows[0];
@@ -2436,7 +2602,7 @@ app.get('/api/goals/for-date', async (req, res) => {
            AND (goal_date < $2 OR goal_date IS NULL)
          ORDER BY goal_date DESC NULLS LAST
          LIMIT 1`,
-        [userId, date]
+        [targetUserId, date]
       );
       goals = result.rows[0];
     }
@@ -2460,20 +2626,33 @@ app.get('/api/goals/for-date', async (req, res) => {
   }
 });
 
-app.post('/api/goals/manage-timeline', async (req, res) => {
+app.post('/api/goals/manage-timeline', authenticateToken, async (req, res) => {
+  const authenticatedUserId = req.userId; // User making the request
   const {
-    userId, p_start_date, p_calories, p_protein, p_carbs, p_fat, p_water_goal,
+    userId: targetUserId, p_start_date, p_calories, p_protein, p_carbs, p_fat, p_water_goal,
     p_saturated_fat, p_polyunsaturated_fat, p_monounsaturated_fat, p_trans_fat,
     p_cholesterol, p_sodium, p_potassium, p_dietary_fiber, p_sugars,
     p_vitamin_a, p_vitamin_c, p_calcium, p_iron
   } = req.body;
 
-  if (!userId || !p_start_date) {
-    return res.status(400).json({ error: 'User ID and start date are required.' });
+  if (!targetUserId || !p_start_date) {
+    return res.status(400).json({ error: 'Target User ID and start date are required.' });
   }
 
   const client = await pool.connect();
   try {
+    // Authorization check: Ensure authenticated user can manage targetUserId's goals
+    const canAccessResult = await client.query(
+      `SELECT public.can_access_user_data($1, $2, $3) AS can_access`,
+      [targetUserId, 'goals', authenticatedUserId] // Assuming 'goals' permission covers managing goals
+    );
+    const canAccess = canAccessResult.rows[0].can_access;
+
+    if (!canAccess) {
+      client.release();
+      return res.status(403).json({ error: "Forbidden: You do not have permission to manage this user's goals." });
+    }
+
     // If editing a past date (before today), only update that specific date
     if (new Date(p_start_date) < new Date(format(new Date(), 'yyyy-MM-dd'))) {
       await client.query(
@@ -2506,7 +2685,7 @@ app.post('/api/goals/manage-timeline', async (req, res) => {
           iron = EXCLUDED.iron,
           updated_at = now()`,
         [
-          userId, p_start_date, p_calories, p_protein, p_carbs, p_fat, p_water_goal,
+          targetUserId, p_start_date, p_calories, p_protein, p_carbs, p_fat, p_water_goal,
           p_saturated_fat, p_polyunsaturated_fat, p_monounsaturated_fat, p_trans_fat,
           p_cholesterol, p_sodium, p_potassium, p_dietary_fiber, p_sugars,
           p_vitamin_a, p_vitamin_c, p_calcium, p_iron
@@ -2527,7 +2706,7 @@ app.post('/api/goals/manage-timeline', async (req, res) => {
          AND goal_date >= $2
          AND goal_date < $3
          AND goal_date IS NOT NULL`,
-      [userId, p_start_date, format(endDate, 'yyyy-MM-dd')]
+      [targetUserId, p_start_date, format(endDate, 'yyyy-MM-dd')]
     );
 
     // Insert new goals for each day in the 6-month range
@@ -2542,7 +2721,7 @@ app.post('/api/goals/manage-timeline', async (req, res) => {
         )
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)`,
         [
-          userId, format(currentDate, 'yyyy-MM-dd'), p_calories, p_protein, p_carbs, p_fat, p_water_goal,
+          targetUserId, format(currentDate, 'yyyy-MM-dd'), p_calories, p_protein, p_carbs, p_fat, p_water_goal,
           p_saturated_fat, p_polyunsaturated_fat, p_monounsaturated_fat, p_trans_fat,
           p_cholesterol, p_sodium, p_potassium, p_dietary_fiber, p_sugars,
           p_vitamin_a, p_vitamin_c, p_calcium, p_iron
@@ -2555,7 +2734,7 @@ app.post('/api/goals/manage-timeline', async (req, res) => {
     await client.query(
       `DELETE FROM user_goals
        WHERE user_id = $1 AND goal_date IS NULL`,
-      [userId]
+      [targetUserId]
     );
 
     res.status(200).json({ message: 'Goal timeline managed successfully.' });
@@ -2568,18 +2747,43 @@ app.post('/api/goals/manage-timeline', async (req, res) => {
 });
 
 // Endpoint to fetch a user goal by ID
-app.get('/api/user-goals/:id', async (req, res) => {
-  const { id } = req.params;
+app.get('/api/user-goals/:goalId', authenticateToken, async (req, res) => {
+  const authenticatedUserId = req.userId; // User making the request
+  const { goalId } = req.params;
 
-  if (!id) {
+  if (!goalId) {
     return res.status(400).json({ error: 'Goal ID is required.' });
   }
 
   const client = await pool.connect();
   try {
+    // First, get the user_id associated with this goal
+    const goalResult = await client.query(
+      'SELECT user_id FROM user_goals WHERE id = $1',
+      [goalId]
+    );
+    const goalOwnerId = goalResult.rows[0]?.user_id;
+
+    if (!goalOwnerId) {
+      client.release();
+      return res.status(404).json({ error: 'User goal not found.' });
+    }
+
+    // Authorization check: Ensure authenticated user can access this goal's owner's data
+    const canAccessResult = await client.query(
+      `SELECT public.can_access_user_data($1, $2, $3) AS can_access`,
+      [goalOwnerId, 'goals', authenticatedUserId] // Assuming 'goals' permission covers user goals
+    );
+    const canAccess = canAccessResult.rows[0].can_access;
+
+    if (!canAccess) {
+      client.release();
+      return res.status(403).json({ error: "Forbidden: You do not have permission to access this user's goal." });
+    }
+
     const result = await client.query(
       'SELECT * FROM user_goals WHERE id = $1',
-      [id]
+      [goalId]
     );
     const goal = result.rows[0];
 
@@ -2597,21 +2801,34 @@ app.get('/api/user-goals/:id', async (req, res) => {
 });
 
 // Endpoint to update a user goal
-app.put('/api/user-goals/:id', express.json(), async (req, res) => {
-  const { id } = req.params;
+app.put('/api/user-goals/:goalId', authenticateToken, express.json(), async (req, res) => {
+  const authenticatedUserId = req.userId; // User making the request
+  const { goalId } = req.params;
   const {
-    user_id, goal_date, calories, protein, carbs, fat, water_goal,
+    user_id: targetUserId, goal_date, calories, protein, carbs, fat, water_goal,
     saturated_fat, polyunsaturated_fat, monounsaturated_fat, trans_fat,
     cholesterol, sodium, potassium, dietary_fiber, sugars,
     vitamin_a, vitamin_c, calcium, iron
   } = req.body;
 
-  if (!id || !user_id) {
+  if (!goalId || !targetUserId) {
     return res.status(400).json({ error: 'Goal ID and User ID are required.' });
   }
 
   const client = await pool.connect();
   try {
+    // Authorization check: Ensure authenticated user can update targetUserId's goals
+    const canAccessResult = await client.query(
+      `SELECT public.can_access_user_data($1, $2, $3) AS can_access`,
+      [targetUserId, 'goals', authenticatedUserId] // Assuming 'goals' permission covers managing goals
+    );
+    const canAccess = canAccessResult.rows[0].can_access;
+
+    if (!canAccess) {
+      client.release();
+      return res.status(403).json({ error: "Forbidden: You do not have permission to update this user's goal." });
+    }
+
     const result = await client.query(
       `UPDATE user_goals SET
         goal_date = COALESCE($1, goal_date),
@@ -2640,7 +2857,7 @@ app.put('/api/user-goals/:id', express.json(), async (req, res) => {
         goal_date, calories, protein, carbs, fat, water_goal,
         saturated_fat, polyunsaturated_fat, monounsaturated_fat, trans_fat,
         cholesterol, sodium, potassium, dietary_fiber, sugars,
-        vitamin_a, vitamin_c, calcium, iron, id, user_id
+        vitamin_a, vitamin_c, calcium, iron, goalId, targetUserId
       ]
     );
 
@@ -2658,20 +2875,33 @@ app.put('/api/user-goals/:id', express.json(), async (req, res) => {
 });
 
 // Endpoint to update user preferences
-app.put('/api/user-preferences/:userId', express.json(), async (req, res) => {
-  const { userId } = req.params;
+app.put('/api/user-preferences/:targetUserId', authenticateToken, express.json(), async (req, res) => {
+  const authenticatedUserId = req.userId; // User making the request
+  const { targetUserId } = req.params;
   const {
     date_format, default_weight_unit, default_measurement_unit,
     system_prompt, auto_clear_history, logging_level, timezone,
     default_food_data_provider_id
   } = req.body;
 
-  if (!userId) {
-    return res.status(400).json({ error: 'User ID is required.' });
+  if (!targetUserId) {
+    return res.status(400).json({ error: 'Target User ID is required.' });
   }
 
   const client = await pool.connect();
   try {
+    // Authorization check: Ensure authenticated user can update targetUserId's preferences
+    const canAccessResult = await client.query(
+      `SELECT public.can_access_user_data($1, $2, $3) AS can_access`,
+      [targetUserId, 'preferences', authenticatedUserId] // Assuming 'preferences' permission covers user preferences
+    );
+    const canAccess = canAccessResult.rows[0].can_access;
+
+    if (!canAccess) {
+      client.release();
+      return res.status(403).json({ error: "Forbidden: You do not have permission to update this user's preferences." });
+    }
+
     const result = await client.query(
       `UPDATE user_preferences SET
         date_format = COALESCE($1, date_format),
@@ -2688,7 +2918,7 @@ app.put('/api/user-preferences/:userId', express.json(), async (req, res) => {
       [
         date_format, default_weight_unit, default_measurement_unit,
         system_prompt, auto_clear_history, logging_level, timezone,
-        default_food_data_provider_id, userId
+        default_food_data_provider_id, targetUserId
       ]
     );
 
@@ -2706,18 +2936,31 @@ app.put('/api/user-preferences/:userId', express.json(), async (req, res) => {
 });
 
 // Endpoint to delete user preferences
-app.delete('/api/user-preferences/:userId', async (req, res) => {
-  const { userId } = req.params;
+app.delete('/api/user-preferences/:targetUserId', authenticateToken, async (req, res) => {
+  const authenticatedUserId = req.userId; // User making the request
+  const { targetUserId } = req.params;
 
-  if (!userId) {
-    return res.status(400).json({ error: 'User ID is required.' });
+  if (!targetUserId) {
+    return res.status(400).json({ error: 'Target User ID is required.' });
   }
 
   const client = await pool.connect();
   try {
+    // Authorization check: Ensure authenticated user can delete targetUserId's preferences
+    const canAccessResult = await client.query(
+      `SELECT public.can_access_user_data($1, $2, $3) AS can_access`,
+      [targetUserId, 'preferences', authenticatedUserId] // Assuming 'preferences' permission covers user preferences
+    );
+    const canAccess = canAccessResult.rows[0].can_access;
+
+    if (!canAccess) {
+      client.release();
+      return res.status(403).json({ error: "Forbidden: You do not have permission to delete this user's preferences." });
+    }
+
     const result = await client.query(
       'DELETE FROM user_preferences WHERE user_id = $1 RETURNING user_id',
-      [userId]
+      [targetUserId]
     );
 
     if (result.rowCount === 0) {
@@ -2734,19 +2977,32 @@ app.delete('/api/user-preferences/:userId', async (req, res) => {
 });
 
 // Endpoint to delete a user goal
-app.delete('/api/user-goals/:id', async (req, res) => {
-  const { id } = req.params;
-  const { userId } = req.body; // Assuming userId is sent in the body for authorization
+app.delete('/api/user-goals/:goalId', authenticateToken, async (req, res) => {
+  const authenticatedUserId = req.userId; // User making the request
+  const { goalId } = req.params;
+  const { userId: targetUserId } = req.body; // Assuming userId is sent in the body for authorization
 
-  if (!id || !userId) {
+  if (!goalId || !targetUserId) {
     return res.status(400).json({ error: 'Goal ID and User ID are required.' });
   }
 
   const client = await pool.connect();
   try {
+    // Authorization check: Ensure authenticated user can delete targetUserId's goals
+    const canAccessResult = await client.query(
+      `SELECT public.can_access_user_data($1, $2, $3) AS can_access`,
+      [targetUserId, 'goals', authenticatedUserId] // Assuming 'goals' permission covers managing goals
+    );
+    const canAccess = canAccessResult.rows[0].can_access;
+
+    if (!canAccess) {
+      client.release();
+      return res.status(403).json({ error: "Forbidden: You do not have permission to delete this user's goal." });
+    }
+
     const result = await client.query(
       'DELETE FROM user_goals WHERE id = $1 AND user_id = $2 RETURNING id',
-      [id, userId]
+      [goalId, targetUserId]
     );
 
     if (result.rowCount === 0) {
@@ -2763,18 +3019,31 @@ app.delete('/api/user-goals/:id', async (req, res) => {
 });
 
 // Endpoint to fetch user preferences
-app.get('/api/user-preferences/:userId', async (req, res) => {
-  const { userId } = req.params;
+app.get('/api/user-preferences/:targetUserId', authenticateToken, async (req, res) => {
+  const authenticatedUserId = req.userId; // User making the request
+  const { targetUserId } = req.params;
 
-  if (!userId) {
-    return res.status(400).json({ error: 'User ID is required.' });
+  if (!targetUserId) {
+    return res.status(400).json({ error: 'Target User ID is required.' });
   }
 
   const client = await pool.connect();
   try {
+    // Authorization check: Ensure authenticated user can access targetUserId's preferences
+    const canAccessResult = await client.query(
+      `SELECT public.can_access_user_data($1, $2, $3) AS can_access`,
+      [targetUserId, 'preferences', authenticatedUserId] // Assuming 'preferences' permission covers user preferences
+    );
+    const canAccess = canAccessResult.rows[0].can_access;
+
+    if (!canAccess) {
+      client.release();
+      return res.status(403).json({ error: "Forbidden: You do not have permission to access this user's preferences." });
+    }
+
     const result = await client.query(
       'SELECT * FROM user_preferences WHERE user_id = $1',
-      [userId]
+      [targetUserId]
     );
     const preferences = result.rows[0];
 
@@ -2792,19 +3061,32 @@ app.get('/api/user-preferences/:userId', async (req, res) => {
 });
 
 // Endpoint to upsert user preferences
-app.post('/api/user-preferences', express.json(), async (req, res) => {
+app.post('/api/user-preferences', authenticateToken, express.json(), async (req, res) => {
+  const authenticatedUserId = req.userId; // User making the request
   const {
-    user_id, date_format, default_weight_unit, default_measurement_unit,
+    user_id: targetUserId, date_format, default_weight_unit, default_measurement_unit,
     system_prompt, auto_clear_history, logging_level, timezone,
     default_food_data_provider_id
   } = req.body;
 
-  if (!user_id) {
-    return res.status(400).json({ error: 'User ID is required.' });
+  if (!targetUserId) {
+    return res.status(400).json({ error: 'Target User ID is required.' });
   }
 
   const client = await pool.connect();
   try {
+    // Authorization check: Ensure authenticated user can upsert targetUserId's preferences
+    const canAccessResult = await client.query(
+      `SELECT public.can_access_user_data($1, $2, $3) AS can_access`,
+      [targetUserId, 'preferences', authenticatedUserId] // Assuming 'preferences' permission covers user preferences
+    );
+    const canAccess = canAccessResult.rows[0].can_access;
+
+    if (!canAccess) {
+      client.release();
+      return res.status(403).json({ error: "Forbidden: You do not have permission to upsert this user's preferences." });
+    }
+
     const result = await client.query(
       `INSERT INTO user_preferences (
         user_id, date_format, default_weight_unit, default_measurement_unit,
@@ -2823,7 +3105,7 @@ app.post('/api/user-preferences', express.json(), async (req, res) => {
         updated_at = now()
       RETURNING *`,
       [
-        user_id, date_format, default_weight_unit, default_measurement_unit,
+        targetUserId, date_format, default_weight_unit, default_measurement_unit,
         system_prompt, auto_clear_history, logging_level, timezone,
         default_food_data_provider_id
       ]
@@ -3230,8 +3512,9 @@ function getDefaultModel(serviceType) {
 }
 
 // Endpoint to search for foods
-app.get('/api/foods/search', async (req, res) => {
-  const { name, userId, exactMatch, broadMatch, checkCustom } = req.query;
+app.get('/api/foods/search', authenticateToken, async (req, res) => {
+  const authenticatedUserId = req.userId; // User making the request
+  const { name, userId: targetUserId, exactMatch, broadMatch, checkCustom } = req.query;
 
   if (!name) {
     return res.status(400).json({ error: 'Food name is required.' });
@@ -3239,19 +3522,35 @@ app.get('/api/foods/search', async (req, res) => {
 
   const client = await pool.connect();
   try {
+    // Authorization check: Ensure authenticated user can access targetUserId's food data
+    // This endpoint is a search, so we need to check if the authenticated user can search for foods belonging to targetUserId
+    // If targetUserId is not provided, assume the user is searching their own foods or public foods.
+    if (targetUserId && targetUserId !== authenticatedUserId) {
+      const canAccessResult = await client.query(
+        `SELECT public.can_access_user_data($1, $2, $3) AS can_access`,
+        [targetUserId, 'food_list', authenticatedUserId] // Assuming 'food_list' permission covers food search
+      );
+      const canAccess = canAccessResult.rows[0].can_access;
+
+      if (!canAccess) {
+        client.release();
+        return res.status(403).json({ error: "Forbidden: You do not have permission to search this user's foods." });
+      }
+    }
+
     let query = 'SELECT id, name, serving_unit, serving_size, calories, protein, carbs, fat FROM foods WHERE ';
     const queryParams = [];
     let paramIndex = 1;
 
     if (exactMatch === 'true') {
       query += `name ILIKE $${paramIndex++} AND user_id = $${paramIndex++}`;
-      queryParams.push(name, userId);
+      queryParams.push(name, targetUserId || authenticatedUserId); // Use targetUserId if provided, else authenticatedUserId
     } else if (broadMatch === 'true') {
       query += `name ILIKE $${paramIndex++} AND (user_id = $${paramIndex++} OR is_custom = FALSE)`;
-      queryParams.push(`%${name}%`, userId);
+      queryParams.push(`%${name}%`, targetUserId || authenticatedUserId);
     } else if (checkCustom === 'true') {
       query += `name = $${paramIndex++} AND user_id = $${paramIndex++}`;
-      queryParams.push(name, userId);
+      queryParams.push(name, targetUserId || authenticatedUserId);
     } else {
       return res.status(400).json({ error: 'Invalid search parameters.' });
     }
@@ -3269,20 +3568,33 @@ app.get('/api/foods/search', async (req, res) => {
 });
 
 // Endpoint to create a new food
-app.post('/api/foods', express.json(), async (req, res) => {
+app.post('/api/foods', authenticateToken, express.json(), async (req, res) => {
+  const authenticatedUserId = req.userId; // User making the request
   const {
     name, calories, protein, carbs, fat, serving_size, serving_unit,
     saturated_fat, polyunsaturated_fat, monounsaturated_fat, trans_fat,
     cholesterol, sodium, potassium, dietary_fiber, sugars,
-    vitamin_a, vitamin_c, calcium, iron, is_custom, user_id
+    vitamin_a, vitamin_c, calcium, iron, is_custom, user_id: targetUserId
   } = req.body;
 
-  if (!name || !user_id) {
+  if (!name || !targetUserId) {
     return res.status(400).json({ error: 'Food name and user ID are required.' });
   }
 
   const client = await pool.connect();
   try {
+    // Authorization check: Ensure authenticated user can create food for targetUserId
+    const canAccessResult = await client.query(
+      `SELECT public.can_access_user_data($1, $2, $3) AS can_access`,
+      [targetUserId, 'food_list', authenticatedUserId] // Assuming 'food_list' permission covers creating food
+    );
+    const canAccess = canAccessResult.rows[0].can_access;
+
+    if (!canAccess) {
+      client.release();
+      return res.status(403).json({ error: "Forbidden: You do not have permission to create food for this user." });
+    }
+
     const result = await client.query(
       `INSERT INTO foods (
         name, calories, protein, carbs, fat, serving_size, serving_unit,
@@ -3294,7 +3606,7 @@ app.post('/api/foods', express.json(), async (req, res) => {
         name, calories, protein, carbs, fat, serving_size, serving_unit,
         saturated_fat, polyunsaturated_fat, monounsaturated_fat, trans_fat,
         cholesterol, sodium, potassium, dietary_fiber, sugars,
-        vitamin_a, vitamin_c, calcium, iron, is_custom, user_id
+        vitamin_a, vitamin_c, calcium, iron, is_custom, targetUserId
       ]
     );
     res.status(201).json(result.rows[0]);
@@ -3307,7 +3619,8 @@ app.post('/api/foods', express.json(), async (req, res) => {
 });
 
 // Endpoint to search for food variants
-app.get('/api/food-variants/search', async (req, res) => {
+app.get('/api/food-variants/search', authenticateToken, async (req, res) => {
+  const authenticatedUserId = req.userId; // User making the request
   const { foodId, servingUnit } = req.query;
 
   if (!foodId || !servingUnit) {
@@ -3316,6 +3629,30 @@ app.get('/api/food-variants/search', async (req, res) => {
 
   const client = await pool.connect();
   try {
+    // First, get the user_id associated with this food
+    const foodResult = await client.query(
+      'SELECT user_id FROM foods WHERE id = $1',
+      [foodId]
+    );
+    const foodOwnerId = foodResult.rows[0]?.user_id;
+
+    if (!foodOwnerId) {
+      client.release();
+      return res.status(404).json({ error: 'Food not found.' });
+    }
+
+    // Authorization check: Ensure authenticated user can access this food's owner's data
+    const canAccessResult = await client.query(
+      `SELECT public.can_access_user_data($1, $2, $3) AS can_access`,
+      [foodOwnerId, 'food_list', authenticatedUserId] // Assuming 'food_list' permission covers food variants
+    );
+    const canAccess = canAccessResult.rows[0].can_access;
+
+    if (!canAccess) {
+      client.release();
+      return res.status(403).json({ error: "Forbidden: You do not have permission to access this food's variants." });
+    }
+
     const result = await client.query(
       'SELECT id FROM food_variants WHERE food_id = $1 AND serving_unit = $2',
       [foodId, servingUnit]
@@ -3330,18 +3667,56 @@ app.get('/api/food-variants/search', async (req, res) => {
 });
 
 // Endpoint to fetch a food by ID
-app.get('/api/foods/:id', async (req, res) => {
-  const { id } = req.params;
+app.get('/api/foods/:foodId', authenticateToken, async (req, res) => {
+  const authenticatedUserId = req.userId; // User making the request
+  const { foodId } = req.params;
 
-  if (!id) {
+  if (!foodId) {
     return res.status(400).json({ error: 'Food ID is required.' });
   }
 
   const client = await pool.connect();
   try {
+    // First, get the user_id associated with this food
+    const foodResult = await client.query(
+      'SELECT user_id FROM foods WHERE id = $1',
+      [foodId]
+    );
+    const foodOwnerId = foodResult.rows[0]?.user_id;
+
+    // If food is not found or is not custom, allow access. Otherwise, check permissions.
+    if (!foodOwnerId) {
+      // If food is not found, it might be a public food or an invalid ID.
+      // Try to fetch it without user_id constraint.
+      const publicFoodResult = await client.query(
+        'SELECT * FROM foods WHERE id = $1 AND is_custom = FALSE',
+        [foodId]
+      );
+      const publicFood = publicFoodResult.rows[0];
+      if (publicFood) {
+        client.release();
+        return res.status(200).json(publicFood);
+      } else {
+        client.release();
+        return res.status(404).json({ error: 'Food not found.' });
+      }
+    }
+
+    // Authorization check: Ensure authenticated user can access this food's owner's data
+    const canAccessResult = await client.query(
+      `SELECT public.can_access_user_data($1, $2, $3) AS can_access`,
+      [foodOwnerId, 'food_list', authenticatedUserId] // Assuming 'food_list' permission covers food access
+    );
+    const canAccess = canAccessResult.rows[0].can_access;
+
+    if (!canAccess) {
+      client.release();
+      return res.status(403).json({ error: "Forbidden: You do not have permission to access this food." });
+    }
+
     const result = await client.query(
       'SELECT * FROM foods WHERE id = $1',
-      [id]
+      [foodId]
     );
     const food = result.rows[0];
 
@@ -3429,19 +3804,19 @@ app.put('/api/foods/:id', express.json(), async (req, res) => {
 });
 
 // Endpoint to delete a food
-app.delete('/api/foods/:id', async (req, res) => {
+app.delete('/api/foods/:id', authenticateToken, async (req, res) => {
+  const authenticatedUserId = req.userId; // User making the request
   const { id } = req.params;
-  const { userId } = req.query; // userId is now sent as a query parameter
 
-  if (!id || !userId) {
-    return res.status(400).json({ error: 'Food ID and User ID are required.' });
+  if (!id || !authenticatedUserId) {
+    return res.status(400).json({ error: 'Food ID and authenticated User ID are required.' });
   }
 
   const client = await pool.connect();
   try {
     const result = await client.query(
       'DELETE FROM foods WHERE id = $1 AND user_id = $2 RETURNING id',
-      [id, userId]
+      [id, authenticatedUserId]
     );
 
     if (result.rowCount === 0) {
@@ -3458,12 +3833,9 @@ app.delete('/api/foods/:id', async (req, res) => {
 });
 
 // Endpoint to fetch foods with search, filter, and pagination
-app.get('/api/foods', async (req, res) => {
-  const { searchTerm, foodFilter, currentPage, itemsPerPage, userId, sortBy } = req.query;
-
-  if (!userId) {
-    return res.status(400).json({ error: 'User ID is required.' });
-  }
+app.get('/api/foods', authenticateToken, async (req, res) => {
+  const authenticatedUserId = req.userId; // User making the request
+  const { searchTerm, foodFilter, currentPage, itemsPerPage, sortBy } = req.query;
 
   const client = await pool.connect();
   try {
@@ -3481,13 +3853,13 @@ app.get('/api/foods', async (req, res) => {
 
     if (foodFilter === 'mine') {
       whereClauses.push(`user_id = $${paramIndex}`);
-      queryParams.push(userId);
-      countQueryParams.push(userId);
+      queryParams.push(authenticatedUserId);
+      countQueryParams.push(authenticatedUserId);
       paramIndex++;
     } else if (foodFilter === 'family') {
       whereClauses.push(`user_id IN (SELECT owner_user_id FROM family_access WHERE family_user_id = $${paramIndex} AND is_active = TRUE AND (access_end_date IS NULL OR access_end_date > NOW()))`);
-      queryParams.push(userId);
-      countQueryParams.push(userId);
+      queryParams.push(authenticatedUserId);
+      countQueryParams.push(authenticatedUserId);
       paramIndex++;
     } else if (foodFilter === 'public') {
       whereClauses.push(`shared_with_public = TRUE`);
@@ -3496,8 +3868,8 @@ app.get('/api/foods', async (req, res) => {
         user_id IS NULL OR user_id = $${paramIndex} OR shared_with_public = TRUE OR
         user_id IN (SELECT owner_user_id FROM family_access WHERE family_user_id = $${paramIndex} AND is_active = TRUE AND (access_end_date IS NULL OR access_end_date > NOW()))
       )`);
-      queryParams.push(userId);
-      countQueryParams.push(userId);
+      queryParams.push(authenticatedUserId);
+      countQueryParams.push(authenticatedUserId);
       paramIndex++;
     }
 
@@ -3549,7 +3921,8 @@ app.get('/api/foods', async (req, res) => {
 });
 
 // Endpoint to search for food variants
-app.get('/api/food-variants/search', async (req, res) => {
+app.get('/api/food-variants/search', authenticateToken, async (req, res) => {
+  const authenticatedUserId = req.userId; // User making the request
   const { foodId, servingUnit } = req.query;
 
   if (!foodId || !servingUnit) {
@@ -3558,6 +3931,30 @@ app.get('/api/food-variants/search', async (req, res) => {
 
   const client = await pool.connect();
   try {
+    // First, get the user_id associated with this food
+    const foodResult = await client.query(
+      'SELECT user_id FROM foods WHERE id = $1',
+      [foodId]
+    );
+    const foodOwnerId = foodResult.rows[0]?.user_id;
+
+    if (!foodOwnerId) {
+      client.release();
+      return res.status(404).json({ error: 'Food not found.' });
+    }
+
+    // Authorization check: Ensure authenticated user can access this food's owner's data
+    const canAccessResult = await client.query(
+      `SELECT public.can_access_user_data($1, $2, $3) AS can_access`,
+      [foodOwnerId, 'food_list', authenticatedUserId] // Assuming 'food_list' permission covers food variants
+    );
+    const canAccess = canAccessResult.rows[0].can_access;
+
+    if (!canAccess) {
+      client.release();
+      return res.status(403).json({ error: "Forbidden: You do not have permission to access this food's variants." });
+    }
+
     const result = await client.query(
       'SELECT id FROM food_variants WHERE food_id = $1 AND serving_unit = $2',
       [foodId, servingUnit]
@@ -3572,7 +3969,8 @@ app.get('/api/food-variants/search', async (req, res) => {
 });
 
 // Endpoint to create a new food variant
-app.post('/api/food-variants', express.json(), async (req, res) => {
+app.post('/api/food-variants', authenticateToken, express.json(), async (req, res) => {
+  const authenticatedUserId = req.userId; // User making the request
   const {
     food_id, serving_size, serving_unit, calories, protein, carbs, fat,
     saturated_fat, polyunsaturated_fat, monounsaturated_fat, trans_fat,
@@ -3586,6 +3984,30 @@ app.post('/api/food-variants', express.json(), async (req, res) => {
 
   const client = await pool.connect();
   try {
+    // First, get the user_id associated with this food
+    const foodResult = await client.query(
+      'SELECT user_id FROM foods WHERE id = $1',
+      [food_id]
+    );
+    const foodOwnerId = foodResult.rows[0]?.user_id;
+
+    if (!foodOwnerId) {
+      client.release();
+      return res.status(404).json({ error: 'Food not found.' });
+    }
+
+    // Authorization check: Ensure authenticated user can create variants for this food's owner's data
+    const canAccessResult = await client.query(
+      `SELECT public.can_access_user_data($1, $2, $3) AS can_access`,
+      [foodOwnerId, 'food_list', authenticatedUserId] // Assuming 'food_list' permission covers creating food variants
+    );
+    const canAccess = canAccessResult.rows[0].can_access;
+
+    if (!canAccess) {
+      client.release();
+      return res.status(403).json({ error: "Forbidden: You do not have permission to create variants for this food." });
+    }
+
     const result = await client.query(
       `INSERT INTO food_variants (
         food_id, serving_size, serving_unit, calories, protein, carbs, fat,
@@ -3634,7 +4056,8 @@ app.post('/api/food-entries', async (req, res) => {
 });
 
 // Endpoint to fetch a food variant by ID
-app.get('/api/food-variants/:id', async (req, res) => {
+app.get('/api/food-variants/:id', authenticateToken, async (req, res) => {
+  const authenticatedUserId = req.userId; // User making the request
   const { id } = req.params;
 
   if (!id) {
@@ -3643,6 +4066,42 @@ app.get('/api/food-variants/:id', async (req, res) => {
 
   const client = await pool.connect();
   try {
+    // First, get the food_id associated with this food variant
+    const variantResult = await client.query(
+      'SELECT food_id FROM food_variants WHERE id = $1',
+      [id]
+    );
+    const foodId = variantResult.rows[0]?.food_id;
+
+    if (!foodId) {
+      client.release();
+      return res.status(404).json({ error: 'Food variant not found.' });
+    }
+
+    // Then, get the user_id associated with that food
+    const foodResult = await client.query(
+      'SELECT user_id FROM foods WHERE id = $1',
+      [foodId]
+    );
+    const foodOwnerId = foodResult.rows[0]?.user_id;
+
+    if (!foodOwnerId) {
+      client.release();
+      return res.status(404).json({ error: 'Associated food not found.' });
+    }
+
+    // Authorization check: Ensure authenticated user can access this food's owner's data
+    const canAccessResult = await client.query(
+      `SELECT public.can_access_user_data($1, $2, $3) AS can_access`,
+      [foodOwnerId, 'food_list', authenticatedUserId] // Assuming 'food_list' permission covers food variants
+    );
+    const canAccess = canAccessResult.rows[0].can_access;
+
+    if (!canAccess) {
+      client.release();
+      return res.status(403).json({ error: "Forbidden: You do not have permission to access this food variant." });
+    }
+
     const result = await client.query(
       'SELECT * FROM food_variants WHERE id = $1',
       [id]
@@ -3663,7 +4122,8 @@ app.get('/api/food-variants/:id', async (req, res) => {
 });
 
 // Endpoint to update a food variant
-app.put('/api/food-variants/:id', express.json(), async (req, res) => {
+app.put('/api/food-variants/:id', authenticateToken, express.json(), async (req, res) => {
+  const authenticatedUserId = req.userId; // User making the request
   const { id } = req.params;
   const {
     food_id, serving_size, serving_unit, calories, protein, carbs, fat,
@@ -3678,6 +4138,30 @@ app.put('/api/food-variants/:id', express.json(), async (req, res) => {
 
   const client = await pool.connect();
   try {
+    // First, get the user_id associated with this food
+    const foodResult = await client.query(
+      'SELECT user_id FROM foods WHERE id = $1',
+      [food_id]
+    );
+    const foodOwnerId = foodResult.rows[0]?.user_id;
+
+    if (!foodOwnerId) {
+      client.release();
+      return res.status(404).json({ error: 'Food not found.' });
+    }
+
+    // Authorization check: Ensure authenticated user can update variants for this food's owner's data
+    const canAccessResult = await client.query(
+      `SELECT public.can_access_user_data($1, $2, $3) AS can_access`,
+      [foodOwnerId, 'food_list', authenticatedUserId] // Assuming 'food_list' permission covers updating food variants
+    );
+    const canAccess = canAccessResult.rows[0].can_access;
+
+    if (!canAccess) {
+      client.release();
+      return res.status(403).json({ error: "Forbidden: You do not have permission to update this food variant." });
+    }
+
     const result = await client.query(
       `UPDATE food_variants SET
         food_id = COALESCE($1, food_id),
@@ -3725,7 +4209,8 @@ app.put('/api/food-variants/:id', express.json(), async (req, res) => {
 });
 
 // Endpoint to delete a food variant
-app.delete('/api/food-variants/:id', async (req, res) => {
+app.delete('/api/food-variants/:id', authenticateToken, async (req, res) => {
+  const authenticatedUserId = req.userId; // User making the request
   const { id } = req.params;
 
   if (!id) {
@@ -3734,6 +4219,42 @@ app.delete('/api/food-variants/:id', async (req, res) => {
 
   const client = await pool.connect();
   try {
+    // First, get the food_id associated with this food variant
+    const variantResult = await client.query(
+      'SELECT food_id FROM food_variants WHERE id = $1',
+      [id]
+    );
+    const foodId = variantResult.rows[0]?.food_id;
+
+    if (!foodId) {
+      client.release();
+      return res.status(404).json({ error: 'Food variant not found.' });
+    }
+
+    // Then, get the user_id associated with that food
+    const foodResult = await client.query(
+      'SELECT user_id FROM foods WHERE id = $1',
+      [foodId]
+    );
+    const foodOwnerId = foodResult.rows[0]?.user_id;
+
+    if (!foodOwnerId) {
+      client.release();
+      return res.status(404).json({ error: 'Associated food not found.' });
+    }
+
+    // Authorization check: Ensure authenticated user can delete variants for this food's owner's data
+    const canAccessResult = await client.query(
+      `SELECT public.can_access_user_data($1, $2, $3) AS can_access`,
+      [foodOwnerId, 'food_list', authenticatedUserId] // Assuming 'food_list' permission covers deleting food variants
+    );
+    const canAccess = canAccessResult.rows[0].can_access;
+
+    if (!canAccess) {
+      client.release();
+      return res.status(403).json({ error: "Forbidden: You do not have permission to delete this food variant." });
+    }
+
     const result = await client.query(
       'DELETE FROM food_variants WHERE id = $1 RETURNING id',
       [id]
@@ -3753,7 +4274,8 @@ app.delete('/api/food-variants/:id', async (req, res) => {
 });
 
 // Endpoint to fetch food variants by food_id
-app.get('/api/food-variants', async (req, res) => {
+app.get('/api/food-variants', authenticateToken, async (req, res) => {
+  const authenticatedUserId = req.userId; // User making the request
   const { food_id } = req.query;
 
   if (!food_id) {
@@ -3762,6 +4284,30 @@ app.get('/api/food-variants', async (req, res) => {
 
   const client = await pool.connect();
   try {
+    // First, get the user_id associated with this food
+    const foodResult = await client.query(
+      'SELECT user_id FROM foods WHERE id = $1',
+      [food_id]
+    );
+    const foodOwnerId = foodResult.rows[0]?.user_id;
+
+    if (!foodOwnerId) {
+      client.release();
+      return res.status(404).json({ error: 'Food not found.' });
+    }
+
+    // Authorization check: Ensure authenticated user can access this food's owner's data
+    const canAccessResult = await client.query(
+      `SELECT public.can_access_user_data($1, $2, $3) AS can_access`,
+      [foodOwnerId, 'food_list', authenticatedUserId] // Assuming 'food_list' permission covers food variants
+    );
+    const canAccess = canAccessResult.rows[0].can_access;
+
+    if (!canAccess) {
+      client.release();
+      return res.status(403).json({ error: "Forbidden: You do not have permission to access this food's variants." });
+    }
+
     const result = await client.query(
       'SELECT * FROM food_variants WHERE food_id = $1',
       [food_id]
@@ -3800,15 +4346,28 @@ app.post('/api/food-entries', express.json(), async (req, res) => {
 });
 
 // Endpoint to fetch exercises with search, filter, and pagination
-app.get('/api/exercises', async (req, res) => {
-  const { userId, searchTerm, categoryFilter, ownershipFilter, currentPage, itemsPerPage } = req.query;
+app.get('/api/exercises', authenticateToken, async (req, res) => {
+  const authenticatedUserId = req.userId; // User making the request
+  const { userId: targetUserId, searchTerm, categoryFilter, ownershipFilter, currentPage, itemsPerPage } = req.query;
 
-  if (!userId) {
-    return res.status(400).json({ error: 'User ID is required.' });
+  if (!targetUserId) {
+    return res.status(400).json({ error: 'Target User ID is required.' });
   }
 
   const client = await pool.connect();
   try {
+    // Authorization check: Ensure authenticated user can access targetUserId's exercise data
+    const canAccessResult = await client.query(
+      `SELECT public.can_access_user_data($1, $2, $3) AS can_access`,
+      [targetUserId, 'exercise_list', authenticatedUserId] // Assuming 'exercise_list' permission covers exercises
+    );
+    const canAccess = canAccessResult.rows[0].can_access;
+
+    if (!canAccess) {
+      client.release();
+      return res.status(403).json({ error: "Forbidden: You do not have permission to access this user's exercises." });
+    }
+
     let whereClauses = ['1=1']; // Start with a true condition
     const queryParams = [];
     const countQueryParams = [];
@@ -3833,20 +4392,20 @@ app.get('/api/exercises', async (req, res) => {
     // Apply ownership filter
     if (ownershipFilter === 'own') {
       whereClauses.push(`user_id = $${paramIndex}`);
-      queryParams.push(userId);
-      countQueryParams.push(userId);
+      queryParams.push(targetUserId);
+      countQueryParams.push(targetUserId);
       paramIndex++;
     } else if (ownershipFilter === 'public') {
       whereClauses.push(`user_id IS NULL OR shared_with_public = TRUE`);
     } else if (ownershipFilter === 'family') {
       whereClauses.push(`user_id != $${paramIndex} AND is_custom = TRUE`); // Assuming family exercises are custom and not owned by current user
-      queryParams.push(userId);
-      countQueryParams.push(userId);
+      queryParams.push(targetUserId);
+      countQueryParams.push(targetUserId);
       paramIndex++;
     } else if (ownershipFilter === 'all') {
       whereClauses.push(`(user_id IS NULL OR user_id = $${paramIndex} OR shared_with_public = TRUE OR user_id IN (SELECT owner_user_id FROM family_access WHERE family_user_id = $${paramIndex} AND is_active = TRUE AND (access_end_date IS NULL OR access_end_date > NOW())))`);
-      queryParams.push(userId);
-      countQueryParams.push(userId);
+      queryParams.push(targetUserId);
+      countQueryParams.push(targetUserId);
       paramIndex++;
     }
 
@@ -3886,8 +4445,10 @@ app.get('/api/exercises', async (req, res) => {
 });
 
 // Endpoint to search for exercises
-app.get('/api/exercises/search/:name', async (req, res) => {
+app.get('/api/exercises/search/:name', authenticateToken, async (req, res) => {
+  const authenticatedUserId = req.userId; // User making the request
   const { name } = req.params;
+  const { userId: targetUserId } = req.query; // Optional: for family access
 
   if (!name) {
     return res.status(400).json({ error: 'Exercise name is required.' });
@@ -3895,6 +4456,20 @@ app.get('/api/exercises/search/:name', async (req, res) => {
 
   const client = await pool.connect();
   try {
+    // Authorization check: If targetUserId is provided and different from authenticatedUserId, check permissions
+    if (targetUserId && targetUserId !== authenticatedUserId) {
+      const canAccessResult = await client.query(
+        `SELECT public.can_access_user_data($1, $2, $3) AS can_access`,
+        [targetUserId, 'exercise_list', authenticatedUserId] // Assuming 'exercise_list' permission covers exercise search
+      );
+      const canAccess = canAccessResult.rows[0].can_access;
+
+      if (!canAccess) {
+        client.release();
+        return res.status(403).json({ error: "Forbidden: You do not have permission to search this user's exercises." });
+      }
+    }
+
     const result = await client.query(
       'SELECT id, name, calories_per_hour FROM exercises WHERE name ILIKE $1 LIMIT 1',
       [`%${name}%`]
@@ -3909,19 +4484,32 @@ app.get('/api/exercises/search/:name', async (req, res) => {
 });
 
 // Endpoint to create a new exercise
-app.post('/api/exercises', express.json(), async (req, res) => {
-  const { name, category, calories_per_hour, is_custom, user_id } = req.body;
+app.post('/api/exercises', authenticateToken, express.json(), async (req, res) => {
+  const authenticatedUserId = req.userId; // User making the request
+  const { name, category, calories_per_hour, is_custom, user_id: targetUserId } = req.body;
 
-  if (!name || !user_id) {
+  if (!name || !targetUserId) {
     return res.status(400).json({ error: 'Exercise name and user ID are required.' });
   }
 
   const client = await pool.connect();
   try {
+    // Authorization check: Ensure authenticated user can create exercise for targetUserId
+    const canAccessResult = await client.query(
+      `SELECT public.can_access_user_data($1, $2, $3) AS can_access`,
+      [targetUserId, 'exercise_list', authenticatedUserId] // Assuming 'exercise_list' permission covers creating exercises
+    );
+    const canAccess = canAccessResult.rows[0].can_access;
+
+    if (!canAccess) {
+      client.release();
+      return res.status(403).json({ error: "Forbidden: You do not have permission to create exercises for this user." });
+    }
+
     const result = await client.query(
       `INSERT INTO exercises (name, category, calories_per_hour, is_custom, user_id, created_at, updated_at)
        VALUES ($1, $2, $3, $4, $5, now(), now()) RETURNING id, calories_per_hour`,
-      [name, category, calories_per_hour, is_custom, user_id]
+      [name, category, calories_per_hour, is_custom, targetUserId]
     );
     res.status(201).json(result.rows[0]);
   } catch (error) {
@@ -3933,19 +4521,32 @@ app.post('/api/exercises', express.json(), async (req, res) => {
 });
 
 // Endpoint to insert an exercise entry
-app.post('/api/exercise-entries', express.json(), async (req, res) => {
-  const { user_id, exercise_id, duration_minutes, calories_burned, entry_date, notes } = req.body;
+app.post('/api/exercise-entries', authenticateToken, express.json(), async (req, res) => {
+  const authenticatedUserId = req.userId; // User making the request
+  const { user_id: targetUserId, exercise_id, duration_minutes, calories_burned, entry_date, notes } = req.body;
 
-  if (!user_id || !exercise_id || !duration_minutes || !calories_burned || !entry_date) {
-    return res.status(400).json({ error: 'User ID, exercise ID, duration, calories burned, and entry date are required.' });
+  if (!targetUserId || !exercise_id || !duration_minutes || !calories_burned || !entry_date) {
+    return res.status(400).json({ error: 'Target User ID, exercise ID, duration, calories burned, and entry date are required.' });
   }
 
   const client = await pool.connect();
   try {
+    // Authorization check: Ensure authenticated user can create exercise entries for targetUserId
+    const canAccessResult = await client.query(
+      `SELECT public.can_access_user_data($1, $2, $3) AS can_access`,
+      [targetUserId, 'exercise_log', authenticatedUserId] // Assuming 'exercise_log' permission covers exercise entries
+    );
+    const canAccess = canAccessResult.rows[0].can_access;
+
+    if (!canAccess) {
+      client.release();
+      return res.status(403).json({ error: "Forbidden: You do not have permission to create exercise entries for this user." });
+    }
+
     const result = await client.query(
       `INSERT INTO exercise_entries (user_id, exercise_id, duration_minutes, calories_burned, entry_date, notes, created_at, updated_at)
        VALUES ($1, $2, $3, $4, $5, $6, now(), now()) RETURNING *`,
-      [user_id, exercise_id, duration_minutes, calories_burned, entry_date, notes]
+      [targetUserId, exercise_id, duration_minutes, calories_burned, entry_date, notes]
     );
     res.status(201).json(result.rows[0]);
   } catch (error) {
@@ -3957,7 +4558,8 @@ app.post('/api/exercise-entries', express.json(), async (req, res) => {
 });
 
 // Endpoint to fetch an exercise entry by ID
-app.get('/api/exercise-entries/:id', async (req, res) => {
+app.get('/api/exercise-entries/:id', authenticateToken, async (req, res) => {
+  const authenticatedUserId = req.userId; // User making the request
   const { id } = req.params;
 
   if (!id) {
@@ -3966,6 +4568,30 @@ app.get('/api/exercise-entries/:id', async (req, res) => {
 
   const client = await pool.connect();
   try {
+    // First, get the user_id associated with this exercise entry
+    const entryResult = await client.query(
+      'SELECT user_id FROM exercise_entries WHERE id = $1',
+      [id]
+    );
+    const entryOwnerId = entryResult.rows[0]?.user_id;
+
+    if (!entryOwnerId) {
+      client.release();
+      return res.status(404).json({ error: 'Exercise entry not found.' });
+    }
+
+    // Authorization check: Ensure authenticated user can access this entry's owner's data
+    const canAccessResult = await client.query(
+      `SELECT public.can_access_user_data($1, $2, $3) AS can_access`,
+      [entryOwnerId, 'exercise_log', authenticatedUserId] // Assuming 'exercise_log' permission covers exercise entries
+    );
+    const canAccess = canAccessResult.rows[0].can_access;
+
+    if (!canAccess) {
+      client.release();
+      return res.status(403).json({ error: "Forbidden: You do not have permission to access this exercise entry." });
+    }
+
     const result = await client.query(
       'SELECT * FROM exercise_entries WHERE id = $1',
       [id]
@@ -3986,16 +4612,29 @@ app.get('/api/exercise-entries/:id', async (req, res) => {
 });
 
 // Endpoint to update an exercise entry
-app.put('/api/exercise-entries/:id', express.json(), async (req, res) => {
+app.put('/api/exercise-entries/:id', authenticateToken, express.json(), async (req, res) => {
+  const authenticatedUserId = req.userId; // User making the request
   const { id } = req.params;
-  const { user_id, exercise_id, duration_minutes, calories_burned, entry_date, notes } = req.body;
+  const { user_id: targetUserId, exercise_id, duration_minutes, calories_burned, entry_date, notes } = req.body;
 
-  if (!id || !user_id) {
-    return res.status(400).json({ error: 'Exercise Entry ID and User ID are required.' });
+  if (!id || !targetUserId) {
+    return res.status(400).json({ error: 'Exercise Entry ID and Target User ID are required.' });
   }
 
   const client = await pool.connect();
   try {
+    // Authorization check: Ensure authenticated user can update exercise entries for targetUserId
+    const canAccessResult = await client.query(
+      `SELECT public.can_access_user_data($1, $2, $3) AS can_access`,
+      [targetUserId, 'exercise_log', authenticatedUserId] // Assuming 'exercise_log' permission covers exercise entries
+    );
+    const canAccess = canAccessResult.rows[0].can_access;
+
+    if (!canAccess) {
+      client.release();
+      return res.status(403).json({ error: "Forbidden: You do not have permission to update this user's exercise entry." });
+    }
+
     const result = await client.query(
       `UPDATE exercise_entries SET
         exercise_id = COALESCE($1, exercise_id),
@@ -4006,7 +4645,7 @@ app.put('/api/exercise-entries/:id', express.json(), async (req, res) => {
         updated_at = now()
       WHERE id = $6 AND user_id = $7
       RETURNING *`,
-      [exercise_id, duration_minutes, calories_burned, entry_date, notes, id, user_id]
+      [exercise_id, duration_minutes, calories_burned, entry_date, notes, id, targetUserId]
     );
 
     if (result.rowCount === 0) {
@@ -4023,19 +4662,32 @@ app.put('/api/exercise-entries/:id', express.json(), async (req, res) => {
 });
 
 // Endpoint to delete an exercise entry
-app.delete('/api/exercise-entries/:id', async (req, res) => {
+app.delete('/api/exercise-entries/:id', authenticateToken, async (req, res) => {
+  const authenticatedUserId = req.userId; // User making the request
   const { id } = req.params;
-  const { userId } = req.body; // Assuming userId is sent in the body for authorization
+  const { userId: targetUserId } = req.body; // Assuming userId is sent in the body for authorization
 
-  if (!id || !userId) {
-    return res.status(400).json({ error: 'Exercise Entry ID and User ID are required.' });
+  if (!id || !targetUserId) {
+    return res.status(400).json({ error: 'Exercise Entry ID and Target User ID are required.' });
   }
 
   const client = await pool.connect();
   try {
+    // Authorization check: Ensure authenticated user can delete exercise entries for targetUserId
+    const canAccessResult = await client.query(
+      `SELECT public.can_access_user_data($1, $2, $3) AS can_access`,
+      [targetUserId, 'exercise_log', authenticatedUserId] // Assuming 'exercise_log' permission covers exercise entries
+    );
+    const canAccess = canAccessResult.rows[0].can_access;
+
+    if (!canAccess) {
+      client.release();
+      return res.status(403).json({ error: "Forbidden: You do not have permission to delete this user's exercise entry." });
+    }
+
     const result = await client.query(
       'DELETE FROM exercise_entries WHERE id = $1 AND user_id = $2 RETURNING id',
-      [id, userId]
+      [id, targetUserId]
     );
 
     if (result.rowCount === 0) {
@@ -4052,7 +4704,8 @@ app.delete('/api/exercise-entries/:id', async (req, res) => {
 });
 
 // Endpoint to fetch an exercise by ID
-app.get('/api/exercises/:id', async (req, res) => {
+app.get('/api/exercises/:id', authenticateToken, async (req, res) => {
+  const authenticatedUserId = req.userId; // User making the request
   const { id } = req.params;
 
   if (!id) {
@@ -4061,6 +4714,43 @@ app.get('/api/exercises/:id', async (req, res) => {
 
   const client = await pool.connect();
   try {
+    // First, get the user_id associated with this exercise
+    const exerciseResult = await client.query(
+      'SELECT user_id FROM exercises WHERE id = $1',
+      [id]
+    );
+    const exerciseOwnerId = exerciseResult.rows[0]?.user_id;
+
+    // If exercise is not found or is not custom, allow access. Otherwise, check permissions.
+    if (!exerciseOwnerId) {
+      // If exercise is not found, it might be a public exercise or an invalid ID.
+      // Try to fetch it without user_id constraint.
+      const publicExerciseResult = await client.query(
+        'SELECT * FROM exercises WHERE id = $1 AND is_custom = FALSE',
+        [id]
+      );
+      const publicExercise = publicExerciseResult.rows[0];
+      if (publicExercise) {
+        client.release();
+        return res.status(200).json(publicExercise);
+      } else {
+        client.release();
+        return res.status(404).json({ error: 'Exercise not found.' });
+      }
+    }
+
+    // Authorization check: Ensure authenticated user can access this exercise's owner's data
+    const canAccessResult = await client.query(
+      `SELECT public.can_access_user_data($1, $2, $3) AS can_access`,
+      [exerciseOwnerId, 'exercise_list', authenticatedUserId] // Assuming 'exercise_list' permission covers exercise access
+    );
+    const canAccess = canAccessResult.rows[0].can_access;
+
+    if (!canAccess) {
+      client.release();
+      return res.status(403).json({ error: "Forbidden: You do not have permission to access this exercise." });
+    }
+
     const result = await client.query(
       'SELECT * FROM exercises WHERE id = $1',
       [id]
@@ -4081,16 +4771,29 @@ app.get('/api/exercises/:id', async (req, res) => {
 });
 
 // Endpoint to update an exercise
-app.put('/api/exercises/:id', express.json(), async (req, res) => {
+app.put('/api/exercises/:id', authenticateToken, express.json(), async (req, res) => {
+  const authenticatedUserId = req.userId; // User making the request
   const { id } = req.params;
-  const { name, category, calories_per_hour, description, is_custom, shared_with_public, user_id } = req.body;
+  const { name, category, calories_per_hour, description, is_custom, shared_with_public, user_id: targetUserId } = req.body;
 
-  if (!id || !user_id) {
-    return res.status(400).json({ error: 'Exercise ID and User ID are required.' });
+  if (!id || !targetUserId) {
+    return res.status(400).json({ error: 'Exercise ID and Target User ID are required.' });
   }
 
   const client = await pool.connect();
   try {
+    // Authorization check: Ensure authenticated user can update exercise for targetUserId
+    const canAccessResult = await client.query(
+      `SELECT public.can_access_user_data($1, $2, $3) AS can_access`,
+      [targetUserId, 'exercise_list', authenticatedUserId] // Assuming 'exercise_list' permission covers updating exercises
+    );
+    const canAccess = canAccessResult.rows[0].can_access;
+
+    if (!canAccess) {
+      client.release();
+      return res.status(403).json({ error: "Forbidden: You do not have permission to update this exercise." });
+    }
+
     const result = await client.query(
       `UPDATE exercises SET
         name = COALESCE($1, name),
@@ -4102,7 +4805,7 @@ app.put('/api/exercises/:id', express.json(), async (req, res) => {
         updated_at = now()
       WHERE id = $7 AND user_id = $8
       RETURNING *`,
-      [name, category, calories_per_hour, description, is_custom, shared_with_public, id, user_id]
+      [name, category, calories_per_hour, description, is_custom, shared_with_public, id, targetUserId]
     );
 
     if (result.rowCount === 0) {
@@ -4119,19 +4822,32 @@ app.put('/api/exercises/:id', express.json(), async (req, res) => {
 });
 
 // Endpoint to delete an exercise
-app.delete('/api/exercises/:id', async (req, res) => {
+app.delete('/api/exercises/:id', authenticateToken, async (req, res) => {
+  const authenticatedUserId = req.userId; // User making the request
   const { id } = req.params;
-  const { userId } = req.query; // Assuming userId is sent in the query for authorization
+  const { userId: targetUserId } = req.query; // Assuming userId is sent in the query for authorization
 
-  if (!id || !userId) {
-    return res.status(400).json({ error: 'Exercise ID and User ID are required.' });
+  if (!id || !targetUserId) {
+    return res.status(400).json({ error: 'Exercise ID and Target User ID are required.' });
   }
 
   const client = await pool.connect();
   try {
+    // Authorization check: Ensure authenticated user can delete exercise for targetUserId
+    const canAccessResult = await client.query(
+      `SELECT public.can_access_user_data($1, $2, $3) AS can_access`,
+      [targetUserId, 'exercise_list', authenticatedUserId] // Assuming 'exercise_list' permission covers deleting exercises
+    );
+    const canAccess = canAccessResult.rows[0].can_access;
+
+    if (!canAccess) {
+      client.release();
+      return res.status(403).json({ error: "Forbidden: You do not have permission to delete this exercise." });
+    }
+
     const result = await client.query(
       'DELETE FROM exercises WHERE id = $1 AND user_id = $2 RETURNING id',
-      [id, userId]
+      [id, targetUserId]
     );
 
     if (result.rowCount === 0) {
@@ -4148,21 +4864,34 @@ app.delete('/api/exercises/:id', async (req, res) => {
 });
 
 // New endpoint to fetch food entries for a specific user and date using query parameters
-app.get('/api/food-entries', async (req, res) => {
-  const { userId, selectedDate } = req.query;
+app.get('/api/food-entries', authenticateToken, async (req, res) => {
+  const authenticatedUserId = req.userId; // User making the request
+  const { userId: targetUserId, selectedDate } = req.query;
 
-  if (!userId || !selectedDate) {
-    return res.status(400).json({ error: 'User ID and selectedDate are required.' });
+  if (!targetUserId || !selectedDate) {
+    return res.status(400).json({ error: 'Target User ID and selectedDate are required.' });
   }
 
   const client = await pool.connect();
   try {
+    // Authorization check: Ensure authenticated user can access targetUserId's food entries
+    const canAccessResult = await client.query(
+      `SELECT public.can_access_user_data($1, $2, $3) AS can_access`,
+      [targetUserId, 'food_log', authenticatedUserId] // Assuming 'food_log' permission covers food entries
+    );
+    const canAccess = canAccessResult.rows[0].can_access;
+
+    if (!canAccess) {
+      client.release();
+      return res.status(403).json({ error: "Forbidden: You do not have permission to access this user's food entries." });
+    }
+
     const result = await client.query(
       `SELECT fe.*, f.name AS food_name, f.calories, f.protein, f.carbs, f.fat, f.serving_size, f.serving_unit
        FROM food_entries fe
        JOIN foods f ON fe.food_id = f.id
        WHERE fe.user_id = $1 AND fe.entry_date = $2`,
-      [userId, selectedDate]
+      [targetUserId, selectedDate]
     );
     res.status(200).json(result.rows || []); // Return empty array if no entries found
   } catch (error) {
@@ -4174,21 +4903,34 @@ app.get('/api/food-entries', async (req, res) => {
 });
 
 // Endpoint to fetch food entries for a specific user and date (path parameters)
-app.get('/api/food-entries/:userId/:date', async (req, res) => {
-  const { userId, date } = req.params;
+app.get('/api/food-entries/:userId/:date', authenticateToken, async (req, res) => {
+  const authenticatedUserId = req.userId; // User making the request
+  const { userId: targetUserId, date } = req.params;
 
-  if (!userId || !date) {
-    return res.status(400).json({ error: 'User ID and date are required.' });
+  if (!targetUserId || !date) {
+    return res.status(400).json({ error: 'Target User ID and date are required.' });
   }
 
   const client = await pool.connect();
   try {
+    // Authorization check: Ensure authenticated user can access targetUserId's food entries
+    const canAccessResult = await client.query(
+      `SELECT public.can_access_user_data($1, $2, $3) AS can_access`,
+      [targetUserId, 'food_log', authenticatedUserId] // Assuming 'food_log' permission covers food entries
+    );
+    const canAccess = canAccessResult.rows[0].can_access;
+
+    if (!canAccess) {
+      client.release();
+      return res.status(403).json({ error: "Forbidden: You do not have permission to access this user's food entries." });
+    }
+
     const result = await client.query(
       `SELECT fe.*, f.name AS food_name, f.calories, f.protein, f.carbs, f.fat, f.serving_size, f.serving_unit
        FROM food_entries fe
        JOIN foods f ON fe.food_id = f.id
        WHERE fe.user_id = $1 AND fe.entry_date = $2`,
-      [userId, date]
+      [targetUserId, date]
     );
     // Return an empty array if no entries are found, instead of a 404
     res.status(200).json(result.rows || []);
@@ -4201,22 +4943,35 @@ app.get('/api/food-entries/:userId/:date', async (req, res) => {
 });
 
 // Endpoint to fetch food entries for a specific user and date range
-app.get('/api/food-entries-range/:userId/:startDate/:endDate', async (req, res) => {
-  const { userId, startDate, endDate } = req.params;
+app.get('/api/food-entries-range/:userId/:startDate/:endDate', authenticateToken, async (req, res) => {
+  const authenticatedUserId = req.userId; // User making the request
+  const { userId: targetUserId, startDate, endDate } = req.params;
 
-  if (!userId || !startDate || !endDate) {
-    return res.status(400).json({ error: 'User ID, start date, and end date are required.' });
+  if (!targetUserId || !startDate || !endDate) {
+    return res.status(400).json({ error: 'Target User ID, start date, and end date are required.' });
   }
 
   const client = await pool.connect();
   try {
+    // Authorization check: Ensure authenticated user can access targetUserId's food entries
+    const canAccessResult = await client.query(
+      `SELECT public.can_access_user_data($1, $2, $3) AS can_access`,
+      [targetUserId, 'food_log', authenticatedUserId] // Assuming 'food_log' permission covers food entries
+    );
+    const canAccess = canAccessResult.rows[0].can_access;
+
+    if (!canAccess) {
+      client.release();
+      return res.status(403).json({ error: "Forbidden: You do not have permission to access this user's food entries." });
+    }
+
     const result = await client.query(
       `SELECT fe.*, f.name AS food_name, f.calories, f.protein, f.carbs, f.fat, f.serving_size, f.serving_unit
        FROM food_entries fe
        JOIN foods f ON fe.food_id = f.id
        WHERE fe.user_id = $1 AND fe.entry_date BETWEEN $2 AND $3
        ORDER BY fe.entry_date`,
-      [userId, startDate, endDate]
+      [targetUserId, startDate, endDate]
     );
     res.status(200).json(result.rows);
   } catch (error) {
@@ -4251,18 +5006,31 @@ app.get('/api/exercise-entries', async (req, res) => {
 });
 
 // Endpoint to fetch exercise entries for a specific user and date (path parameters)
-app.get('/api/exercise-entries/:userId/:date', async (req, res) => {
-  const { userId, date } = req.params;
+app.get('/api/exercise-entries/:userId/:date', authenticateToken, async (req, res) => {
+  const authenticatedUserId = req.userId; // User making the request
+  const { userId: targetUserId, date } = req.params;
 
-  if (!userId || !date) {
-    return res.status(400).json({ error: 'User ID and date are required.' });
+  if (!targetUserId || !date) {
+    return res.status(400).json({ error: 'Target User ID and date are required.' });
   }
 
   const client = await pool.connect();
   try {
+    // Authorization check: Ensure authenticated user can access targetUserId's exercise entries
+    const canAccessResult = await client.query(
+      `SELECT public.can_access_user_data($1, $2, $3) AS can_access`,
+      [targetUserId, 'exercise_log', authenticatedUserId] // Assuming 'exercise_log' permission covers exercise entries
+    );
+    const canAccess = canAccessResult.rows[0].can_access;
+
+    if (!canAccess) {
+      client.release();
+      return res.status(403).json({ error: "Forbidden: You do not have permission to access this user's exercise entries." });
+    }
+
     const result = await client.query(
       'SELECT * FROM exercise_entries WHERE user_id = $1 AND entry_date = $2',
-      [userId, date]
+      [targetUserId, date]
     );
     // Return an empty array if no entries are found, instead of a 404
     res.status(200).json(result.rows || []);
@@ -4298,15 +5066,28 @@ app.get('/api/check-in-measurements-range/:userId/:startDate/:endDate', async (r
 });
 
 // New endpoint for reports
-app.get('/api/reports', async (req, res) => {
-  const { userId, startDate, endDate } = req.query;
+app.get('/api/reports', authenticateToken, async (req, res) => {
+  const authenticatedUserId = req.userId; // User making the request
+  const { userId: targetUserId, startDate, endDate } = req.query;
 
-  if (!userId || !startDate || !endDate) {
-    return res.status(400).json({ error: 'User ID, start date, and end date are required.' });
+  if (!targetUserId || !startDate || !endDate) {
+    return res.status(400).json({ error: 'Target User ID, start date, and end date are required.' });
   }
 
   const client = await pool.connect();
   try {
+    // Authorization check: Ensure authenticated user can access targetUserId's reports
+    const canAccessResult = await client.query(
+      `SELECT public.can_access_user_data($1, $2, $3) AS can_access`,
+      [targetUserId, 'reports', authenticatedUserId] // Assuming 'reports' permission covers reports
+    );
+    const canAccess = canAccessResult.rows[0].can_access;
+
+    if (!canAccess) {
+      client.release();
+      return res.status(403).json({ error: "Forbidden: You do not have permission to access this user's reports." });
+    }
+
     // Fetch nutrition data
     const nutritionResult = await client.query(
       `SELECT
@@ -4333,7 +5114,7 @@ app.get('/api/reports', async (req, res) => {
        WHERE fe.user_id = $1 AND fe.entry_date BETWEEN $2 AND $3
        GROUP BY fe.entry_date
        ORDER BY fe.entry_date`,
-      [userId, startDate, endDate]
+      [targetUserId, startDate, endDate]
     );
 
     // Fetch tabular food data
@@ -4346,19 +5127,19 @@ app.get('/api/reports', async (req, res) => {
        JOIN foods f ON fe.food_id = f.id
        WHERE fe.user_id = $1 AND fe.entry_date BETWEEN $2 AND $3
        ORDER BY fe.entry_date, fe.meal_type`,
-      [userId, startDate, endDate]
+      [targetUserId, startDate, endDate]
     );
 
     // Fetch measurement data
     const measurementResult = await client.query(
       'SELECT entry_date, weight, neck, waist, hips, steps FROM check_in_measurements WHERE user_id = $1 AND entry_date BETWEEN $2 AND $3 ORDER BY entry_date',
-      [userId, startDate, endDate]
+      [targetUserId, startDate, endDate]
     );
 
     // Fetch custom categories
     const customCategoriesResult = await client.query(
       'SELECT id, name, measurement_type, frequency FROM custom_categories WHERE user_id = $1',
-      [userId]
+      [targetUserId]
     );
 
     // Fetch custom measurements data
@@ -4366,7 +5147,7 @@ app.get('/api/reports', async (req, res) => {
     for (const category of customCategoriesResult.rows) {
       const customMeasurementResult = await client.query(
         'SELECT category_id, entry_date AS date, EXTRACT(HOUR FROM entry_timestamp) AS hour, value, entry_timestamp AS timestamp FROM custom_measurements WHERE user_id = $1 AND category_id = $2 AND entry_date BETWEEN $3 AND $4 ORDER BY entry_date, entry_timestamp',
-        [userId, category.id, startDate, endDate]
+        [targetUserId, category.id, startDate, endDate]
       );
       customMeasurementsData[category.id] = customMeasurementResult.rows;
     }
@@ -4411,18 +5192,31 @@ app.get('/api/reports', async (req, res) => {
 });
 
 // Endpoint to fetch custom measurements for a specific user, category, and date range
-app.get('/api/custom-measurements-range/:userId/:categoryId/:startDate/:endDate', async (req, res) => {
-  const { userId, categoryId, startDate, endDate } = req.params;
+app.get('/api/custom-measurements-range/:userId/:categoryId/:startDate/:endDate', authenticateToken, async (req, res) => {
+  const authenticatedUserId = req.userId; // User making the request
+  const { userId: targetUserId, categoryId, startDate, endDate } = req.params;
 
-  if (!userId || !categoryId || !startDate || !endDate) {
-    return res.status(400).json({ error: 'User ID, category ID, start date, and end date are required.' });
+  if (!targetUserId || !categoryId || !startDate || !endDate) {
+    return res.status(400).json({ error: 'Target User ID, category ID, start date, and end date are required.' });
   }
 
   const client = await pool.connect();
   try {
+    // Authorization check: Ensure authenticated user can access targetUserId's custom measurements
+    const canAccessResult = await client.query(
+      `SELECT public.can_access_user_data($1, $2, $3) AS can_access`,
+      [targetUserId, 'checkin', authenticatedUserId] // Assuming 'checkin' permission covers custom measurements
+    );
+    const canAccess = canAccessResult.rows[0].can_access;
+
+    if (!canAccess) {
+      client.release();
+      return res.status(403).json({ error: "Forbidden: You do not have permission to access this user's custom measurements." });
+    }
+
     const result = await client.query(
       'SELECT * FROM custom_measurements WHERE user_id = $1 AND category_id = $2 AND entry_date BETWEEN $3 AND $4 ORDER BY entry_date, entry_timestamp',
-      [userId, categoryId, startDate, endDate]
+      [targetUserId, categoryId, startDate, endDate]
     );
     res.status(200).json(result.rows);
   } catch (error) {
@@ -4434,15 +5228,28 @@ app.get('/api/custom-measurements-range/:userId/:categoryId/:startDate/:endDate'
 });
 
 // Endpoint to fetch mini nutrition trends for a specific user and date range
-app.get('/api/mini-nutrition-trends', async (req, res) => {
-  const { userId, startDate, endDate } = req.query;
+app.get('/api/mini-nutrition-trends', authenticateToken, async (req, res) => {
+  const authenticatedUserId = req.userId; // User making the request
+  const { userId: targetUserId, startDate, endDate } = req.query;
 
-  if (!userId || !startDate || !endDate) {
-    return res.status(400).json({ error: 'User ID, start date, and end date are required.' });
+  if (!targetUserId || !startDate || !endDate) {
+    return res.status(400).json({ error: 'Target User ID, start date, and end date are required.' });
   }
 
   const client = await pool.connect();
   try {
+    // Authorization check: Ensure authenticated user can access targetUserId's mini nutrition trends
+    const canAccessResult = await client.query(
+      `SELECT public.can_access_user_data($1, $2, $3) AS can_access`,
+      [targetUserId, 'reports', authenticatedUserId] // Assuming 'reports' permission covers mini nutrition trends
+    );
+    const canAccess = canAccessResult.rows[0].can_access;
+
+    if (!canAccess) {
+      client.release();
+      return res.status(403).json({ error: "Forbidden: You do not have permission to access this user's mini nutrition trends." });
+    }
+
     const result = await client.query(
       `SELECT
          fe.entry_date,
@@ -4455,7 +5262,7 @@ app.get('/api/mini-nutrition-trends', async (req, res) => {
        WHERE fe.user_id = $1 AND fe.entry_date BETWEEN $2 AND $3
        GROUP BY fe.entry_date
        ORDER BY fe.entry_date`,
-      [userId, startDate, endDate]
+      [targetUserId, startDate, endDate]
     );
 
     // Format the results to match the frontend's expected DayData interface
@@ -4477,27 +5284,33 @@ app.get('/api/mini-nutrition-trends', async (req, res) => {
 });
 
 // Endpoint to fetch AI service settings for a user
-app.get('/api/ai-service-settings/:userId', async (req, res) => {
-  const { userId } = req.params;
+app.get('/api/ai-service-settings/:userId', authenticateToken, async (req, res) => {
+  const authenticatedUserId = req.userId; // User making the request
+  const { userId: targetUserId } = req.params;
 
-  if (!userId) {
-    return res.status(400).json({ error: 'User ID is required.' });
+  if (!targetUserId) {
+    return res.status(400).json({ error: 'Target User ID is required.' });
   }
 
   const client = await pool.connect();
   try {
-    const result = await client.query(
-      'SELECT * FROM ai_service_settings WHERE user_id = $1',
-      [userId]
+    // Authorization check: Ensure authenticated user can access targetUserId's AI service settings
+    const canAccessResult = await client.query(
+      `SELECT public.can_access_user_data($1, $2, $3) AS can_access`,
+      [targetUserId, 'ai_service_settings', authenticatedUserId]
     );
-    const settings = result.rows[0];
+    const canAccess = canAccessResult.rows[0].can_access;
 
-    if (!settings) {
-      // Return an empty array if no settings are found, as the client expects an array.
-      return res.status(200).json([]);
+    if (!canAccess) {
+      client.release();
+      return res.status(403).json({ error: "Forbidden: You do not have permission to access this user's AI service settings." });
     }
 
-    res.status(200).json(settings);
+    const result = await client.query(
+      'SELECT * FROM ai_service_settings WHERE user_id = $1 ORDER BY created_at DESC',
+      [targetUserId]
+    );
+    res.status(200).json(result.rows);
   } catch (error) {
     log('error', 'Error fetching AI service settings:', error);
     res.status(500).json({ error: 'Internal server error.' });
@@ -4507,28 +5320,44 @@ app.get('/api/ai-service-settings/:userId', async (req, res) => {
 });
 
 // Endpoint to fetch active AI service settings for a user
-app.get('/api/ai-service-settings/active/:userId', async (req, res) => {
-  const { userId } = req.params;
+app.get('/api/ai-service-settings/active/:userId', authenticateToken, async (req, res) => {
+  const { userId: targetUserId } = req.params;
+  const authenticatedUserId = req.userId; // User making the request
 
-  if (!userId) {
-    return res.status(400).json({ error: 'User ID is required.' });
+  if (!targetUserId) {
+    return res.status(400).json({ error: 'Target User ID is required.' });
   }
 
   const client = await pool.connect();
   try {
-    const result = await client.query(
-      'SELECT * FROM ai_service_settings WHERE user_id = $1 AND is_active = TRUE LIMIT 1',
-      [userId]
+    // Authorization check: Ensure authenticated user can access targetUserId's active AI service settings
+    const canAccessResult = await client.query(
+      `SELECT public.can_access_user_data($1, $2, $3) AS can_access`,
+      [targetUserId, 'ai_service_settings', authenticatedUserId]
     );
-    const activeSettings = result.rows[0];
+    const canAccess = canAccessResult.rows[0].can_access;
 
-    if (!activeSettings) {
-      return res.status(200).json({}); // Return empty object if not found
+    if (!canAccess) {
+      client.release();
+      return res.status(403).json({ error: "Forbidden: You do not have permission to access this user's active AI service setting." });
     }
 
-    res.status(200).json(activeSettings);
+    const result = await client.query(
+      'SELECT * FROM ai_service_settings WHERE user_id = $1 AND is_active = TRUE ORDER BY created_at DESC LIMIT 1',
+      [targetUserId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'No active AI service setting found for this user.' });
+    }
+
+    // Decrypt the API key before sending to the frontend
+    const decryptedApiKey = decrypt(result.rows[0].api_key);
+    const setting = { ...result.rows[0], api_key: decryptedApiKey };
+
+    res.status(200).json(setting);
   } catch (error) {
-    log('error', 'Error fetching active AI service settings:', error);
+    log('error', 'Error fetching active AI service setting:', error);
     res.status(500).json({ error: 'Internal server error.' });
   } finally {
     client.release();
@@ -4536,20 +5365,32 @@ app.get('/api/ai-service-settings/active/:userId', async (req, res) => {
 });
 
 // Endpoint to fetch custom categories for a user
-app.get('/api/measurements/custom-categories', async (req, res) => {
-  const { userId } = req.query;
-  log('info', `Received request for /api/measurements/custom-categories with userId: ${userId}`);
-
-  if (!userId) {
-    log('warn', 'Missing user ID for /api/measurements/custom-categories request.');
-    return res.status(400).json({ error: 'User ID is required.' });
-  }
+app.get('/api/measurements/custom-categories', authenticateToken, async (req, res) => {
+  const authenticatedUserId = req.userId; // Get userId from authenticated token
+  const { userId: targetUserId } = req.query; // User whose data is being requested (optional, for family access)
+  log('info', `Received request for /api/measurements/custom-categories with authenticatedUserId: ${authenticatedUserId} and targetUserId: ${targetUserId}`);
 
   const client = await pool.connect();
   try {
+    let finalUserId = authenticatedUserId;
+    if (targetUserId && targetUserId !== authenticatedUserId) {
+      // Authorization check for family access
+      const canAccessResult = await client.query(
+        `SELECT public.can_access_user_data($1, $2, $3) AS can_access`,
+        [targetUserId, 'checkin', authenticatedUserId] // Assuming 'checkin' permission covers custom categories
+      );
+      const canAccess = canAccessResult.rows[0].can_access;
+
+      if (!canAccess) {
+        client.release();
+        return res.status(403).json({ error: "Forbidden: You do not have permission to access this user's custom categories." });
+      }
+      finalUserId = targetUserId;
+    }
+
     const result = await client.query(
       'SELECT id, name, frequency, measurement_type FROM custom_categories WHERE user_id = $1',
-      [userId]
+      [finalUserId]
     );
     res.status(200).json(result.rows || []);
   } catch (error) {
@@ -4561,18 +5402,31 @@ app.get('/api/measurements/custom-categories', async (req, res) => {
 });
 
 // Endpoint to fetch Sparky chat history for a user
-app.get('/api/sparky-chat-history/:userId', async (req, res) => {
-  const { userId } = req.params;
+app.get('/api/sparky-chat-history/:userId', authenticateToken, async (req, res) => {
+  const authenticatedUserId = req.userId; // User making the request
+  const { userId: targetUserId } = req.params;
 
-  if (!userId) {
-    return res.status(400).json({ error: 'User ID is required.' });
+  if (!targetUserId) {
+    return res.status(400).json({ error: 'Target User ID is required.' });
   }
 
   const client = await pool.connect();
   try {
+    // Authorization check: Ensure authenticated user can access targetUserId's chat history
+    const canAccessResult = await client.query(
+      `SELECT public.can_access_user_data($1, $2, $3) AS can_access`,
+      [targetUserId, 'chat_history', authenticatedUserId] // Assuming 'chat_history' permission covers chat history
+    );
+    const canAccess = canAccessResult.rows[0].can_access;
+
+    if (!canAccess) {
+      client.release();
+      return res.status(403).json({ error: "Forbidden: You do not have permission to access this user's chat history." });
+    }
+
     const result = await client.query(
       'SELECT content, message_type FROM sparky_chat_history WHERE user_id = $1 ORDER BY created_at ASC LIMIT 5',
-      [userId]
+      [targetUserId]
     );
     res.status(200).json(result.rows);
   } catch (error) {
@@ -4584,7 +5438,8 @@ app.get('/api/sparky-chat-history/:userId', async (req, res) => {
 });
 
 // Endpoint to fetch a single chat history entry by ID
-app.get('/api/sparky-chat-history/entry/:id', async (req, res) => {
+app.get('/api/sparky-chat-history/entry/:id', authenticateToken, async (req, res) => {
+  const authenticatedUserId = req.userId; // User making the request
   const { id } = req.params;
 
   if (!id) {
@@ -4593,6 +5448,30 @@ app.get('/api/sparky-chat-history/entry/:id', async (req, res) => {
 
   const client = await pool.connect();
   try {
+    // First, get the user_id associated with this chat history entry
+    const entryResult = await client.query(
+      'SELECT user_id FROM sparky_chat_history WHERE id = $1',
+      [id]
+    );
+    const entryOwnerId = entryResult.rows[0]?.user_id;
+
+    if (!entryOwnerId) {
+      client.release();
+      return res.status(404).json({ error: 'Chat history entry not found.' });
+    }
+
+    // Authorization check: Ensure authenticated user can access this entry's owner's data
+    const canAccessResult = await client.query(
+      `SELECT public.can_access_user_data($1, $2, $3) AS can_access`,
+      [entryOwnerId, 'chat_history', authenticatedUserId] // Assuming 'chat_history' permission covers chat history
+    );
+    const canAccess = canAccessResult.rows[0].can_access;
+
+    if (!canAccess) {
+      client.release();
+      return res.status(403).json({ error: "Forbidden: You do not have permission to access this chat history entry." });
+    }
+
     const result = await client.query(
       'SELECT * FROM sparky_chat_history WHERE id = $1',
       [id]
@@ -4613,16 +5492,29 @@ app.get('/api/sparky-chat-history/entry/:id', async (req, res) => {
 });
 
 // Endpoint to update a chat history entry
-app.put('/api/sparky-chat-history/:id', express.json(), async (req, res) => {
+app.put('/api/sparky-chat-history/:id', authenticateToken, express.json(), async (req, res) => {
+  const authenticatedUserId = req.userId; // User making the request
   const { id } = req.params;
-  const { user_id, content, message_type, metadata, session_id, message, response } = req.body;
+  const { user_id: targetUserId, content, message_type, metadata, session_id, message, response } = req.body;
 
-  if (!id || !user_id) {
-    return res.status(400).json({ error: 'Chat History Entry ID and User ID are required.' });
+  if (!id || !targetUserId) {
+    return res.status(400).json({ error: 'Chat History Entry ID and Target User ID are required.' });
   }
 
   const client = await pool.connect();
   try {
+    // Authorization check: Ensure authenticated user can update targetUserId's chat history
+    const canAccessResult = await client.query(
+      `SELECT public.can_access_user_data($1, $2, $3) AS can_access`,
+      [targetUserId, 'chat_history', authenticatedUserId] // Assuming 'chat_history' permission covers chat history
+    );
+    const canAccess = canAccessResult.rows[0].can_access;
+
+    if (!canAccess) {
+      client.release();
+      return res.status(403).json({ error: "Forbidden: You do not have permission to update this user's chat history." });
+    }
+
     const result = await client.query(
       `UPDATE sparky_chat_history SET
         content = COALESCE($1, content),
@@ -4631,10 +5523,10 @@ app.put('/api/sparky-chat-history/:id', express.json(), async (req, res) => {
         session_id = COALESCE($4, session_id),
         message = COALESCE($5, message),
         response = COALESCE($6, response),
-        created_at = now() -- Assuming created_at is updated on modification
+        updated_at = now()
       WHERE id = $7 AND user_id = $8
       RETURNING *`,
-      [content, message_type, metadata, session_id, message, response, id, user_id]
+      [content, message_type, metadata, session_id, message, response, id, targetUserId]
     );
 
     if (result.rowCount === 0) {
@@ -4651,19 +5543,32 @@ app.put('/api/sparky-chat-history/:id', express.json(), async (req, res) => {
 });
 
 // Endpoint to delete a chat history entry
-app.delete('/api/sparky-chat-history/:id', async (req, res) => {
+app.delete('/api/sparky-chat-history/:id', authenticateToken, async (req, res) => {
+  const authenticatedUserId = req.userId; // User making the request
   const { id } = req.params;
-  const { userId } = req.body; // Assuming userId is sent in the body for authorization
+  const { userId: targetUserId } = req.body; // Assuming targetUserId is sent in the body for authorization
 
-  if (!id || !userId) {
-    return res.status(400).json({ error: 'Chat History Entry ID and User ID are required.' });
+  if (!id || !targetUserId) {
+    return res.status(400).json({ error: 'Chat History Entry ID and Target User ID are required.' });
   }
 
   const client = await pool.connect();
   try {
+    // Authorization check: Ensure authenticated user can delete targetUserId's chat history
+    const canAccessResult = await client.query(
+      `SELECT public.can_access_user_data($1, $2, $3) AS can_access`,
+      [targetUserId, 'chat_history', authenticatedUserId] // Assuming 'chat_history' permission covers chat history
+    );
+    const canAccess = canAccessResult.rows[0].can_access;
+
+    if (!canAccess) {
+      client.release();
+      return res.status(403).json({ error: "Forbidden: You do not have permission to delete this user's chat history." });
+    }
+
     const result = await client.query(
       'DELETE FROM sparky_chat_history WHERE id = $1 AND user_id = $2 RETURNING id',
-      [id, userId]
+      [id, targetUserId]
     );
 
     if (result.rowCount === 0) {
@@ -4681,18 +5586,31 @@ app.delete('/api/sparky-chat-history/:id', async (req, res) => {
 
 
 // Endpoint to delete all Sparky chat history for a user
-app.post('/api/chat/clear-all-history', express.json(), async (req, res) => {
-  const { userId } = req.body;
+app.post('/api/chat/clear-all-history', authenticateToken, express.json(), async (req, res) => {
+  const authenticatedUserId = req.userId; // User making the request
+  const { userId: targetUserId } = req.body;
 
-  if (!userId) {
-    return res.status(400).json({ error: 'User ID is required.' });
+  if (!targetUserId) {
+    return res.status(400).json({ error: 'Target User ID is required.' });
   }
 
   const client = await pool.connect();
   try {
+    // Authorization check: Ensure authenticated user can clear all chat history for targetUserId
+    const canAccessResult = await client.query(
+      `SELECT public.can_access_user_data($1, $2, $3) AS can_access`,
+      [targetUserId, 'chat_history', authenticatedUserId] // Assuming 'chat_history' permission covers clearing chat history
+    );
+    const canAccess = canAccessResult.rows[0].can_access;
+
+    if (!canAccess) {
+      client.release();
+      return res.status(403).json({ error: "Forbidden: You do not have permission to clear all chat history for this user." });
+    }
+
     await client.query(
       'DELETE FROM sparky_chat_history WHERE user_id = $1',
-      [userId]
+      [targetUserId]
     );
     res.status(200).json({ message: 'All chat history cleared successfully.' });
   } catch (error) {
@@ -4705,19 +5623,32 @@ app.post('/api/chat/clear-all-history', express.json(), async (req, res) => {
 
 
 // Endpoint to save Sparky chat history
-app.post('/api/chat/save-history', express.json(), async (req, res) => {
-  const { userId, content, messageType, metadata } = req.body;
+app.post('/api/chat/save-history', authenticateToken, express.json(), async (req, res) => {
+  const authenticatedUserId = req.userId; // User making the request
+  const { userId: targetUserId, content, messageType, metadata } = req.body;
 
-  if (!userId || !content || !messageType) {
-    return res.status(400).json({ error: 'User ID, content, and message type are required.' });
+  if (!targetUserId || !content || !messageType) {
+    return res.status(400).json({ error: 'Target User ID, content, and message type are required.' });
   }
 
   const client = await pool.connect();
   try {
+    // Authorization check: Ensure authenticated user can save chat history for targetUserId
+    const canAccessResult = await client.query(
+      `SELECT public.can_access_user_data($1, $2, $3) AS can_access`,
+      [targetUserId, 'chat_history', authenticatedUserId] // Assuming 'chat_history' permission covers saving chat history
+    );
+    const canAccess = canAccessResult.rows[0].can_access;
+
+    if (!canAccess) {
+      client.release();
+      return res.status(403).json({ error: "Forbidden: You do not have permission to save chat history for this user." });
+    }
+
     await client.query(
       `INSERT INTO sparky_chat_history (user_id, content, message_type, metadata, created_at)
        VALUES ($1, $2, $3, $4, now())`,
-      [userId, content, messageType, metadata]
+      [targetUserId, content, messageType, metadata]
     );
     res.status(201).json({ message: 'Chat history saved successfully.' });
   } catch (error) {
@@ -4788,28 +5719,91 @@ app.get('/api/ai-service-settings/active/:userId', async (req, res) => {
 });
 
 // Endpoint to delete AI service settings
-app.delete('/api/ai-service-settings/:id', async (req, res) => {
+app.delete('/api/ai-service-settings/:id', authenticateToken, async (req, res) => {
   const { id } = req.params;
-  const { userId } = req.body; // Assuming userId is sent in the body for authorization
+  const authenticatedUserId = req.userId; // User making the request
+  const { userId: targetUserId } = req.body; // Assuming targetUserId is sent in the body for authorization
 
-  if (!id || !userId) {
-    return res.status(400).json({ error: 'AI Service ID and User ID are required.' });
+  if (!id || !targetUserId) {
+    return res.status(400).json({ error: 'AI Service ID and Target User ID are required.' });
   }
 
   const client = await pool.connect();
   try {
-    const result = await client.query(
-      'DELETE FROM ai_service_settings WHERE id = $1 AND user_id = $2 RETURNING id',
-      [id, userId]
+    // Authorization check: Ensure authenticated user can delete AI service settings for targetUserId
+    const canAccessResult = await client.query(
+      `SELECT public.can_access_user_data($1, $2, $3) AS can_access`,
+      [targetUserId, 'ai_service_settings', authenticatedUserId]
     );
+    const canAccess = canAccessResult.rows[0].can_access;
 
-    if (result.rowCount === 0) {
-      return res.status(404).json({ error: 'AI service settings not found or not authorized to delete.' });
+    if (!canAccess) {
+      client.release();
+      return res.status(403).json({ error: "Forbidden: You do not have permission to delete AI service settings for this user." });
     }
 
-    res.status(200).json({ message: 'AI service settings deleted successfully.' });
+    // Verify that the setting belongs to the target user before deleting
+    const checkResult = await client.query(
+      'SELECT user_id FROM ai_service_settings WHERE id = $1',
+      [id]
+    );
+
+    if (checkResult.rows.length === 0) {
+      return res.status(404).json({ error: 'AI service setting not found.' });
+    }
+
+    if (checkResult.rows[0].user_id !== targetUserId) {
+      return res.status(403).json({ error: 'Forbidden: The provided user ID does not match the setting owner.' });
+    }
+
+    const result = await client.query(
+      'DELETE FROM ai_service_settings WHERE id = $1 RETURNING *',
+      [id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'AI service setting not found.' });
+    }
+    res.status(200).json({ message: 'AI service setting deleted successfully.' });
   } catch (error) {
-    log('error', 'Error deleting AI service settings:', error);
+    log('error', 'Error deleting AI service setting:', error);
+    res.status(500).json({ error: 'Internal server error.' });
+  } finally {
+    client.release();
+  }
+});
+
+// Endpoint to create a new custom category
+app.post('/api/measurements/custom-categories', authenticateToken, express.json(), async (req, res) => {
+  const authenticatedUserId = req.userId; // Get userId from authenticated token
+  const { user_id, name, frequency, measurement_type } = req.body; // user_id is the target user
+
+  if (!user_id || !name || !frequency || !measurement_type) {
+    return res.status(400).json({ error: 'User ID, name, frequency, and measurement type are required.' });
+  }
+
+  const client = await pool.connect();
+  try {
+    // Authorization check: Ensure authenticated user can write to targetUserId's data
+    const canAccessResult = await client.query(
+      `SELECT public.can_access_user_data($1, $2, $3) AS can_access`,
+      [user_id, 'checkin', authenticatedUserId] // Assuming 'checkin' permission covers custom categories
+    );
+    const canAccess = canAccessResult.rows[0].can_access;
+
+    if (!canAccess) {
+      client.release();
+      return res.status(403).json({ error: "Forbidden: You do not have permission to create custom categories for this user." });
+    }
+
+    const result = await client.query(
+      `INSERT INTO custom_categories (user_id, name, frequency, measurement_type, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, now(), now()) RETURNING id`,
+      [user_id, name, frequency, measurement_type]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    log('error', 'Error creating custom category:', error);
     res.status(500).json({ error: 'Internal server error.' });
   } finally {
     client.release();
@@ -4817,22 +5811,232 @@ app.delete('/api/ai-service-settings/:id', async (req, res) => {
 });
 
 // Endpoint to fetch custom categories for a user
-app.get('/api/custom-categories/:userId', async (req, res) => {
-  const { userId } = req.params;
+app.get('/api/custom-categories/:userId', authenticateToken, async (req, res) => {
+  const authenticatedUserId = req.userId; // User making the request
+  const { userId: targetUserId } = req.params;
 
-  if (!userId) {
+  if (!targetUserId) {
     return res.status(400).json({ error: 'User ID is required.' });
   }
 
   const client = await pool.connect();
   try {
+    // Authorization check: Ensure authenticated user can access targetUserId's data
+    const canAccessResult = await client.query(
+      `SELECT public.can_access_user_data($1, $2, $3) AS can_access`,
+      [targetUserId, 'checkin', authenticatedUserId] // Assuming 'checkin' permission covers custom categories
+    );
+    const canAccess = canAccessResult.rows[0].can_access;
+
+    if (!canAccess) {
+      client.release();
+      return res.status(403).json({ error: "Forbidden: You do not have permission to access this user's custom categories." });
+    }
+
     const result = await client.query(
       'SELECT id, name, frequency, measurement_type FROM custom_categories WHERE user_id = $1',
-      [userId]
+      [targetUserId]
     );
     res.status(200).json(result.rows);
   } catch (error) {
     log('error', 'Error fetching custom categories:', error);
+    res.status(500).json({ error: 'Internal server error.' });
+  } finally {
+    client.release();
+  }
+});
+
+// Endpoint to update a custom category
+app.put('/api/custom-categories/:id', authenticateToken, express.json(), async (req, res) => {
+  const authenticatedUserId = req.userId; // Get userId from authenticated token
+  const { id } = req.params;
+  const { user_id, name, frequency, measurement_type } = req.body; // user_id is the target user
+
+  if (!id || !user_id) {
+    return res.status(400).json({ error: 'Category ID and User ID are required.' });
+  }
+
+  const client = await pool.connect();
+  try {
+    // Authorization check: Ensure authenticated user can update targetUserId's data
+    const canAccessResult = await client.query(
+      `SELECT public.can_access_user_data($1, $2, $3) AS can_access`,
+      [user_id, 'checkin', authenticatedUserId] // Assuming 'checkin' permission covers custom categories
+    );
+    const canAccess = canAccessResult.rows[0].can_access;
+
+    if (!canAccess) {
+      client.release();
+      return res.status(403).json({ error: "Forbidden: You do not have permission to update this user's custom category." });
+    }
+
+    const result = await client.query(
+      `UPDATE custom_categories SET
+        name = COALESCE($1, name),
+        frequency = COALESCE($2, frequency),
+        measurement_type = COALESCE($3, measurement_type),
+        updated_at = now()
+      WHERE id = $4 AND user_id = $5
+      RETURNING *`,
+      [name, frequency, measurement_type, id, user_id]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Custom category not found or not authorized to update.' });
+    }
+
+    res.status(200).json(result.rows[0]);
+  } catch (error) {
+    log('error', 'Error updating custom category:', error);
+    res.status(500).json({ error: 'Internal server error.' });
+  } finally {
+    client.release();
+  }
+});
+
+// Endpoint to delete a custom category
+app.delete('/api/custom-categories/:id', authenticateToken, async (req, res) => {
+  const authenticatedUserId = req.userId; // User making the request
+  const { id } = req.params;
+  const { userId: targetUserId } = req.body; // Assuming userId is sent in the body for authorization
+
+  if (!id || !targetUserId) {
+    return res.status(400).json({ error: 'Category ID and User ID are required.' });
+  }
+
+  const client = await pool.connect();
+  try {
+    // Authorization check: Ensure authenticated user can delete targetUserId's data
+    const canAccessResult = await client.query(
+      `SELECT public.can_access_user_data($1, $2, $3) AS can_access`,
+      [targetUserId, 'checkin', authenticatedUserId] // Assuming 'checkin' permission covers custom categories
+    );
+    const canAccess = canAccessResult.rows[0].can_access;
+
+    if (!canAccess) {
+      client.release();
+      return res.status(403).json({ error: "Forbidden: You do not have permission to delete this user's custom category." });
+    }
+
+    const result = await client.query(
+      'DELETE FROM custom_categories WHERE id = $1 AND user_id = $2 RETURNING id',
+      [id, targetUserId]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Custom category not found or not authorized to delete.' });
+    }
+
+    res.status(200).json({ message: 'Custom category deleted successfully.' });
+  } catch (error) {
+    log('error', 'Error deleting custom category:', error);
+    res.status(500).json({ error: 'Internal server error.' });
+  } finally {
+    client.release();
+  }
+});
+
+// Endpoint to fetch custom measurement entries
+app.get('/api/measurements/custom-entries', authenticateToken, async (req, res) => {
+  const authenticatedUserId = req.userId;
+  const { userId: targetUserId, limit, orderBy, filter } = req.query;
+
+  if (!targetUserId) {
+    return res.status(400).json({ error: 'Target User ID is required.' });
+  }
+
+  const client = await pool.connect();
+  try {
+    const canAccessResult = await client.query(
+      `SELECT public.can_access_user_data($1, $2, $3) AS can_access`,
+      [targetUserId, 'checkin', authenticatedUserId]
+    );
+    const canAccess = canAccessResult.rows[0].can_access;
+
+    if (!canAccess) {
+      client.release();
+      return res.status(403).json({ error: "Forbidden: You do not have permission to access this user's custom measurement entries." });
+    }
+
+    let query = `
+      SELECT cm.*, cc.name AS category_name, cc.measurement_type, cc.frequency
+      FROM custom_measurements cm
+      JOIN custom_categories cc ON cm.category_id = cc.id
+      WHERE cm.user_id = $1
+    `;
+    const queryParams = [targetUserId];
+    let paramIndex = 2;
+
+    if (filter) {
+      // Basic filter parsing for 'value.gt.0'
+      const filterParts = filter.split('.');
+      if (filterParts.length === 3 && filterParts[0] === 'value' && filterParts[1] === 'gt') {
+        query += ` AND cm.value > $${paramIndex}`;
+        queryParams.push(parseFloat(filterParts[2]));
+        paramIndex++;
+      }
+    }
+
+    if (orderBy) {
+      const [field, order] = orderBy.split('.');
+      const allowedFields = ['entry_timestamp', 'value'];
+      const allowedOrders = ['asc', 'desc'];
+      if (allowedFields.includes(field) && allowedOrders.includes(order)) {
+        query += ` ORDER BY cm.${field} ${order.toUpperCase()}`;
+      }
+    } else {
+      query += ` ORDER BY cm.entry_timestamp DESC`; // Default order
+    }
+
+    if (limit) {
+      query += ` LIMIT $${paramIndex}`;
+      queryParams.push(parseInt(limit, 10));
+      paramIndex++;
+    }
+
+    const result = await client.query(query, queryParams);
+    res.status(200).json(result.rows);
+  } catch (error) {
+    log('error', 'Error fetching custom measurement entries:', error);
+    res.status(500).json({ error: 'Internal server error.' });
+  } finally {
+    client.release();
+  }
+});
+
+// Endpoint to fetch custom measurement entries for a specific user and date
+app.get('/api/measurements/custom-entries/:userId/:date', authenticateToken, async (req, res) => {
+  const authenticatedUserId = req.userId;
+  const { userId: targetUserId, date } = req.params;
+
+  if (!targetUserId || !date) {
+    return res.status(400).json({ error: 'Target User ID and date are required.' });
+  }
+
+  const client = await pool.connect();
+  try {
+    const canAccessResult = await client.query(
+      `SELECT public.can_access_user_data($1, $2, $3) AS can_access`,
+      [targetUserId, 'checkin', authenticatedUserId]
+    );
+    const canAccess = canAccessResult.rows[0].can_access;
+
+    if (!canAccess) {
+      client.release();
+      return res.status(403).json({ error: "Forbidden: You do not have permission to access this user's custom measurement entries." });
+    }
+
+    const result = await client.query(
+      `SELECT cm.*, cc.name AS category_name, cc.measurement_type, cc.frequency
+       FROM custom_measurements cm
+       JOIN custom_categories cc ON cm.category_id = cc.id
+       WHERE cm.user_id = $1 AND cm.entry_date = $2
+       ORDER BY cm.entry_timestamp DESC`,
+      [targetUserId, date]
+    );
+    res.status(200).json(result.rows);
+  } catch (error) {
+    log('error', 'Error fetching custom measurement entries by date:', error);
     res.status(500).json({ error: 'Internal server error.' });
   } finally {
     client.release();

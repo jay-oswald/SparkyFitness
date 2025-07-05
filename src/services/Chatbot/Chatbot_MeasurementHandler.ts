@@ -1,24 +1,15 @@
 import { CoachResponse } from './Chatbot_types'; // Import types
 import { debug, info, warn, error, UserLoggingLevel } from '@/utils/logging'; // Import logging utility
-
-// Define the base URL for your backend API
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3010";
+import { apiCall } from '../api'; // Import apiCall
 
 // Function to upsert check-in measurements
 const upsertCheckInMeasurement = async (payload: any) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/measurements/check-in`, {
+    const data = await apiCall('/api/measurements/check-in', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
+      body: payload,
     });
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || "Failed to upsert check-in measurement.");
-    }
-    return await response.json();
+    return data;
   } catch (err) {
     console.error("Error upserting check-in measurement:", err);
     throw err;
@@ -28,17 +19,17 @@ const upsertCheckInMeasurement = async (payload: any) => {
 // Function to search for a custom category
 const searchCustomCategory = async (userId: string, name: string) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/measurements/custom-categories/${userId}/${encodeURIComponent(name)}`);
-    if (!response.ok) {
-      // If not found, the backend should return 404, which is handled here
-      if (response.status === 404) {
-        return null;
-      }
-      const errorData = await response.json();
-      throw new Error(errorData.error || "Failed to search custom category.");
+    const data = await apiCall(`/api/measurements/custom-categories/${userId}/${encodeURIComponent(name)}`, {
+      method: 'GET',
+      suppress404Toast: true, // Suppress toast for 404 errors
+    });
+    return data;
+  } catch (err: any) {
+    // If it's a 404, it means no category is found, which is a valid scenario.
+    // We return null in this case, and the calling function will handle it.
+    if (err.message && err.message.includes('404')) {
+      return null;
     }
-    return await response.json();
-  } catch (err) {
     console.error("Error searching custom category:", err);
     throw err;
   }
@@ -47,18 +38,11 @@ const searchCustomCategory = async (userId: string, name: string) => {
 // Function to create a custom category
 const createCustomCategory = async (payload: { user_id: string; name: string; frequency: string; measurement_type: string }) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/measurements/custom-categories`, {
+    const data = await apiCall('/api/measurements/custom-categories', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
+      body: payload,
     });
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || "Failed to create custom category.");
-    }
-    return await response.json();
+    return data;
   } catch (err) {
     console.error("Error creating custom category:", err);
     throw err;
@@ -68,18 +52,11 @@ const createCustomCategory = async (payload: { user_id: string; name: string; fr
 // Function to insert custom measurement entry
 const insertCustomMeasurement = async (payload: { user_id: string; category_id: string; entry_date: string; value: number; entry_timestamp: string }) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/measurements/custom-entries`, {
+    const data = await apiCall('/api/measurements/custom-entries', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
+      body: payload,
     });
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || "Failed to insert custom measurement.");
-    }
-    return await response.json();
+    return data;
   } catch (err) {
     console.error("Error inserting custom measurement:", err);
     throw err;

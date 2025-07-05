@@ -12,6 +12,7 @@ import { usePreferences } from "@/contexts/PreferencesContext";
 import { debug, info, warn, error } from '@/utils/logging';
 import { registerUser, loginUser } from '@/services/authService';
 import { useAuth } from "@/hooks/useAuth";
+import { AuthResponse } from "../types"; // Import AuthResponse type
 
 const Auth = () => {
   const navigate = useNavigate(); // Initialize useNavigate
@@ -60,12 +61,14 @@ const Auth = () => {
    setLoading(true);
 
    try {
-     await registerUser(email, password, fullName);
+     const data: AuthResponse = await registerUser(email, password, fullName);
      info(loggingLevel, "Auth: Sign up successful.");
      toast({
        title: "Success",
        description: "Account created successfully!",
      });
+     signIn(data.userId, email, data.token); // Pass token to signIn
+     navigate("/"); // Navigate to home page after successful sign up
    } catch (err: any) {
      error(loggingLevel, "Auth: Sign up failed:", err);
      toast({
@@ -86,13 +89,14 @@ const Auth = () => {
    setLoading(true);
 
    try {
-     const data = await loginUser(email, password);
+     const data: AuthResponse = await loginUser(email, password);
      info(loggingLevel, "Auth: Sign in successful.");
      toast({
        title: "Success",
        description: "Logged in successfully!",
      });
-     signIn(data.userId, email); // Call signIn from useAuth hook
+     signIn(data.userId, email, data.token); // Pass token to signIn
+     navigate("/"); // Navigate to home page after successful sign in
    } catch (err: any) {
      error(loggingLevel, "Auth: Sign in failed:", err);
      toast({

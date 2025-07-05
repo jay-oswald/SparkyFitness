@@ -1,4 +1,5 @@
 import { toast } from "@/hooks/use-toast";
+import { apiCall } from './api'; // Import apiCall
 
 const PROXY_BASE_URL = import.meta.env.VITE_SPARKY_FITNESS_SERVER_URL || "http://localhost:3010/api/fatsecret"; // URL of your Node.js proxy server
 
@@ -98,28 +99,13 @@ const parseFoodDescription = (description: string) => {
 
 export const searchFatSecretFoods = async (query: string, providerId: string) => {
   try {
-    const response = await fetch(
-      `${PROXY_BASE_URL}/search?query=${encodeURIComponent(query)}`,
-      {
-        method: "GET",
-        headers: {
-          'x-provider-id': providerId, // Pass providerId in a custom header
-        },
-      }
-    );
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      console.error("FatSecret Food Search API error:", errorData);
-      toast({
-        title: "Error",
-        description: `FatSecret search failed: ${errorData.message || response.statusText}`,
-        variant: "destructive",
-      });
-      return [];
-    }
-
-    const data: FatSecretSearchResponse = await response.json();
+    const data: FatSecretSearchResponse = await apiCall(`${PROXY_BASE_URL}/search?query=${encodeURIComponent(query)}`, {
+      method: "GET",
+      headers: {
+        'x-provider-id': providerId, // Pass providerId in a custom header
+      },
+      externalApi: true, // Mark as external API call
+    });
     if (data.foods && data.foods.food) {
       return data.foods.food.map(item => {
         const parsedData = parseFoodDescription(item.food_description);
@@ -153,28 +139,13 @@ export const searchFatSecretFoods = async (query: string, providerId: string) =>
 
 export const getFatSecretNutrients = async (foodId: string, providerId: string) => {
   try {
-    const response = await fetch(
-      `${PROXY_BASE_URL}/nutrients?foodId=${encodeURIComponent(foodId)}`,
-      {
-        method: "GET",
-        headers: {
-          'x-provider-id': providerId, // Pass providerId in a custom header
-        },
-      }
-    );
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      console.error("FatSecret Food Get API error from proxy:", errorData);
-      toast({
-        title: "Error",
-        description: `FatSecret nutrient lookup failed: ${errorData.error || response.statusText}`,
-        variant: "destructive",
-      });
-      return null;
-    }
-
-    const data = await response.json();
+    const data: FatSecretFoodGetResponse = await apiCall(`${PROXY_BASE_URL}/nutrients?foodId=${encodeURIComponent(foodId)}`, {
+      method: "GET",
+      headers: {
+        'x-provider-id': providerId, // Pass providerId in a custom header
+      },
+      externalApi: true, // Mark as external API call
+    });
     // The proxy returns the raw FatSecret response, so we parse it here
     if (data.food && data.food.servings && data.food.servings.serving) {
       // Find the default serving or the first serving if no default is flagged

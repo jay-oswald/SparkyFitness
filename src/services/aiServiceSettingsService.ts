@@ -22,20 +22,31 @@ export const getAIServices = async (userId: string): Promise<AIService[]> => {
       suppress404Toast: true, // Suppress toast for 404
     });
     return services || []; // Return empty array if 404 (no services found)
-  } catch (error) {
-    // If it's a 404 and we suppressed the toast, it means no services were found.
-    // Re-throw other errors if necessary, or handle them.
-    if (error.message.includes('not found')) { // Check for specific message from backend
+  } catch (err: any) {
+    // If it's a 404, it means no services are found, which is a valid scenario.
+    // We return an empty array in this case, and the calling function will handle it.
+    if (err.message && err.message.includes('404')) {
       return [];
     }
-    throw error;
+    throw err;
   }
 };
 
 export const getPreferences = async (userId: string): Promise<UserPreferences> => {
-  return apiCall(`/api/user-preferences/${userId}`, {
-    method: 'GET',
-  });
+  try {
+    const preferences = await apiCall(`/api/user-preferences/${userId}`, {
+      method: 'GET',
+      suppress404Toast: true, // Suppress toast for 404
+    });
+    return preferences;
+  } catch (err: any) {
+    // If it's a 404, it means no preferences are found, which is a valid scenario.
+    // We return null in this case, and the calling function will handle it.
+    if (err.message && err.message.includes('404')) {
+      return null;
+    }
+    throw err;
+  }
 };
 
 export const addAIService = async (serviceData: Partial<AIService>): Promise<AIService> => {

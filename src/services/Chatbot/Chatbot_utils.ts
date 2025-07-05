@@ -1,4 +1,5 @@
 import { debug, info, warn, error } from '@/utils/logging'; // Import logging utility
+import { apiCall } from '@/services/api';
 
 // Helper function to convert File to Base64
 export const fileToBase64 = (file: File): Promise<string> => {
@@ -14,20 +15,11 @@ export const fileToBase64 = (file: File): Promise<string> => {
 export const saveMessageToHistory = async (userId: string, content: string, messageType: 'user' | 'assistant', metadata?: any) => {
   try {
     debug(null, 'Attempting to save message to history:', { userId, content, messageType, metadata }); // Added logging
-    const response = await fetch('http://localhost:3010/api/chat/save-history', {
+    await apiCall('/api/chat/save-history', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ userId, content, messageType, metadata }),
+      body: { userId, content, messageType, metadata },
     });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      error(null, '❌ [Nutrition Coach] Error saving message to history:', errorData.error);
-    } else {
-      info(null, '✅ Message saved to history.'); // Added logging
-    }
+    info(null, '✅ Message saved to history.'); // Added logging
   } catch (err) {
     error(null, '❌ [Nutrition Coach] Unexpected error saving message to history:', err);
   }
@@ -40,40 +32,22 @@ export const clearHistory = async (userId: string, autoClearPreference: string) 
     if (autoClearPreference === 'session' || autoClearPreference === 'all' || autoClearPreference === 'manual') {
       info(null, `Clearing all chat history for user: ${userId}`);
       try {
-        const response = await fetch('http://localhost:3010/api/chat/clear-all-history', {
+        await apiCall('/api/chat/clear-all-history', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ userId }),
+          body: { userId },
         });
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          error(null, '❌ [Nutrition Coach] Error clearing all chat history backend:', errorData.error);
-        } else {
-          info(null, '✅ All chat history cleared via backend.');
-        }
+        info(null, '✅ All chat history cleared via backend.');
       } catch (fetchError) {
         error(null, '❌ [Nutrition Coach] Network error calling clear_all_chat_history backend:', fetchError);
       }
     } else if (autoClearPreference === '7days') {
       info(null, `Calling backend to clear old chat history for user: ${userId}`);
       try {
-        const response = await fetch('http://localhost:3010/api/chat/clear-old-history', {
+        await apiCall('/api/chat/clear-old-history', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
           // No body needed for this endpoint based on current backend implementation
         });
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          error(null, '❌ [Nutrition Coach] Error calling clear_old_chat_history backend:', errorData.error);
-        } else {
-          info(null, '✅ Old chat history cleared via backend.');
-        }
+        info(null, '✅ Old chat history cleared via backend.');
       } catch (fetchError) {
         error(null, '❌ [Nutrition Coach] Network error calling clear_old_chat_history backend:', fetchError);
       }

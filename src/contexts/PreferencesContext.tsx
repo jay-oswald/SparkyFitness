@@ -8,15 +8,22 @@ import { format, parseISO, startOfDay } from 'date-fns'; // Import format, parse
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3010";
 
 // Function to fetch user preferences from the backend
+import { apiCall } from '@/services/api'; // Import apiCall
+
+// Function to fetch user preferences from the backend
 const fetchUserPreferences = async (userId: string) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/user-preferences/${userId}`);
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || "Failed to fetch user preferences.");
+    const data = await apiCall(`/api/user-preferences/${userId}`, {
+      method: 'GET',
+      suppress404Toast: true, // Suppress toast for 404 errors
+    });
+    return data;
+  } catch (err: any) {
+    // If it's a 404, it means no preferences are found, which is a valid scenario.
+    // We return null in this case, and the calling function will handle it.
+    if (err.message && err.message.includes('404')) {
+      return null;
     }
-    return await response.json();
-  } catch (err) {
     console.error("Error fetching user preferences:", err);
     throw err;
   }
@@ -25,18 +32,11 @@ const fetchUserPreferences = async (userId: string) => {
 // Function to upsert user preferences to the backend
 const upsertUserPreferences = async (payload: any) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/user-preferences`, {
+    const data = await apiCall('/api/user-preferences', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
+      body: payload,
     });
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || "Failed to upsert user preferences.");
-    }
-    return await response.json();
+    return data;
   } catch (err) {
     console.error("Error upserting user preferences:", err);
     throw err;
@@ -133,18 +133,9 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
     info(loggingLevel, "PreferencesProvider: Loading preferences for user:", user.id);
 
     try {
-      let data = null;
-      let fetchError = null;
-      try {
-        data = await fetchUserPreferences(user.id);
-      } catch (err: any) {
-        fetchError = err;
-      }
+      const data = await fetchUserPreferences(user.id);
 
-      if (fetchError && fetchError.message !== "Failed to fetch user preferences.") { // "Failed to fetch user preferences." means no rows found
-        error(loggingLevel, 'PreferencesContext: Error loading preferences from backend:', fetchError);
-        throw fetchError; // Re-throw other errors
-      } else if (data) {
+      if (data) {
         debug(loggingLevel, 'PreferencesContext: Preferences data loaded:', data);
         setWeightUnitState(data.default_weight_unit as 'kg' | 'lbs');
         setMeasurementUnitState(data.default_measurement_unit as 'cm' | 'inches');

@@ -5,17 +5,26 @@ import { getUserLoggingLevel } from "@/utils/userPreferences";
 interface ApiCallOptions extends RequestInit {
   body?: any;
   suppress404Toast?: boolean; // New option to suppress toast for 404 errors
+  externalApi?: boolean;
 }
 
 const API_BASE_URL = `http://localhost:${import.meta.env.VITE_SPARKY_FITNESS_SERVER_PORT || 3010}`;
 
 export async function apiCall(endpoint: string, options?: ApiCallOptions): Promise<any> {
   const userLoggingLevel = getUserLoggingLevel();
-  const url = `${API_BASE_URL}${endpoint}`;
+  const url = options?.externalApi ? endpoint : `${API_BASE_URL}${endpoint}`;
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
     ...options?.headers,
   };
+
+  // Only add Authorization header for internal API calls
+  if (!options?.externalApi) {
+    const token = localStorage.getItem('token');
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+  }
 
   const config: RequestInit = {
     ...options,

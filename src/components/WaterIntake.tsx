@@ -5,9 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Droplet } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "@/hooks/use-toast";
-
-// Define the base URL for your backend API
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3010";
+import { apiCall } from '@/services/api'; // Import apiCall
 
 interface WaterIntakeProps {
   selectedDate: string;
@@ -41,25 +39,20 @@ const WaterIntake = ({ selectedDate }: WaterIntakeProps) => {
     try {
       
       // Load water goal for selected date
-      const goalResponse = await fetch(`${API_BASE_URL}/api/goals/for-date?userId=${user?.id}&date=${selectedDate}`);
-      if (!goalResponse.ok) {
-        console.error('Error loading water goal:', await goalResponse.json());
-        setWaterGoal(8);
-      }
-      const goalData = await goalResponse.json();
-
-      if (goalData && goalData.length > 0) {
-        setWaterGoal(goalData[0].water_goal || 8);
+      const goalData = await apiCall(`/api/goals/for-date?userId=${user?.id}&date=${selectedDate}`);
+      if (goalData && goalData.water_goal) {
+        setWaterGoal(goalData.water_goal);
+      } else {
+        setWaterGoal(8); // Default if no goal found
       }
 
       // Load water intake for selected date - get all records and sum them
-      const waterResponse = await fetch(`${API_BASE_URL}/api/water-intake/${user?.id}/${selectedDate}`);
-      if (!waterResponse.ok) {
-        console.error('Error loading water intake:', await waterResponse.json());
+      const waterData = await apiCall(`/api/water-intake/${user?.id}/${selectedDate}`);
+      if (waterData && waterData.glasses_consumed !== undefined) {
+        setWaterGlasses(waterData.glasses_consumed);
+      } else {
         setWaterGlasses(0);
-        return;
       }
-      const waterData = await waterResponse.json();
 
 
       if (waterData && waterData.length > 0) {
@@ -82,28 +75,14 @@ const WaterIntake = ({ selectedDate }: WaterIntakeProps) => {
       setLoading(true);
 
       // Use upsert for atomic update/insert
-      const response = await fetch(`${API_BASE_URL}/api/water-intake`, {
+      await apiCall('/api/water-intake', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
+        body: {
           user_id: user.id,
           entry_date: selectedDate,
           glasses_consumed: newGlasses,
-        }),
+        },
       });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error('Error saving water intake:', errorData);
-        toast({
-          title: "Error",
-          description: "Failed to save water intake",
-          variant: "destructive",
-        });
-        return;
-      }
 
 
       toast({

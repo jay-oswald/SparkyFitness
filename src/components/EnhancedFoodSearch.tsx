@@ -133,20 +133,20 @@ const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
     
     setLoading(true);
     try {
-      const response = await fetch(
-        `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(searchTerm)}&search_simple=1&action=process&json=1&page_size=20`
+      const data = await apiCall(
+        `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(searchTerm)}&search_simple=1&action=process&json=1&page_size=20`,
+        { method: 'GET', externalApi: true }
       );
-      const data = await response.json();
       
       if (data.products) {
         setOpenFoodFactsResults(data.products.filter((p: any) =>
           p.product_name && p.nutriments && p.nutriments['energy-kcal_100g']
         ));
       }
-    } catch (error) {
+    } catch (error: any) {
       toast({
         title: 'OpenFoodFacts search failed',
-        description: 'Unable to search OpenFoodFacts database',
+        description: error.message || 'Unable to search OpenFoodFacts database',
         variant: 'destructive',
       });
     }
@@ -156,8 +156,7 @@ const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
   const searchOpenFoodFactsByBarcode = async (barcode: string) => {
    setLoading(true);
    try {
-     const response = await fetch(`https://world.openfoodfacts.org/api/v0/product/${barcode}.json`);
-     const data = await response.json();
+     const data = await apiCall(`https://world.openfoodfacts.org/api/v0/product/${barcode}.json`, { method: 'GET', externalApi: true });
 
      if (data.status === 1 && data.product) {
        setOpenFoodFactsResults([data.product]);

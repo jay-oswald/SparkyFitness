@@ -11,7 +11,7 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   signOut: () => Promise<void>;
-  signIn: (userId: string, userEmail: string) => void;
+  signIn: (userId: string, userEmail: string, token: string) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -23,8 +23,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   useEffect(() => {
     const storedUserId = localStorage.getItem('userId');
     const storedUserEmail = localStorage.getItem('userEmail');
+    const storedToken = localStorage.getItem('token');
 
-    if (storedUserId && storedUserEmail) {
+    if (storedUserId && storedUserEmail && storedToken) {
       setUser({ id: storedUserId, email: storedUserEmail });
     }
     setLoading(false);
@@ -43,6 +44,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (response.ok) {
         localStorage.removeItem('userId');
         localStorage.removeItem('userEmail');
+        localStorage.removeItem('token'); // Remove token on sign out
         setUser(null);
       } else {
         console.error('Logout failed on server:', await response.json());
@@ -52,9 +54,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  const signIn = (userId: string, userEmail: string) => {
+  const signIn = (userId: string, userEmail: string, token: string) => {
     localStorage.setItem('userId', userId);
     localStorage.setItem('userEmail', userEmail);
+    localStorage.setItem('token', token); // Store token on sign in
     setUser({ id: userId, email: userEmail });
   };
 

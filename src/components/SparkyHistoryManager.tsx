@@ -7,31 +7,7 @@ import { Trash2, Save } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 
-// Define the base URL for your backend API
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3010";
-
-// Helper function for API calls
-const apiCall = async (endpoint: string, method: string, body?: any) => {
-  const headers: HeadersInit = {
-    'Content-Type': 'application/json',
-  };
-
-  const config: RequestInit = {
-    method,
-    headers,
-  };
-
-  if (body) {
-    config.body = JSON.stringify(body);
-  }
-
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(errorData.error || `API call to ${endpoint} failed.`);
-  }
-  return response.json();
-};
+import { apiCall } from "@/services/api";
 
 interface SparkyHistoryManagerProps {
   onClose: () => void;

@@ -1,25 +1,16 @@
 
 import { debug, info, warn, error, UserLoggingLevel } from '@/utils/logging';
-
-// Define the base URL for your backend API
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3010";
+import { apiCall } from './api'; // Import apiCall
 
 // Function to fetch current user details from the backend
 const fetchCurrentUser = async () => {
   try {
-    // In a real application, this would involve sending a token (e.g., from localStorage)
-    // and the backend validating it to return the current user.
-    // For now, we'll simulate a user if one is "logged in" client-side.
     const userId = localStorage.getItem('userId'); // Assuming userId is stored in localStorage after login
     if (!userId) {
       return { user: null };
     }
-    const response = await fetch(`${API_BASE_URL}/api/auth/user?userId=${userId}`);
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || "Failed to fetch current user details.");
-    }
-    return { user: await response.json() };
+    const user = await apiCall(`/api/auth/user?userId=${userId}`);
+    return { user };
   } catch (error) {
     console.error("Error fetching current user:", error);
     return { user: null };
@@ -29,12 +20,8 @@ const fetchCurrentUser = async () => {
 // Function to fetch family access permissions from the backend
 const fetchFamilyAccessPermissions = async (userId: string) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/users/accessible-users?userId=${userId}`);
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || "Failed to fetch family access permissions.");
-    }
-    return await response.json();
+    const data = await apiCall(`/api/users/accessible-users?userId=${userId}`);
+    return data;
   } catch (error) {
     console.error("Error fetching family access permissions:", error);
     return [];

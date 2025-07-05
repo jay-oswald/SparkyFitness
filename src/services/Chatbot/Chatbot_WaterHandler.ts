@@ -1,19 +1,15 @@
 import { parseISO } from 'date-fns'; // Import parseISO
 import { CoachResponse } from './Chatbot_types'; // Import types
 import { debug, info, warn, error, UserLoggingLevel } from '@/utils/logging'; // Import logging utility
-
-// Define the base URL for your backend API
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3010";
+import { apiCall } from '../api'; // Import apiCall
 
 // Function to fetch water intake from the backend
 const fetchWaterIntake = async (userId: string, date: string) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/water-intake/${userId}/${date}`);
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || "Failed to fetch water intake.");
-    }
-    return await response.json();
+    const data = await apiCall(`/api/water-intake/${userId}/${date}`, {
+      method: 'GET',
+    });
+    return data;
   } catch (err) {
     console.error("Error fetching water intake:", err);
     throw err;
@@ -23,18 +19,11 @@ const fetchWaterIntake = async (userId: string, date: string) => {
 // Function to upsert water intake to the backend
 const upsertWaterIntake = async (payload: { user_id: string; entry_date: string; glasses_consumed: number }) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/water-intake`, {
+    const data = await apiCall('/api/water-intake', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
+      body: payload,
     });
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || "Failed to upsert water intake.");
-    }
-    return await response.json();
+    return data;
   } catch (err) {
     console.error("Error upserting water intake:", err);
     throw err;

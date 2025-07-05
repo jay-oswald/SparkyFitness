@@ -1,11 +1,11 @@
 import SparkyChat from "@/components/SparkyChat";
 import { usePreferences } from "@/contexts/PreferencesContext";
 import { debug, info, warn, error } from '@/utils/logging';
+import { apiCall } from '@/services/api';
 
 import { useState, useEffect, useMemo } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import Auth from "@/components/Auth";
 import FoodDiary from "@/components/FoodDiary";
 import FoodDatabaseManager from "@/components/FoodDatabaseManager";
 import ExerciseDatabaseManager from "@/components/ExerciseDatabaseManager";
@@ -56,14 +56,8 @@ const Index = () => {
      const fetchDisplayName = async () => {
        if (user?.id) {
          try {
-           const response = await fetch(`${API_BASE_URL}/api/profiles/${user.id}`);
-           if (response.ok) {
-             const profile = await response.json();
-             setDisplayName(profile.full_name || user.email || '');
-           } else {
-             error(loggingLevel, "Index: Failed to fetch profile for display name.");
-             setDisplayName(user.email || '');
-           }
+           const profile = await apiCall(`/api/profiles/${user.id}`);
+           setDisplayName(profile.full_name || user.email || '');
          } catch (err) {
            error(loggingLevel, "Index: Error fetching profile for display name:", err);
            setDisplayName(user.email || '');
@@ -146,14 +140,6 @@ const Index = () => {
    const gridClass = getGridClass(availableTabs.length);
    debug(loggingLevel, "Index: Calculated grid class:", gridClass);
  
-   if (!user) {
-     info(loggingLevel, "Index: User not logged in, rendering Auth component.");
-     return (
-       <div className="min-h-screen bg-background">
-         <Auth />
-       </div>
-     );
-   }
  
    info(loggingLevel, "Index: User logged in, rendering main application layout.");
    return (
