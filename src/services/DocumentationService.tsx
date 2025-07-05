@@ -1,6 +1,45 @@
 
-import { supabase } from "@/integrations/supabase/client";
 import { debug, info, warn, error, UserLoggingLevel } from '@/utils/logging';
+
+// Define the base URL for your backend API
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3010";
+
+// Function to fetch current user details from the backend
+const fetchCurrentUser = async () => {
+  try {
+    // In a real application, this would involve sending a token (e.g., from localStorage)
+    // and the backend validating it to return the current user.
+    // For now, we'll simulate a user if one is "logged in" client-side.
+    const userId = localStorage.getItem('userId'); // Assuming userId is stored in localStorage after login
+    if (!userId) {
+      return { user: null };
+    }
+    const response = await fetch(`${API_BASE_URL}/api/auth/user?userId=${userId}`);
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || "Failed to fetch current user details.");
+    }
+    return { user: await response.json() };
+  } catch (error) {
+    console.error("Error fetching current user:", error);
+    return { user: null };
+  }
+};
+
+// Function to fetch family access permissions from the backend
+const fetchFamilyAccessPermissions = async (userId: string) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/users/accessible-users?userId=${userId}`);
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || "Failed to fetch family access permissions.");
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Error fetching family access permissions:", error);
+    return [];
+  }
+};
 
 interface AppFeature {
   id: string;
@@ -225,7 +264,7 @@ class DocumentationService {
 
   private async getUserPermissions(loggingLevel?: UserLoggingLevel): Promise<any[]> {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { user } = await fetchCurrentUser();
       if (!user) {
         warn(loggingLevel, 'DocumentationService: No user found, returning empty permissions.');
         return [];
@@ -233,11 +272,7 @@ class DocumentationService {
       debug(loggingLevel, 'DocumentationService: User found, fetching family access permissions for user:', user.id);
 
       // Get family access permissions
-      const { data: familyAccess } = await supabase
-        .from('family_access')
-        .select('*')
-        .eq('family_user_id', user.id)
-        .eq('is_active', true);
+      const familyAccess = await fetchFamilyAccessPermissions(user.id);
 
       info(loggingLevel, 'DocumentationService: Family access permissions retrieved:', familyAccess?.length);
       return familyAccess || [];

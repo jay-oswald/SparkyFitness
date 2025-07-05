@@ -1,6 +1,27 @@
-import { supabase } from "@/integrations/supabase/client";
-import { usePreferences } from "@/contexts/PreferencesContext";
 import { toast } from "@/hooks/use-toast";
+
+// Define the base URL for your backend API
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3010";
+
+// Function to fetch food data provider details from your backend
+const fetchFoodDataProvider = async (providerId: string) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/food-data-providers/${providerId}`);
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || "Failed to fetch food data provider details.");
+    }
+    return response.json();
+  } catch (error) {
+    console.error("Error fetching food data provider:", error);
+    toast({
+      title: "Error",
+      description: `Failed to retrieve food data provider details: ${error.message}`,
+      variant: "destructive",
+    });
+    return null;
+  }
+};
 
 interface NutritionixFoodItem {
   food_name: string;
@@ -53,19 +74,9 @@ export const searchNutritionixFoods = async (query: string, defaultFoodDataProvi
     return [];
   }
 
-  const { data: providerData, error: providerError } = await supabase
-    .from('food_data_providers')
-    .select('app_id, app_key')
-    .eq('id', defaultFoodDataProviderId)
-    .single();
+  const providerData = await fetchFoodDataProvider(defaultFoodDataProviderId);
 
-  if (providerError || !providerData?.app_id || !providerData?.app_key) {
-    console.error("Error fetching Nutritionix API keys:", providerError);
-    toast({
-      title: "Error",
-      description: "Failed to retrieve Nutritionix API keys. Please check your settings.",
-      variant: "destructive",
-    });
+  if (!providerData?.app_id || !providerData?.app_key) {
     return [];
   }
 
@@ -148,19 +159,9 @@ export const getNutritionixNutrients = async (query: string, defaultFoodDataProv
     return null;
   }
 
-  const { data: providerData, error: providerError } = await supabase
-    .from('food_data_providers')
-    .select('app_id, app_key')
-    .eq('id', defaultFoodDataProviderId)
-    .single();
+  const providerData = await fetchFoodDataProvider(defaultFoodDataProviderId);
 
-  if (providerError || !providerData?.app_id || !providerData?.app_key) {
-    console.error("Error fetching Nutritionix API keys:", providerError);
-    toast({
-      title: "Error",
-      description: "Failed to retrieve Nutritionix API keys. Please check your settings.",
-      variant: "destructive",
-    });
+  if (!providerData?.app_id || !providerData?.app_key) {
     return null;
   }
 
@@ -230,19 +231,9 @@ export const getNutritionixBrandedNutrients = async (nixItemId: string, defaultF
     return null;
   }
 
-  const { data: providerData, error: providerError } = await supabase
-    .from('food_data_providers')
-    .select('app_id, app_key')
-    .eq('id', defaultFoodDataProviderId)
-    .single();
+  const providerData = await fetchFoodDataProvider(defaultFoodDataProviderId);
 
-  if (providerError || !providerData?.app_id || !providerData?.app_key) {
-    console.error("Error fetching Nutritionix API keys:", providerError);
-    toast({
-      title: "Error",
-      description: "Failed to retrieve Nutritionix API keys. Please check your settings.",
-      variant: "destructive",
-    });
+  if (!providerData?.app_id || !providerData?.app_key) {
     return null;
   }
 

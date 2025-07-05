@@ -1,7 +1,32 @@
-import { supabase } from '@/integrations/supabase/client';
 import { parseISO } from 'date-fns'; // Import parseISO
 import { CoachResponse } from './Chatbot_types'; // Import types
 import { debug, info, warn, error, UserLoggingLevel } from '@/utils/logging'; // Import logging utility
+
+// Define the base URL for your backend API
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3010";
+
+// Helper function for API calls
+const apiCall = async (endpoint: string, method: string, body?: any) => {
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+  };
+
+  const config: RequestInit = {
+    method,
+    headers,
+  };
+
+  if (body) {
+    config.body = JSON.stringify(body);
+  }
+
+  const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.error || `API call to ${endpoint} failed.`);
+  }
+  return response.json();
+};
 
 // Function to process exercise input
 export const processExerciseInput = async (userId: string, data: { exercise_name: string; duration_minutes: number | null; distance: number | null; distance_unit: string | null }, entryDate: string | undefined, formatDateInUserTimezone: (date: string | Date, formatStr?: string) => string, userLoggingLevel: UserLoggingLevel): Promise<CoachResponse> => {
@@ -20,11 +45,13 @@ export const processExerciseInput = async (userId: string, data: { exercise_name
     let caloriesPerHour = 300; // Default
 
     // Search for existing exercise
-    const { data: existingExercises, error: searchError } = await supabase
-      .from('exercises')
-      .select('*')
-      .ilike('name', `%${exercise_name}%`)
-      .limit(1);
+    let existingExercises = null;
+    let searchError = null;
+    try {
+      existingExercises = await apiCall(`/api/exercises/search/${encodeURIComponent(exercise_name)}`, 'GET');
+    } catch (err: any) {
+      searchError = err;
+    }
 
     if (searchError) {
       error(userLoggingLevel, '❌ [Nutrition Coach] Error searching exercises:', searchError);
@@ -41,17 +68,19 @@ export const processExerciseInput = async (userId: string, data: { exercise_name
       // Estimate calories per hour based on exercise type
       const estimatedCaloriesPerHour = estimateCaloriesPerHour(exercise_name);
 
-      const { data: newExercise, error: createError } = await supabase
-        .from('exercises')
-        .insert({
+      let newExercise = null;
+      let createError = null;
+      try {
+        newExercise = await apiCall('/api/exercises', 'POST', {
           name: exercise_name,
           category: 'cardio',
           calories_per_hour: estimatedCaloriesPerHour,
           is_custom: true,
           user_id: userId
-        })
-        .select()
-        .single();
+        });
+      } catch (err: any) {
+        createError = err;
+      }
 
       if (createError) {
         error(userLoggingLevel, '❌ [Nutrition Coach] Error creating exercise:', createError);
@@ -69,18 +98,20 @@ export const processExerciseInput = async (userId: string, data: { exercise_name
     const caloriesBurned = Math.round((caloriesPerHour / 60) * duration);
 
     // Add exercise entry
-    const { data: exerciseEntry, error: entryError } = await supabase
-      .from('exercise_entries')
-      .insert({
+    let exerciseEntry = null;
+    let entryError = null;
+    try {
+      exerciseEntry = await apiCall('/api/exercise-entries', 'POST', {
         user_id: userId,
         exercise_id: exerciseId,
         duration_minutes: duration,
         calories_burned: caloriesBurned,
-        entry_date: dateToUse, // Use the determined date
+        entry_date: dateToUse,
         notes: distance ? `Distance: ${distance} ${distance_unit || 'miles'}` : undefined
-      })
-      .select()
-      .single();
+      });
+    } catch (err: any) {
+      entryError = err;
+    }
 
     if (entryError) {
       error(userLoggingLevel, '❌ [Nutrition Coach] Error adding exercise entry:', entryError);

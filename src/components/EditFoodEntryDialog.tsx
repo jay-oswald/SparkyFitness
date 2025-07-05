@@ -4,67 +4,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { usePreferences } from "@/contexts/PreferencesContext"; // Import usePreferences
 import { debug, info, warn, error } from '@/utils/logging'; // Import logging utility
+import {
+  loadFoodVariants,
+  updateFoodEntry,
+  FoodVariant,
+  FoodEntry,
+} from '@/services/editFoodEntryService';
 
 
-interface FoodVariant {
-  id: string;
-  serving_size: number;
-  serving_unit: string;
-  calories?: number;
-  protein?: number;
-  carbs?: number;
-  fat?: number;
-  saturated_fat?: number;
-  polyunsaturated_fat?: number;
-  monounsaturated_fat?: number;
-  trans_fat?: number;
-  cholesterol?: number;
-  sodium?: number;
-  potassium?: number;
-  dietary_fiber?: number;
-  sugars?: number;
-  vitamin_a?: number;
-  vitamin_c?: number;
-  calcium?: number;
-  iron?: number;
-}
-
-interface FoodEntry {
-  id: string;
-  food_id: string;
-  meal_type: string;
-  quantity: number;
-  unit: string;
-  variant_id?: string;
-  foods: {
-    id: string;
-    name: string;
-    brand?: string;
-    calories: number;
-    protein: number;
-    carbs: number;
-    fat: number;
-    saturated_fat?: number;
-    polyunsaturated_fat?: number;
-    monounsaturated_fat?: number;
-    trans_fat?: number;
-    cholesterol?: number;
-    sodium?: number;
-    potassium?: number;
-    dietary_fiber?: number;
-    sugars?: number;
-    vitamin_a?: number;
-    vitamin_c?: number;
-    calcium?: number;
-    iron?: number;
-    serving_size: number;
-    serving_unit: string;
-  };
-}
 
 interface EditFoodEntryDialogProps {
   entry: FoodEntry | null;
@@ -98,40 +48,7 @@ const EditFoodEntryDialog = ({ entry, open, onOpenChange, onSave }: EditFoodEntr
 
     setLoading(true);
     try {
-      const { data, error: supabaseError } = await supabase
-        .from('food_variants')
-        .select('*')
-        .eq('food_id', entry.food_id);
-
-      if (supabaseError) {
-        error(loggingLevel, 'Error loading variants:', supabaseError);
-        // Fallback to primary food unit on error
-        const primaryUnit: FoodVariant = {
-          id: entry.foods.id, // Use food.id as the variant ID for the primary unit
-          serving_size: entry.foods.serving_size || 100,
-          serving_unit: entry.foods.serving_unit || 'g',
-          calories: entry.foods.calories,
-          protein: entry.foods.protein,
-          carbs: entry.foods.carbs,
-          fat: entry.foods.fat,
-          saturated_fat: entry.foods.saturated_fat,
-          polyunsaturated_fat: entry.foods.polyunsaturated_fat,
-          monounsaturated_fat: entry.foods.monounsaturated_fat,
-          trans_fat: entry.foods.trans_fat,
-          cholesterol: entry.foods.cholesterol,
-          sodium: entry.foods.sodium,
-          potassium: entry.foods.potassium,
-          dietary_fiber: entry.foods.dietary_fiber,
-          sugars: entry.foods.sugars,
-          vitamin_a: entry.foods.vitamin_a,
-          vitamin_c: entry.foods.vitamin_c,
-          calcium: entry.foods.calcium,
-          iron: entry.foods.iron
-        };
-        setVariants([primaryUnit]);
-        setSelectedVariant(primaryUnit);
-        return;
-      }
+      const data = await loadFoodVariants(entry.food_id);
 
       // Always include the primary food unit as the first option
       const primaryUnit: FoodVariant = {
@@ -227,20 +144,7 @@ const EditFoodEntryDialog = ({ entry, open, onOpenChange, onSave }: EditFoodEntr
       };
       debug(loggingLevel, "Update data for food entry:", updateData);
 
-      const { error: supabaseError } = await supabase
-        .from('food_entries')
-        .update(updateData)
-        .eq('id', entry.id);
-
-      if (supabaseError) {
-        error(loggingLevel, 'Error updating food entry:', supabaseError);
-        toast({
-          title: "Error",
-          description: "Failed to update food entry",
-          variant: "destructive",
-        });
-        return;
-      }
+      await updateFoodEntry(entry.id, updateData);
 
       info(loggingLevel, "Food entry updated successfully:", entry.id);
       toast({

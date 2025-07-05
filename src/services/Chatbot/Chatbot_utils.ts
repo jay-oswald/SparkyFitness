@@ -1,4 +1,3 @@
-import { supabase } from '@/integrations/supabase/client';
 import { debug, info, warn, error } from '@/utils/logging'; // Import logging utility
 
 // Helper function to convert File to Base64
@@ -15,17 +14,17 @@ export const fileToBase64 = (file: File): Promise<string> => {
 export const saveMessageToHistory = async (userId: string, content: string, messageType: 'user' | 'assistant', metadata?: any) => {
   try {
     debug(null, 'Attempting to save message to history:', { userId, content, messageType, metadata }); // Added logging
-    const { error: supabaseError } = await supabase
-      .from('sparky_chat_history')
-      .insert({
-        user_id: userId,
-        content: content,
-        message_type: messageType,
-        metadata: metadata
-      });
+    const response = await fetch('http://localhost:3010/api/chat/save-history', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ userId, content, messageType, metadata }),
+    });
 
-    if (supabaseError) {
-      error(null, '❌ [Nutrition Coach] Error saving message to history:', supabaseError);
+    if (!response.ok) {
+      const errorData = await response.json();
+      error(null, '❌ [Nutrition Coach] Error saving message to history:', errorData.error);
     } else {
       info(null, '✅ Message saved to history.'); // Added logging
     }
@@ -40,24 +39,43 @@ export const clearHistory = async (userId: string, autoClearPreference: string) 
     info(null, `Attempting to clear history for user: ${userId} with preference: ${autoClearPreference}`);
     if (autoClearPreference === 'session' || autoClearPreference === 'all' || autoClearPreference === 'manual') {
       info(null, `Clearing all chat history for user: ${userId}`);
-      const { error: supabaseError } = await supabase
-        .from('sparky_chat_history')
-        .delete()
-        .eq('user_id', userId);
+      try {
+        const response = await fetch('http://localhost:3010/api/chat/clear-all-history', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ userId }),
+        });
 
-      if (supabaseError) {
-        error(null, '❌ [Nutrition Coach] Error clearing chat history:', supabaseError);
-      } else {
-        info(null, '✅ Chat history cleared from database.');
+        if (!response.ok) {
+          const errorData = await response.json();
+          error(null, '❌ [Nutrition Coach] Error clearing all chat history backend:', errorData.error);
+        } else {
+          info(null, '✅ All chat history cleared via backend.');
+        }
+      } catch (fetchError) {
+        error(null, '❌ [Nutrition Coach] Network error calling clear_all_chat_history backend:', fetchError);
       }
     } else if (autoClearPreference === '7days') {
-      info(null, `Calling RPC to clear old chat history for user: ${userId}`);
-      const { error: supabaseError } = await supabase.rpc('clear_old_chat_history');
+      info(null, `Calling backend to clear old chat history for user: ${userId}`);
+      try {
+        const response = await fetch('http://localhost:3010/api/chat/clear-old-history', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          // No body needed for this endpoint based on current backend implementation
+        });
 
-      if (supabaseError) {
-        error(null, '❌ [Nutrition Coach] Error calling clear_old_chat_history RPC:', supabaseError);
-      } else {
-        info(null, '✅ Old chat history cleared via RPC.');
+        if (!response.ok) {
+          const errorData = await response.json();
+          error(null, '❌ [Nutrition Coach] Error calling clear_old_chat_history backend:', errorData.error);
+        } else {
+          info(null, '✅ Old chat history cleared via backend.');
+        }
+      } catch (fetchError) {
+        error(null, '❌ [Nutrition Coach] Network error calling clear_old_chat_history backend:', fetchError);
       }
     } else {
       info(null, 'ℹ️ Chat history not cleared based on preference:', autoClearPreference);

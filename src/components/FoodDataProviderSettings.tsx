@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { Plus, Trash2, Edit, Save, X, UtensilsCrossed } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { apiCall } from '@/services/api';
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { usePreferences } from "@/contexts/PreferencesContext";
@@ -48,26 +48,25 @@ const FoodDataProviderSettings = () => {
     if (!user) return;
 
     setLoading(true);
-    const { data, error } = await supabase
-      .from('food_data_providers')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      console.error('Error loading food data providers:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load food data providers",
-        variant: "destructive"
+    try {
+      const data = await apiCall(`/api/food-data-providers/user/${user.id}`, {
+        method: 'GET',
+        suppress404Toast: true,
       });
-    } else {
-      setProviders(data.map(provider => ({
+      setProviders(data.map((provider: any) => ({
         ...provider,
         provider_type: provider.provider_type as 'openfoodfacts' | 'nutritionix' | 'fatsecret'
       })) || []);
+    } catch (error: any) {
+      console.error('Error loading food data providers:', error);
+      toast({
+        title: "Error",
+        description: `Failed to load food data providers: ${error.message}`,
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const handleAddProvider = async () => {
@@ -90,27 +89,19 @@ const FoodDataProviderSettings = () => {
     }
 
     setLoading(true);
-    const { data, error } = await supabase
-      .from('food_data_providers')
-      .insert({
-        user_id: user.id,
-        provider_name: newProvider.provider_name,
-        provider_type: newProvider.provider_type,
-        app_id: newProvider.app_id || null,
-        app_key: newProvider.app_key || null,
-        is_active: newProvider.is_active,
-      })
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Error adding food data provider:', error);
-      toast({
-        title: "Error",
-        description: "Failed to add food data provider",
-        variant: "destructive"
+    try {
+      const data = await apiCall('/api/food-data-providers', {
+        method: 'POST',
+        body: JSON.stringify({
+          user_id: user.id,
+          provider_name: newProvider.provider_name,
+          provider_type: newProvider.provider_type,
+          app_id: newProvider.app_id || null,
+          app_key: newProvider.app_key || null,
+          is_active: newProvider.is_active,
+        }),
       });
-    } else {
+
       toast({
         title: "Success",
         description: "Food data provider added successfully"
@@ -124,11 +115,19 @@ const FoodDataProviderSettings = () => {
       });
       setShowAddForm(false);
       loadProviders();
-      if (data && data.is_active) { // Ensure data is not null
+      if (data && data.is_active) {
         setDefaultFoodDataProviderId(data.id);
       }
+    } catch (error: any) {
+      console.error('Error adding food data provider:', error);
+      toast({
+        title: "Error",
+        description: `Failed to add food data provider: ${error.message}`,
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const handleUpdateProvider = async (providerId: string) => {
@@ -141,22 +140,12 @@ const FoodDataProviderSettings = () => {
       is_active: editData.is_active,
     };
 
-    const { data, error } = await supabase
-      .from('food_data_providers')
-      .update(providerUpdateData)
-      .eq('id', providerId)
-      .eq('user_id', user?.id)
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Error updating food data provider:', error);
-      toast({
-        title: "Error",
-        description: "Failed to update food data provider",
-        variant: "destructive"
+    try {
+      const data = await apiCall(`/api/food-data-providers/${providerId}`, {
+        method: 'PUT',
+        body: JSON.stringify(providerUpdateData),
       });
-    } else {
+
       toast({
         title: "Success",
         description: "Food data provider updated successfully"
@@ -164,76 +153,82 @@ const FoodDataProviderSettings = () => {
       setEditingProvider(null);
       setEditData({});
       loadProviders();
-      if (data && data.is_active) { // Ensure data is not null
+      if (data && data.is_active) {
         setDefaultFoodDataProviderId(data.id);
-      } else if (data && defaultFoodDataProviderId === data.id) { // Ensure data is not null
-        setDefaultFoodDataProviderId(null); // If deactivated, remove as default
+      } else if (data && defaultFoodDataProviderId === data.id) {
+        setDefaultFoodDataProviderId(null);
       }
+    } catch (error: any) {
+      console.error('Error updating food data provider:', error);
+      toast({
+        title: "Error",
+        description: `Failed to update food data provider: ${error.message}`,
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const handleDeleteProvider = async (providerId: string) => {
     if (!confirm('Are you sure you want to delete this food data provider?')) return;
 
     setLoading(true);
-    const { error } = await supabase
-      .from('food_data_providers')
-      .delete()
-      .eq('id', providerId)
-      .eq('user_id', user?.id);
-
-    if (error) {
-      console.error('Error deleting food data provider:', error);
-      toast({
-        title: "Error",
-        description: "Failed to delete food data provider",
-        variant: "destructive"
+    try {
+      await apiCall(`/api/food-data-providers/${providerId}`, {
+        method: 'DELETE',
       });
-    } else {
+
       toast({
         title: "Success",
         description: "Food data provider deleted successfully"
       });
       loadProviders();
       if (defaultFoodDataProviderId === providerId) {
-        setDefaultFoodDataProviderId(null); // If deleted, remove as default
+        setDefaultFoodDataProviderId(null);
       }
+    } catch (error: any) {
+      console.error('Error deleting food data provider:', error);
+      toast({
+        title: "Error",
+        description: `Failed to delete food data provider: ${error.message}`,
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const handleToggleActive = async (providerId: string, isActive: boolean) => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('food_data_providers')
-      .update({ is_active: isActive })
-      .eq('id', providerId)
-      .eq('user_id', user?.id)
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Error updating food data provider status:', error);
-      toast({
-        title: "Error",
-        description: "Failed to update food data provider status",
-        variant: "destructive"
+    try {
+      const data = await apiCall(`/api/food-data-providers/${providerId}`, {
+        method: 'PUT',
+        body: JSON.stringify({ is_active: isActive }),
       });
-    } else {
+
       toast({
         title: "Success",
         description: `Food data provider ${isActive ? 'activated' : 'deactivated'}`
       });
       loadProviders();
-      if (data && data.is_active) { // Ensure data is not null
+      if (data && data.is_active) {
         setDefaultFoodDataProviderId(data.id);
-      } else if (data && defaultFoodDataProviderId === data.id) { // Ensure data is not null
-        setDefaultFoodDataProviderId(null); // If deactivated, remove as default
+      } else if (data && defaultFoodDataProviderId === data.id) {
+        setDefaultFoodDataProviderId(null);
       }
+    } catch (error: any) {
+      console.error('Error updating food data provider status:', error);
+      toast({
+        title: "Error",
+        description: `Failed to update food data provider status: ${error.message}`,
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
+
 
   const startEditing = (provider: FoodDataProvider) => {
     setEditingProvider(provider.id);

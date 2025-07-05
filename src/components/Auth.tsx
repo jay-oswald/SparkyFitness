@@ -1,6 +1,6 @@
 
 import { useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,11 +10,14 @@ import { toast } from "@/hooks/use-toast";
 import { Zap } from "lucide-react";
 import { usePreferences } from "@/contexts/PreferencesContext";
 import { debug, info, warn, error } from '@/utils/logging';
-import type { User } from '@supabase/supabase-js';
+import { registerUser, loginUser } from '@/services/authService';
+import { useAuth } from "@/hooks/useAuth";
 
 const Auth = () => {
- const { loggingLevel } = usePreferences();
- debug(loggingLevel, "Auth: Component rendered.");
+  const navigate = useNavigate(); // Initialize useNavigate
+  const { loggingLevel } = usePreferences();
+  const { signIn } = useAuth(); // Use the useAuth hook (no navigate argument needed here)
+  debug(loggingLevel, "Auth: Component rendered.");
 
  const [loading, setLoading] = useState(false);
  const [email, setEmail] = useState("");
@@ -56,28 +59,19 @@ const Auth = () => {
 
    setLoading(true);
 
-   const { data, error: supabaseError } = await supabase.auth.signUp({
-     email,
-     password,
-     options: {
-       data: {
-         full_name: fullName,
-       },
-     },
-   });
-
-   if (supabaseError) {
-     error(loggingLevel, "Auth: Sign up failed:", supabaseError);
-     toast({
-       title: "Error",
-       description: supabaseError.message,
-       variant: "destructive",
-     });
-   } else {
-     info(loggingLevel, "Auth: Sign up successful, email confirmation sent.");
+   try {
+     await registerUser(email, password, fullName);
+     info(loggingLevel, "Auth: Sign up successful.");
      toast({
        title: "Success",
-       description: "Check your email for the confirmation link!",
+       description: "Account created successfully!",
+     });
+   } catch (err: any) {
+     error(loggingLevel, "Auth: Sign up failed:", err);
+     toast({
+       title: "Error",
+       description: err.message || "An unexpected error occurred during sign up.",
+       variant: "destructive",
      });
    }
 
@@ -91,20 +85,22 @@ const Auth = () => {
    info(loggingLevel, "Auth: Attempting sign in.");
    setLoading(true);
 
-   const { data, error: supabaseError } = await supabase.auth.signInWithPassword({
-     email,
-     password,
-   });
-
-   if (supabaseError) {
-     error(loggingLevel, "Auth: Sign in failed:", supabaseError);
+   try {
+     const data = await loginUser(email, password);
+     info(loggingLevel, "Auth: Sign in successful.");
+     toast({
+       title: "Success",
+       description: "Logged in successfully!",
+     });
+     signIn(data.userId, email); // Call signIn from useAuth hook
+     navigate("/"); // Redirect to home page after successful login
+   } catch (err: any) {
+     error(loggingLevel, "Auth: Sign in failed:", err);
      toast({
        title: "Error",
-       description: supabaseError.message,
+       description: err.message || "An unexpected error occurred during sign in.",
        variant: "destructive",
      });
-   } else {
-     info(loggingLevel, "Auth: Sign in successful.");
    }
 
    setLoading(false);
@@ -113,33 +109,11 @@ const Auth = () => {
 
  const handlePasswordReset = async (e: React.MouseEvent) => {
    e.preventDefault();
-   info(loggingLevel, "Auth: Attempting password reset.");
-   if (!email) {
-     toast({
-       title: "Error",
-       description: "Please enter your email to reset password.",
-       variant: "destructive",
-     });
-     return;
-   }
-
-   setLoading(true);
-   const { error: supabaseError } = await supabase.auth.resetPasswordForEmail(email, {
-     redirectTo: `${window.location.origin}`, // Redirect to settings page after password reset
-   });
-
-   // Always show a success message to prevent email enumeration attacks
-   if (supabaseError) {
-     warn(loggingLevel, "Auth: Password reset failed (internal error, not shown to user):", supabaseError);
-   }
-   
-   info(loggingLevel, "Auth: Password reset email sent (or attempted).");
+   info(loggingLevel, "Auth: Password reset functionality is not yet implemented in the new backend.");
    toast({
-     title: "Success",
-     description: "If an account with that email exists, a password reset link has been sent.",
+     title: "Info",
+     description: "Password reset functionality is not yet implemented.",
    });
-   
-   setLoading(false);
  };
 
  return (

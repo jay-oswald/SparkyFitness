@@ -7,16 +7,16 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 import { Plus, Trash2, Edit } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "@/hooks/use-toast";
+import {
+  addCategory,
+  updateCategory,
+  deleteCategory,
+  getCategories,
+  CustomCategory,
+} from "@/services/customCategoryService";
 
-interface CustomCategory {
-  id: string;
-  name: string;
-  measurement_type: string;
-  frequency: string;
-}
 
 interface CustomCategoryManagerProps {
   categories: CustomCategory[];
@@ -34,6 +34,25 @@ const CustomCategoryManager = ({ categories, onCategoriesChange }: CustomCategor
     frequency: 'Daily'
   });
 
+  useEffect(() => {
+    const fetchCategories = async () => {
+      if (user) {
+        try {
+          const fetchedCategories = await getCategories(user.id);
+          onCategoriesChange(fetchedCategories);
+        } catch (error) {
+          console.error("Error fetching custom categories:", error);
+          toast({
+            title: "Error",
+            description: "Failed to load custom categories.",
+            variant: "destructive",
+          });
+        }
+      }
+    };
+    fetchCategories();
+  }, [user, onCategoriesChange]);
+
   const handleAddCategory = async () => {
     if (!user || !newCategory.name.trim() || !newCategory.measurement_type.trim()) {
       toast({
@@ -45,19 +64,12 @@ const CustomCategoryManager = ({ categories, onCategoriesChange }: CustomCategor
     }
 
     try {
-      const { data, error } = await supabase
-        .from('custom_categories')
-        .insert({
-          user_id: user.id,
-          name: newCategory.name.trim(),
-          measurement_type: newCategory.measurement_type.trim(),
-          frequency: newCategory.frequency
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-
+      const data = await addCategory({
+        user_id: user.id,
+        name: newCategory.name.trim(),
+        measurement_type: newCategory.measurement_type.trim(),
+        frequency: newCategory.frequency
+      });
       onCategoriesChange([...categories, data]);
       setNewCategory({ name: '', measurement_type: '', frequency: 'Daily' });
       setIsAddDialogOpen(false);
@@ -70,7 +82,7 @@ const CustomCategoryManager = ({ categories, onCategoriesChange }: CustomCategor
       console.error('Error adding custom category:', error);
       toast({
         title: "Error",
-        description: "Failed to add custom category",
+        description: error.message || "Failed to add custom category",
         variant: "destructive",
       });
     }
@@ -87,20 +99,12 @@ const CustomCategoryManager = ({ categories, onCategoriesChange }: CustomCategor
     }
 
     try {
-      const { data, error } = await supabase
-        .from('custom_categories')
-        .update({
-          name: editingCategory.name.trim(),
-          measurement_type: editingCategory.measurement_type.trim(),
-          frequency: editingCategory.frequency
-        })
-        .eq('id', editingCategory.id)
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      onCategoriesChange(categories.map(cat => cat.id === editingCategory.id ? data : cat));
+      const updatedData = await updateCategory(editingCategory.id, {
+        name: editingCategory.name.trim(),
+        measurement_type: editingCategory.measurement_type.trim(),
+        frequency: editingCategory.frequency
+      });
+      onCategoriesChange(categories.map(cat => cat.id === editingCategory.id ? updatedData : cat));
       setEditingCategory(null);
       setIsEditDialogOpen(false);
       
@@ -119,15 +123,30 @@ const CustomCategoryManager = ({ categories, onCategoriesChange }: CustomCategor
   };
 
   const handleDeleteCategory = async (categoryId: string) => {
+    const idToDelete = String(categoryId || ''); // Ensure it's a string here, fallback to empty
+    if (!idToDelete || idToDelete === 'undefined' || idToDelete === 'null') {
+      console.error('Attempted to delete a category with an invalid ID:', idToDelete);
+      toast({
+        title: "Error",
+        description: "Cannot delete category: Invalid ID.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!user || !user.id) {
+      console.error('User or User ID is missing for delete operation.');
+      toast({
+        title: "Error",
+        description: "Cannot delete category: User not authenticated.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
-      const { error } = await supabase
-        .from('custom_categories')
-        .delete()
-        .eq('id', categoryId);
-
-      if (error) throw error;
-
-      onCategoriesChange(categories.filter(cat => cat.id !== categoryId));
+      await deleteCategory(idToDelete, user.id);
+      onCategoriesChange(categories.filter(cat => cat.id !== idToDelete));
       
       toast({
         title: "Success",
@@ -137,14 +156,14 @@ const CustomCategoryManager = ({ categories, onCategoriesChange }: CustomCategor
       console.error('Error deleting custom category:', error);
       toast({
         title: "Error",
-        description: "Failed to delete custom category",
+        description: error.message || "Failed to delete custom category",
         variant: "destructive",
       });
     }
   };
 
   const openEditDialog = (category: CustomCategory) => {
-    setEditingCategory({ ...category });
+    setEditingCategory({ ...category, id: String(category.id || '') }); // Ensure ID is string, fallback to empty
     setIsEditDialogOpen(true);
   };
 
@@ -214,8 +233,8 @@ const CustomCategoryManager = ({ categories, onCategoriesChange }: CustomCategor
           <p className="text-gray-500 text-center py-4">No custom categories yet. Add one to get started!</p>
         ) : (
           <div className="space-y-2">
-            {categories.map((category) => (
-              <div key={category.id} className="flex items-center justify-between p-3 border rounded">
+            {categories.map((category, index) => (
+              <div key={category.id || `UNDEFINED_ID-${index}`} className="flex items-center justify-between p-3 border rounded">
                 <div>
                   <div className="font-medium">{category.name}</div>
                   <div className="text-sm text-gray-500">

@@ -17,8 +17,10 @@ import ProfileSwitcher from "@/components/ProfileSwitcher";
 import { useAuth } from "@/hooks/useAuth";
 import { useActiveUser } from "@/contexts/ActiveUserContext";
 import { Home, Activity, BarChart3, Utensils, Settings as SettingsIcon, LogOut, Dumbbell } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+
+// Define the base URL for your backend API
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3010";
 const Index = () => {
    const { user } = useAuth();
    const { isActingOnBehalf, hasPermission, hasWritePermission, activeUserName } = useActiveUser();
@@ -32,9 +34,13 @@ const Index = () => {
    const handleSignOut = async () => {
      info(loggingLevel, "Index: Attempting to sign out.");
      try {
-       const { error: supabaseError } = await supabase.auth.signOut();
-       if (supabaseError) {
-         error(loggingLevel, "Index: Failed to sign out:", supabaseError);
+       const response = await fetch(`${API_BASE_URL}/api/auth/logout`, {
+         method: 'POST',
+       });
+
+       if (!response.ok) {
+         const errorData = await response.json();
+         error(loggingLevel, "Index: Failed to sign out:", errorData.error);
          toast({
            title: "Error",
            description: "Failed to sign out",
@@ -42,6 +48,8 @@ const Index = () => {
          });
        } else {
          info(loggingLevel, "Index: Signed out successfully.");
+         // Clear local storage or any client-side session data
+         localStorage.removeItem('userId'); // Assuming userId is stored here
          toast({
            title: "Success",
            description: "Signed out successfully",
@@ -53,28 +61,30 @@ const Index = () => {
    };
  
    // Get display name for welcome message
-   const getDisplayName = () => {
-     debug(loggingLevel, "Index: Getting display name.");
-     if (!user) return '';
-     
-     // Check if we have a profile name from user metadata
-     const firstName = user.user_metadata?.first_name;
-     const lastName = user.user_metadata?.last_name;
-     const fullName = user.user_metadata?.full_name;
-     
-     if (fullName && fullName.trim()) {
-       debug(loggingLevel, "Index: Using full name for display.");
-       return fullName.trim();
-     }
-     if (firstName && firstName.trim()) {
-       debug(loggingLevel, "Index: Using first name (and last if available) for display.");
-       return lastName && lastName.trim() ? `${firstName.trim()} ${lastName.trim()}` : firstName.trim();
-     }
-     
-     // Fall back to email
-     debug(loggingLevel, "Index: Using email for display.");
-     return user.email || '';
-   };
+   const [displayName, setDisplayName] = useState('');
+
+   useEffect(() => {
+     const fetchDisplayName = async () => {
+       if (user?.id) {
+         try {
+           const response = await fetch(`${API_BASE_URL}/api/profiles/${user.id}`);
+           if (response.ok) {
+             const profile = await response.json();
+             setDisplayName(profile.full_name || user.email || '');
+           } else {
+             error(loggingLevel, "Index: Failed to fetch profile for display name.");
+             setDisplayName(user.email || '');
+           }
+         } catch (err) {
+           error(loggingLevel, "Index: Error fetching profile for display name:", err);
+           setDisplayName(user.email || '');
+         }
+       } else {
+         setDisplayName('');
+       }
+     };
+     fetchDisplayName();
+   }, [user, loggingLevel]);
  
    // Memoize available tabs to prevent hook order violations
    const availableTabs = useMemo(() => {
@@ -176,7 +186,7 @@ const Index = () => {
              
              {/* Welcome Message */}
              <span className="text-sm text-muted-foreground hidden sm:inline">
-               Welcome {isActingOnBehalf ? activeUserName : getDisplayName()}
+               Welcome {isActingOnBehalf ? activeUserName : displayName}
              </span>
              
              <ThemeToggle />

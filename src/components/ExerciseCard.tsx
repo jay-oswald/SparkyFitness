@@ -1,11 +1,10 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog";
 import { Plus, Dumbbell, Edit, Trash2, Settings } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useActiveUser } from "@/contexts/ActiveUserContext";
 import EditExerciseEntryDialog from "./EditExerciseEntryDialog";
@@ -13,32 +12,16 @@ import { usePreferences } from "@/contexts/PreferencesContext"; // Import usePre
 import { debug, info, warn, error } from '@/utils/logging'; // Import logging utility
 import { parseISO, addDays } from "date-fns"; // Import parseISO and addDays
 import { toast } from "@/hooks/use-toast"; // Import toast
+import {
+  fetchExerciseEntries,
+  addExerciseEntry,
+  deleteExerciseEntry,
+  searchExercises,
+  ExerciseEntry,
+  Exercise,
+} from '@/services/exerciseEntryService';
 
 
-interface ExerciseEntry {
-  id: string;
-  exercise_id: string;
-  duration_minutes: number;
-  calories_burned: number;
-  entry_date: string;
-  notes?: string;
-  exercises: {
-    id: string;
-    name: string;
-    user_id?: string;
-    category: string;
-    calories_per_hour: number;
-  } | null;
-}
-
-interface Exercise {
-  id: string;
-  name: string;
-  category: string;
-  calories_per_hour: number;
-  description?: string;
-  user_id?: string;
-}
 
 interface ExerciseCardProps {
   selectedDate: string;
@@ -65,18 +48,46 @@ const ExerciseCard = ({ selectedDate, onExerciseChange }: ExerciseCardProps) => 
   const currentUserId = activeUserId || user?.id;
   debug(loggingLevel, "Current user ID:", currentUserId);
 
+  const _fetchExerciseEntries = useCallback(async () => {
+    debug(loggingLevel, "Fetching exercise entries for date:", selectedDate);
+    setLoading(true);
+    try {
+      const data = await fetchExerciseEntries(currentUserId, selectedDate); // Use imported fetchExerciseEntries
+      info(loggingLevel, "Exercise entries fetched successfully:", data);
+      setExerciseEntries(data || []);
+    } catch (err) {
+      error(loggingLevel, "Error fetching exercise entries:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, [currentUserId, selectedDate, loggingLevel]);
+
+  const _searchExercises = useCallback(async (query: string) => {
+    debug(loggingLevel, "Searching exercises with query:", query);
+    setSearchLoading(true);
+    try {
+      const data = await searchExercises(query, filterType, currentUserId); // Use imported searchExercises
+      info(loggingLevel, "Exercises search results:", data);
+      setExercises(data || []);
+    } catch (err) {
+      error(loggingLevel, "Error searching exercises:", err);
+    } finally {
+      setSearchLoading(false);
+    }
+  }, [filterType, currentUserId, loggingLevel]); // Add filterType and currentUserId as dependencies
+
   useEffect(() => {
     debug(loggingLevel, "currentUserId or selectedDate useEffect triggered.", { currentUserId, selectedDate });
     if (currentUserId) {
-      fetchExerciseEntries();
+      _fetchExerciseEntries();
     }
-  }, [currentUserId, selectedDate]);
+  }, [currentUserId, selectedDate, _fetchExerciseEntries]); // Add _fetchExerciseEntries to dependency array
 
   useEffect(() => {
     debug(loggingLevel, "searchTerm, filterType, or isAddDialogOpen useEffect triggered.", { searchTerm, filterType, isAddDialogOpen });
     const timeoutId = setTimeout(() => {
       if (searchTerm.trim() || isAddDialogOpen) {
-        searchExercises(searchTerm);
+        _searchExercises(searchTerm); // Call the memoized search function
       } else {
         setExercises([]);
       }
@@ -86,88 +97,7 @@ const ExerciseCard = ({ selectedDate, onExerciseChange }: ExerciseCardProps) => 
       debug(loggingLevel, "Cleaning up search timeout.");
       clearTimeout(timeoutId);
     };
-  }, [searchTerm, filterType, isAddDialogOpen]);
-
-  const fetchExerciseEntries = async () => {
-    debug(loggingLevel, "Fetching exercise entries for date:", selectedDate);
-    setLoading(true);
-    try {
-      const { data, error: supabaseError } = await supabase
-        .from('exercise_entries')
-        .select(`
-          id,
-          exercise_id,
-          duration_minutes,
-          calories_burned,
-          entry_date,
-          notes,
-          exercises (
-            id,
-            name,
-            user_id,
-            category,
-            calories_per_hour
-          )
-        `)
-        .eq('user_id', currentUserId)
-        .gte('entry_date', selectedDate) // Start of the selected day
-        .lt('entry_date', addDays(parseISO(selectedDate), 1).toISOString().split('T')[0]); // Start of the next day
-
-      if (supabaseError) {
-        error(loggingLevel, "Error fetching exercise entries:", supabaseError);
-      } else {
-        info(loggingLevel, "Exercise entries fetched successfully:", data);
-        setExerciseEntries(data || []);
-      }
-    } catch (err) {
-      error(loggingLevel, "Error fetching exercise entries:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const searchExercises = async (query: string) => {
-    debug(loggingLevel, "Searching exercises with query:", query);
-    setSearchLoading(true);
-    try {
-      let queryBuilder = supabase
-        .from('exercises')
-        .select('*');
-
-      if (query.trim()) {
-        queryBuilder = queryBuilder.ilike('name', `%${query}%`);
-      }
-
-      // Apply filter
-      if (filterType === "my_own") {
-        debug(loggingLevel, "Filtering exercises by my own.");
-        queryBuilder = queryBuilder.eq('user_id', currentUserId);
-      } else if (filterType === "public") {
-        debug(loggingLevel, "Filtering exercises by public.");
-        queryBuilder = queryBuilder.is('user_id', null);
-      } else if (filterType === "family") {
-        debug(loggingLevel, "Filtering exercises by family (currently showing my own).");
-        // For family, we'd need to implement family sharing logic
-        // For now, just show user's own exercises
-        queryBuilder = queryBuilder.eq('user_id', currentUserId);
-      }
-      debug(loggingLevel, "Applying limit 20 to exercise search.");
-      queryBuilder = queryBuilder.limit(20);
-
-      const { data, error: supabaseError } = await queryBuilder;
-
-      if (supabaseError) {
-        error(loggingLevel, "Error searching exercises:", supabaseError);
-      } else {
-        info(loggingLevel, "Exercises search results:", data);
-        setExercises(data || []);
-      }
-    } catch (err) {
-      error(loggingLevel, "Error searching exercises:", err);
-    } finally {
-      setSearchLoading(false);
-    }
-  };
+  }, [searchTerm, filterType, isAddDialogOpen, _searchExercises]); // Add _searchExercises to dependency array
 
   const handleOpenAddDialog = () => {
     debug(loggingLevel, "Opening add exercise dialog.");
@@ -220,36 +150,22 @@ const ExerciseCard = ({ selectedDate, onExerciseChange }: ExerciseCardProps) => 
     debug(loggingLevel, "Calculated calories burned:", caloriesBurned);
 
     try {
-      const { error: supabaseError } = await supabase
-        .from('exercise_entries')
-        .insert([
-          {
-            user_id: currentUserId,
-            exercise_id: selectedExerciseId,
-            duration_minutes: duration,
-            calories_burned: caloriesBurned,
-            entry_date: selectedDate,
-            notes: notes,
-          },
-        ]);
-
-      if (supabaseError) {
-        error(loggingLevel, "Error adding exercise entry:", supabaseError);
-        toast({
-          title: "Error",
-          description: "Failed to add exercise entry.",
-          variant: "destructive",
-        });
-      } else {
-        info(loggingLevel, "Exercise entry added successfully.");
-        toast({
-          title: "Success",
-          description: "Exercise entry added successfully.",
-        });
-        fetchExerciseEntries();
-        onExerciseChange();
-        handleCloseAddDialog();
-      }
+      await addExerciseEntry({
+        user_id: currentUserId,
+        exercise_id: selectedExerciseId,
+        duration_minutes: duration,
+        calories_burned: caloriesBurned,
+        entry_date: selectedDate,
+        notes: notes,
+      });
+      info(loggingLevel, "Exercise entry added successfully.");
+      toast({
+        title: "Success",
+        description: "Exercise entry added successfully.",
+      });
+      _fetchExerciseEntries(); // Call the memoized local function
+      onExerciseChange();
+      handleCloseAddDialog();
     } catch (err) {
       error(loggingLevel, "Error adding exercise entry:", err);
       toast({
@@ -263,27 +179,14 @@ const ExerciseCard = ({ selectedDate, onExerciseChange }: ExerciseCardProps) => 
   const handleDelete = async (entryId: string) => {
     debug(loggingLevel, "Handling delete exercise entry:", entryId);
     try {
-      const { error: supabaseError } = await supabase
-        .from('exercise_entries')
-        .delete()
-        .eq('id', entryId);
-
-      if (supabaseError) {
-        error(loggingLevel, "Error deleting exercise entry:", supabaseError);
-        toast({
-          title: "Error",
-          description: "Failed to delete exercise entry.",
-          variant: "destructive",
-        });
-      } else {
-        info(loggingLevel, "Exercise entry deleted successfully:", entryId);
-        toast({
-          title: "Success",
-          description: "Exercise entry deleted successfully.",
-        });
-        fetchExerciseEntries();
-        onExerciseChange();
-      }
+      await deleteExerciseEntry(entryId);
+      info(loggingLevel, "Exercise entry deleted successfully:", entryId);
+      toast({
+        title: "Success",
+        description: "Exercise entry deleted successfully.",
+      });
+      _fetchExerciseEntries(); // Call the memoized local function
+      onExerciseChange();
     } catch (err) {
       error(loggingLevel, "Error deleting exercise entry:", err);
       toast({
@@ -302,7 +205,7 @@ const ExerciseCard = ({ selectedDate, onExerciseChange }: ExerciseCardProps) => 
   const handleEditComplete = () => {
     debug(loggingLevel, "Handling edit exercise entry complete.");
     setEditingEntry(null);
-    fetchExerciseEntries();
+    _fetchExerciseEntries(); // Call the memoized local function
     onExerciseChange();
     info(loggingLevel, "Exercise entry edit complete and refresh triggered.");
   };
@@ -314,7 +217,7 @@ const ExerciseCard = ({ selectedDate, onExerciseChange }: ExerciseCardProps) => 
 
   const handleDataChange = () => {
     debug(loggingLevel, "Handling data change, fetching entries and triggering parent change.");
-    fetchExerciseEntries();
+    _fetchExerciseEntries(); // Call the memoized local function
     onExerciseChange();
   };
 

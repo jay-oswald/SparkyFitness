@@ -1,4 +1,3 @@
-import { supabase } from '@/integrations/supabase/client';
 import { parseISO } from 'date-fns'; // Import parseISO
 import { CoachResponse, FoodOption } from './Chatbot_types'; // Import types
 import { debug, info, warn, error, UserLoggingLevel } from '@/utils/logging'; // Import logging utility
@@ -6,6 +5,32 @@ import { debug, info, warn, error, UserLoggingLevel } from '@/utils/logging'; //
 import SparkyAIService from '@/components/SparkyAIService'; // Import SparkyAIService
 
 const sparkyAIService = new SparkyAIService(); // Create an instance of SparkyAIService
+
+// Define the base URL for your backend API
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3010";
+
+// Helper function for API calls
+const apiCall = async (endpoint: string, method: string, body?: any) => {
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+  };
+
+  const config: RequestInit = {
+    method,
+    headers,
+  };
+
+  if (body) {
+    config.body = JSON.stringify(body);
+  }
+
+  const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.error || `API call to ${endpoint} failed.`);
+  }
+  return response.json();
+};
 // Function to process food input
 export const processFoodInput = async (userId: string, data: {
   food_name: string;
@@ -67,12 +92,13 @@ export const processFoodInput = async (userId: string, data: {
 
     // Search for exact match first (case-insensitive)
     debug(userLoggingLevel, 'Searching for exact food match:', food_name);
-    const { data: exactFoods, error: exactError } = await supabase
-      .from('foods')
-      .select('*')
-      .ilike('name', food_name) // Case-insensitive match for user's custom foods
-      .eq('user_id', userId) // Limit to user's custom foods first
-      .limit(1);
+    let exactFoods = null;
+    let exactError = null;
+    try {
+      exactFoods = await apiCall(`/api/foods/search?name=${encodeURIComponent(food_name)}&userId=${userId}&exactMatch=true`, 'GET');
+    } catch (err: any) {
+      exactError = err;
+    }
 
     if (exactError) {
       error(userLoggingLevel, '❌ [Nutrition Coach] Error searching for exact food match:', exactError);
@@ -85,12 +111,13 @@ export const processFoodInput = async (userId: string, data: {
     // If no exact match found, try a broader case-insensitive search
     if (!existingFoods || existingFoods.length === 0) {
       debug(userLoggingLevel, 'No exact match found, searching broadly for:', food_name);
-      const { data: broadFoods, error: currentBroadError } = await supabase
-        .from('foods')
-        .select('*')
-        .ilike('name', `%${food_name}%`) // Contains the food name
-        .or(`user_id.eq.${userId},is_custom.eq.false`) // Include user's custom or public foods
-        .limit(3);
+      let broadFoods = null;
+      let currentBroadError = null;
+      try {
+        broadFoods = await apiCall(`/api/foods/search?name=${encodeURIComponent(food_name)}&userId=${userId}&broadMatch=true`, 'GET');
+      } catch (err: any) {
+        currentBroadError = err;
+      }
 
       if (currentBroadError) {
         error(userLoggingLevel, '❌ [Nutrition Coach] Error searching for broad food match:', currentBroadError);
@@ -136,16 +163,19 @@ export const processFoodInput = async (userId: string, data: {
 
       // If no unit mismatch, proceed with insertion
       info(userLoggingLevel, 'Inserting food entry...');
-      const { error: insertError } = await supabase
-        .from('food_entries')
-        .insert({
+      let insertError = null;
+      try {
+        await apiCall('/api/food-entries', 'POST', {
           user_id: userId,
           food_id: food.id,
           meal_type: meal_type,
           quantity: quantity,
           unit: unit,
-          entry_date: dateToUse // Use the determined date
+          entry_date: dateToUse
         });
+      } catch (err: any) {
+        insertError = err;
+      }
 
       if (insertError) {
         error(userLoggingLevel, '❌ [Nutrition Coach] Error adding food entry:', insertError);
@@ -211,12 +241,13 @@ export const addFoodOption = async (userId: string, optionIndex: number, origina
     let variantId: string | null = null;
 
     // 1. Check if the food name already exists in the 'foods' table for the user
-    const { data: existingFoods, error: fetchFoodError } = await supabase
-        .from('foods')
-        .select('id, name, serving_unit, serving_size')
-        .eq('name', selectedOption.name)
-        .eq('user_id', userId) // Only check user's custom foods for variants
-        .limit(1);
+    let existingFoods = null;
+    let fetchFoodError = null;
+    try {
+      existingFoods = await apiCall(`/api/foods/search?name=${encodeURIComponent(selectedOption.name)}&userId=${userId}&exactMatch=true&checkCustom=true`, 'GET');
+    } catch (err: any) {
+      fetchFoodError = err;
+    }
 
     if (fetchFoodError) {
         error(userLoggingLevel, `[${transactionId}] Error fetching existing food:`, fetchFoodError);
@@ -236,12 +267,13 @@ export const addFoodOption = async (userId: string, optionIndex: number, origina
             variantId = null; // No variant needed for the base unit
         } else {
             // Selected option unit is different from base food unit, check/create variant
-            const { data: existingVariant, error: fetchVariantError } = await supabase
-                .from('food_variants')
-                .select('id')
-                .eq('food_id', foodId)
-                .eq('serving_unit', selectedOption.serving_unit)
-                .limit(1);
+            let existingVariant = null;
+            let fetchVariantError = null;
+            try {
+              existingVariant = await apiCall(`/api/food-variants/search?foodId=${foodId}&servingUnit=${encodeURIComponent(selectedOption.serving_unit)}`, 'GET');
+            } catch (err: any) {
+              fetchVariantError = err;
+            }
 
             if (fetchVariantError) {
                 error(userLoggingLevel, `[${transactionId}] Error fetching existing variant:`, fetchVariantError);
@@ -258,32 +290,34 @@ export const addFoodOption = async (userId: string, optionIndex: number, origina
             } else {
                 // Food exists, but this specific variant does not. Create a new variant.
                 info(userLoggingLevel, `[${transactionId}] Creating new food variant for existing food:`, selectedOption.name);
-                const { data: newVariant, error: createVariantError } = await supabase
-                    .from('food_variants')
-                    .insert({
-                        food_id: foodId,
-                        serving_size: selectedOption.serving_size,
-                        serving_unit: selectedOption.serving_unit,
-                        calories: selectedOption.calories,
-                        protein: selectedOption.protein,
-                        carbs: selectedOption.carbs,
-                        fat: selectedOption.fat,
-                        saturated_fat: selectedOption.saturated_fat,
-                        polyunsaturated_fat: selectedOption.polyunsaturated_fat,
-                        monounsaturated_fat: selectedOption.monounsaturated_fat,
-                        trans_fat: selectedOption.trans_fat,
-                        cholesterol: selectedOption.cholesterol,
-                        sodium: selectedOption.sodium,
-                        potassium: selectedOption.potassium,
-                        dietary_fiber: selectedOption.dietary_fiber,
-                        sugars: selectedOption.sugars,
-                        vitamin_a: selectedOption.vitamin_a,
-                        vitamin_c: selectedOption.vitamin_c,
-                        calcium: selectedOption.calcium,
-                        iron: selectedOption.iron,
-                    })
-                    .select('id')
-                    .single();
+                let newVariant = null;
+                let createVariantError = null;
+                try {
+                  newVariant = await apiCall('/api/food-variants', 'POST', {
+                    food_id: foodId,
+                    serving_size: selectedOption.serving_size,
+                    serving_unit: selectedOption.serving_unit,
+                    calories: selectedOption.calories,
+                    protein: selectedOption.protein,
+                    carbs: selectedOption.carbs,
+                    fat: selectedOption.fat,
+                    saturated_fat: selectedOption.saturated_fat,
+                    polyunsaturated_fat: selectedOption.polyunsaturated_fat,
+                    monounsaturated_fat: selectedOption.monounsaturated_fat,
+                    trans_fat: selectedOption.trans_fat,
+                    cholesterol: selectedOption.cholesterol,
+                    sodium: selectedOption.sodium,
+                    potassium: selectedOption.potassium,
+                    dietary_fiber: selectedOption.dietary_fiber,
+                    sugars: selectedOption.sugars,
+                    vitamin_a: selectedOption.vitamin_a,
+                    vitamin_c: selectedOption.vitamin_c,
+                    calcium: selectedOption.calcium,
+                    iron: selectedOption.iron,
+                  });
+                } catch (err: any) {
+                  createVariantError = err;
+                }
 
                 if (createVariantError) {
                     error(userLoggingLevel, `[${transactionId}] Error creating food variant:`, createVariantError);
@@ -298,34 +332,36 @@ export const addFoodOption = async (userId: string, optionIndex: number, origina
     } else {
         // Food does not exist in the 'foods' table. Create a new food entry.
         info(userLoggingLevel, `[${transactionId}] Creating new food entry:`, selectedOption.name);
-        const { data: newFood, error: foodCreateError } = await supabase
-            .from('foods')
-            .insert({
-                name: selectedOption.name,
-                calories: selectedOption.calories,
-                protein: selectedOption.protein,
-                carbs: selectedOption.carbs,
-                fat: selectedOption.fat,
-                serving_size: selectedOption.serving_size, // This will be the base unit for the new food
-                serving_unit: selectedOption.serving_unit, // This will be the base unit for the new food
-                saturated_fat: selectedOption.saturated_fat,
-                polyunsaturated_fat: selectedOption.polyunsaturated_fat,
-                monounsaturated_fat: selectedOption.monounsaturated_fat,
-                trans_fat: selectedOption.trans_fat,
-                cholesterol: selectedOption.cholesterol,
-                sodium: selectedOption.sodium,
-                potassium: selectedOption.potassium,
-                dietary_fiber: selectedOption.dietary_fiber,
-                sugars: selectedOption.sugars,
-                vitamin_a: selectedOption.vitamin_a,
-                vitamin_c: selectedOption.vitamin_c,
-                calcium: selectedOption.calcium,
-                iron: selectedOption.iron,
-                is_custom: true,
-                user_id: userId
-            })
-            .select('id')
-            .single();
+        let newFood = null;
+        let foodCreateError = null;
+        try {
+          newFood = await apiCall('/api/foods', 'POST', {
+            name: selectedOption.name,
+            calories: selectedOption.calories,
+            protein: selectedOption.protein,
+            carbs: selectedOption.carbs,
+            fat: selectedOption.fat,
+            serving_size: selectedOption.serving_size,
+            serving_unit: selectedOption.serving_unit,
+            saturated_fat: selectedOption.saturated_fat,
+            polyunsaturated_fat: selectedOption.polyunsaturated_fat,
+            monounsaturated_fat: selectedOption.monounsaturated_fat,
+            trans_fat: selectedOption.trans_fat,
+            cholesterol: selectedOption.cholesterol,
+            sodium: selectedOption.sodium,
+            potassium: selectedOption.potassium,
+            dietary_fiber: selectedOption.dietary_fiber,
+            sugars: selectedOption.sugars,
+            vitamin_a: selectedOption.vitamin_a,
+            vitamin_c: selectedOption.vitamin_c,
+            calcium: selectedOption.calcium,
+            iron: selectedOption.iron,
+            is_custom: true,
+            user_id: userId
+          });
+        } catch (err: any) {
+          foodCreateError = err;
+        }
 
         if (foodCreateError) {
             error(userLoggingLevel, `[${transactionId}] Error creating food:`, foodCreateError);
@@ -349,17 +385,20 @@ export const addFoodOption = async (userId: string, optionIndex: number, origina
         entryDate: dateToUse,
         variantId
     });
-    const { error: entryError } = await supabase
-        .from('food_entries')
-        .insert({
-            user_id: userId,
-            food_id: foodId,
-            meal_type: mealType,
-            quantity: quantity,
-            unit: selectedOption.serving_unit, // Use the serving_unit from the selected FoodOption
-            entry_date: dateToUse,
-            variant_id: variantId // Pass the variantId if applicable
-        });
+    let entryError = null;
+    try {
+      await apiCall('/api/food-entries', 'POST', {
+        user_id: userId,
+        food_id: foodId,
+        meal_type: mealType,
+        quantity: quantity,
+        unit: selectedOption.serving_unit,
+        entry_date: dateToUse,
+        variant_id: variantId
+      });
+    } catch (err: any) {
+      entryError = err;
+    }
 
     if (entryError) {
         error(userLoggingLevel, `[${transactionId}] Error creating food entry:`, entryError);

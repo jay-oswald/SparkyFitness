@@ -10,25 +10,18 @@ import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Users, Plus, Edit, Trash2, Calendar } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import {
+  loadFamilyAccess,
+  createFamilyAccess,
+  updateFamilyAccess,
+  toggleFamilyAccessActiveStatus,
+  deleteFamilyAccess,
+  findUserByEmail,
+  FamilyAccess,
+} from '@/services/familyAccessService';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from '@/hooks/use-toast';
 
-interface FamilyAccess {
-  id: string;
-  family_email: string;
-  family_user_id: string;
-  access_permissions: {
-    calorie: boolean;
-    checkin: boolean;
-    reports: boolean;
-    food_list: boolean;
-  };
-  access_end_date: string | null;
-  is_active: boolean;
-  status: string;
-  created_at: string;
-}
 
 const FamilyAccessManager = () => {
   const { user } = useAuth();
@@ -45,55 +38,22 @@ const FamilyAccessManager = () => {
   });
 
   useEffect(() => {
-    if (user) {
-      loadFamilyAccess();
-    }
+    const fetchFamilyAccess = async () => {
+      if (!user) return;
+      try {
+        const data = await loadFamilyAccess(user.id);
+        setFamilyAccess(data);
+      } catch (error) {
+        console.error('Error loading family access:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load family access records",
+          variant: "destructive",
+        });
+      }
+    };
+    fetchFamilyAccess();
   }, [user]);
-
-  const loadFamilyAccess = async () => {
-    if (!user) return;
-
-    try {
-      const { data, error } = await supabase
-        .from('family_access')
-        .select('*')
-        .eq('owner_user_id', user.id)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      
-      // Transform the data to ensure proper typing
-      const transformedData: FamilyAccess[] = (data || []).map((item: any) => ({
-        id: item.id,
-        family_email: item.family_email,
-        family_user_id: item.family_user_id,
-        access_permissions: typeof item.access_permissions === 'object' ? {
-          calorie: item.access_permissions.calorie || false,
-          checkin: item.access_permissions.checkin || false,
-          reports: item.access_permissions.reports || false,
-          food_list: item.access_permissions.food_list || false
-        } : {
-          calorie: false,
-          checkin: false,
-          reports: false,
-          food_list: false
-        },
-        access_end_date: item.access_end_date,
-        is_active: item.is_active,
-        status: item.status || 'pending',
-        created_at: item.created_at
-      }));
-      
-      setFamilyAccess(transformedData);
-    } catch (error) {
-      console.error('Error loading family access:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load family access records",
-        variant: "destructive",
-      });
-    }
-  };
 
   const resetForm = () => {
     setFormData({
@@ -150,20 +110,12 @@ const FamilyAccessManager = () => {
 
     try {
       
-      // Use the secure function to find the user by email
-      const { data: foundUserId, error: findError } = await supabase
-        .rpc('find_user_by_email', { p_email: formData.family_email });
+      const foundUserId = await findUserByEmail(formData.family_email);
 
-
-      // Check if access already exists for this family member (if we found the user)
       if (!editingAccess && foundUserId) {
-        const { data: existingAccess } = await supabase
-          .from('family_access')
-          .select('id')
-          .eq('owner_user_id', user.id)
-          .eq('family_user_id', foundUserId)
-          .maybeSingle();
-
+        const existingAccess = familyAccess.find(
+          (access) => access.owner_user_id === user.id && access.family_user_id === foundUserId
+        );
         if (existingAccess) {
           toast({
             title: "Error",
@@ -196,12 +148,7 @@ const FamilyAccessManager = () => {
 
       if (editingAccess) {
         // Update existing access
-        const { error } = await supabase
-          .from('family_access')
-          .update(accessData)
-          .eq('id', editingAccess.id);
-
-        if (error) throw error;
+        await updateFamilyAccess(editingAccess.id, accessData);
         
         toast({
           title: "Success",
@@ -209,11 +156,7 @@ const FamilyAccessManager = () => {
         });
       } else {
         // Create new access
-        const { error } = await supabase
-          .from('family_access')
-          .insert(accessData);
-
-        if (error) throw error;
+        await createFamilyAccess(accessData);
         
         const statusMessage = foundUserId 
           ? "Family access granted successfully" 
@@ -240,12 +183,7 @@ const FamilyAccessManager = () => {
 
   const handleToggleActive = async (access: FamilyAccess) => {
     try {
-      const { error } = await supabase
-        .from('family_access')
-        .update({ is_active: !access.is_active })
-        .eq('id', access.id);
-
-      if (error) throw error;
+      await toggleFamilyAccessActiveStatus(access.id, !access.is_active);
       
       toast({
         title: "Success",
@@ -265,12 +203,7 @@ const FamilyAccessManager = () => {
 
   const handleDelete = async (accessId: string) => {
     try {
-      const { error } = await supabase
-        .from('family_access')
-        .delete()
-        .eq('id', accessId);
-
-      if (error) throw error;
+      await deleteFamilyAccess(accessId);
       
       toast({
         title: "Success",

@@ -5,35 +5,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 import { Settings } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "@/hooks/use-toast";
+import { loadGoals, saveGoals, ExpandedGoals } from '@/services/goalsService';
 
 interface EditGoalsProps {
   selectedDate: string;
   onGoalsUpdated: () => void;
 }
 
-interface ExpandedGoals {
-  calories: number;
-  protein: number;
-  carbs: number;
-  fat: number;
-  water_goal: number;
-  saturated_fat: number;
-  polyunsaturated_fat: number;
-  monounsaturated_fat: number;
-  trans_fat: number;
-  cholesterol: number;
-  sodium: number;
-  potassium: number;
-  dietary_fiber: number;
-  sugars: number;
-  vitamin_a: number;
-  vitamin_c: number;
-  calcium: number;
-  iron: number;
-}
 
 const EditGoals = ({ selectedDate, onGoalsUpdated }: EditGoalsProps) => {
   const { user } = useAuth();
@@ -71,39 +51,8 @@ const EditGoals = ({ selectedDate, onGoalsUpdated }: EditGoalsProps) => {
     try {
       setLoading(true);
       
-      const { data, error } = await supabase.rpc('get_goals_for_date', {
-        p_user_id: user?.id,
-        p_date: selectedDate
-      });
-
-      if (error) {
-        console.error('Error loading goals:', error);
-        return;
-      }
-
-      if (data && data.length > 0) {
-        const goalData = data[0];
-        setGoals({
-          calories: goalData.calories || 2000,
-          protein: goalData.protein || 150,
-          carbs: goalData.carbs || 250,
-          fat: goalData.fat || 67,
-          water_goal: goalData.water_goal || 8,
-          saturated_fat: goalData.saturated_fat || 20,
-          polyunsaturated_fat: goalData.polyunsaturated_fat || 10,
-          monounsaturated_fat: goalData.monounsaturated_fat || 25,
-          trans_fat: goalData.trans_fat || 0,
-          cholesterol: goalData.cholesterol || 300,
-          sodium: goalData.sodium || 2300,
-          potassium: goalData.potassium || 3500,
-          dietary_fiber: goalData.dietary_fiber || 25,
-          sugars: goalData.sugars || 50,
-          vitamin_a: goalData.vitamin_a || 900,
-          vitamin_c: goalData.vitamin_c || 90,
-          calcium: goalData.calcium || 1000,
-          iron: goalData.iron || 18
-        });
-      }
+      const goalData = await loadGoals(user.id, selectedDate);
+      setGoals(goalData);
     } catch (error) {
       console.error('Error loading goals:', error);
     } finally {
@@ -117,38 +66,7 @@ const EditGoals = ({ selectedDate, onGoalsUpdated }: EditGoalsProps) => {
     try {
       setSaving(true);
       
-      const { error } = await supabase.rpc('manage_goal_timeline', {
-        p_user_id: user.id,
-        p_start_date: selectedDate,
-        p_calories: goals.calories,
-        p_protein: goals.protein,
-        p_carbs: goals.carbs,
-        p_fat: goals.fat,
-        p_water_goal: goals.water_goal,
-        p_saturated_fat: goals.saturated_fat,
-        p_polyunsaturated_fat: goals.polyunsaturated_fat,
-        p_monounsaturated_fat: goals.monounsaturated_fat,
-        p_trans_fat: goals.trans_fat,
-        p_cholesterol: goals.cholesterol,
-        p_sodium: goals.sodium,
-        p_potassium: goals.potassium,
-        p_dietary_fiber: goals.dietary_fiber,
-        p_sugars: goals.sugars,
-        p_vitamin_a: goals.vitamin_a,
-        p_vitamin_c: goals.vitamin_c,
-        p_calcium: goals.calcium,
-        p_iron: goals.iron
-      });
-
-      if (error) {
-        console.error('Error saving goals with cascade:', error);
-        toast({
-          title: "Error",
-          description: "Failed to save goals",
-          variant: "destructive",
-        });
-        return;
-      }
+      await saveGoals(user.id, selectedDate, goals);
 
       toast({
         title: "Success",

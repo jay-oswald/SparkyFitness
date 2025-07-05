@@ -4,8 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import { updateFoodEntry } from "@/services/foodEntryService";
 
 interface FoodEntry {
   id: string;
@@ -85,17 +85,10 @@ const CustomNutritionForm = ({ entry, onSave, onCancel }: CustomNutritionFormPro
 
     try {
       // Update the food entry with new quantity and unit
-      const { error } = await supabase
-        .from('food_entries')
-        .update({
-          quantity: quantity,
-          unit: unit,
-        })
-        .eq('id', entry.id);
-
-      if (error) {
-        throw error;
-      }
+      await updateFoodEntry(entry.id, {
+        quantity: quantity,
+        unit: unit,
+      });
 
       toast({
         title: "Success",

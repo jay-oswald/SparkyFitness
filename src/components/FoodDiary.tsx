@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -6,8 +6,6 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { format, parseISO, addDays } from "date-fns"; // Import parseISO and addDays
 import { CalendarIcon, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/useAuth";
 import { useActiveUser } from "@/contexts/ActiveUserContext";
 import { usePreferences } from "@/contexts/PreferencesContext";
 import DiaryTopControls from "./DiaryTopControls";
@@ -19,40 +17,17 @@ import FoodUnitSelector from "./FoodUnitSelector";
 import { debug, info, warn, error } from '@/utils/logging'; // Import logging utility
 import { calculateFoodEntryNutrition } from '@/utils/nutritionCalculations'; // Import the new utility function
 import { toast } from "@/hooks/use-toast"; // Import toast
+import {
+  loadFoodEntries,
+  loadGoals,
+  addFoodEntry,
+  removeFoodEntry,
+  Food,
+  FoodVariant,
+  FoodEntry,
+  Goal,
+} from '@/services/foodDiaryService';
 
-interface Food {
-  id: string;
-  name: string;
-  brand?: string;
-  calories: number;
-  protein: number;
-  carbs: number;
-  fat: number;
-  serving_size: number;
-  serving_unit: string;
-  user_id?: string;
-}
-
-interface FoodVariant {
-  id: string;
-  serving_size: number;
-  serving_unit: string;
-  calories?: number;
-  protein?: number;
-  carbs?: number;
-  fat?: number;
-}
-
-interface FoodEntry {
-  id: string;
-  food_id: string;
-  meal_type: string;
-  quantity: number;
-  unit: string;
-  variant_id?: string;
-  foods: Food;
-  food_variants?: FoodVariant; // Add food_variants to FoodEntry
-}
 
 interface Meal {
   name: string;
@@ -74,7 +49,6 @@ interface FoodDiaryProps {
 }
 
 const FoodDiary = ({ selectedDate, onDateChange }: FoodDiaryProps) => {
-  const { user } = useAuth();
   const { activeUserId } = useActiveUser();
   const { formatDate, formatDateInUserTimezone, parseDateInUserTimezone, loggingLevel } = usePreferences(); // Call usePreferences here
   debug(loggingLevel, "FoodDiary component rendered for date:", selectedDate);
@@ -88,7 +62,7 @@ const FoodDiary = ({ selectedDate, onDateChange }: FoodDiaryProps) => {
   const [selectedMealType, setSelectedMealType] = useState<string>("");
   const [isUnitSelectorOpen, setIsUnitSelectorOpen] = useState(false);
 
-  const currentUserId = activeUserId || user?.id;
+  const currentUserId = activeUserId;
   debug(loggingLevel, "Current user ID:", currentUserId);
 
   useEffect(() => {
@@ -98,72 +72,10 @@ const FoodDiary = ({ selectedDate, onDateChange }: FoodDiaryProps) => {
     setDate(parseDateInUserTimezone(selectedDate));
   }, [selectedDate, parseDateInUserTimezone]); // Add parseDateInUserTimezone to dependency array
 
-  useEffect(() => {
-    debug(loggingLevel, "currentUserId, selectedDate, refreshTrigger useEffect triggered.", { currentUserId, selectedDate, refreshTrigger });
-    if (currentUserId) {
-      loadFoodEntries();
-      loadGoals();
-    }
-  }, [currentUserId, selectedDate, refreshTrigger]);
-
-  const loadFoodEntries = async () => {
-    debug(loggingLevel, "Loading food entries for date:", selectedDate);
-    debug(loggingLevel, `Querying food_entries for user: ${currentUserId} and entry_date: ${selectedDate}`); // Added debug log
-    try {
-      const { data, error: supabaseError } = await supabase
-        .from('food_entries')
-        .select(`
-          *,
-          foods (*),
-          food_variants (*)
-        `)
-        .eq('user_id', currentUserId)
-        .gte('entry_date', selectedDate) // Start of the selected day
-        .lt('entry_date', addDays(parseISO(selectedDate), 1).toISOString().split('T')[0]); // Start of the next day
-
-      if (supabaseError) {
-        error(loggingLevel, "Error loading food entries:", supabaseError);
-      } else {
-        info(loggingLevel, "Food entries loaded successfully:", data);
-        setFoodEntries(data || []);
-        calculateDayTotals(data || []);
-      }
-    } catch (err) {
-      error(loggingLevel, "Error loading food entries:", err);
-    }
-  };
-
-  const loadGoals = async () => {
-    debug(loggingLevel, "Loading goals for date:", selectedDate);
-    try {
-      const { data, error: supabaseError } = await supabase.rpc('get_goals_for_date', {
-        p_user_id: currentUserId,
-        p_date: selectedDate
-      });
-
-      if (supabaseError) {
-        error(loggingLevel, 'Error loading goals:', supabaseError);
-      } else if (data && data.length > 0) {
-        info(loggingLevel, 'Goals loaded successfully:', data[0]);
-        const goalData = data[0];
-        setGoals({
-          calories: goalData.calories || 2000,
-          protein: goalData.protein || 150,
-          carbs: goalData.carbs || 250,
-          fat: goalData.fat || 67,
-        });
-      } else {
-        info(loggingLevel, 'No goals found for the selected date, using defaults.');
-      }
-    } catch (err) {
-      error(loggingLevel, 'Error loading goals:', err);
-    }
-  };
-
-  const calculateDayTotals = (entries: FoodEntry[]) => {
+  const _calculateDayTotals = useCallback((entries: FoodEntry[]) => {
     debug(loggingLevel, "Calculating day totals for entries:", entries);
     const totals = entries.reduce((acc, entry) => {
-      const entryNutrition = getEntryNutrition(entry); // Use the already fixed getEntryNutrition
+      const entryNutrition = calculateFoodEntryNutrition(entry); // Use the already fixed calculateFoodEntryNutrition
       acc.calories += entryNutrition.calories;
       acc.protein += entryNutrition.protein;
       acc.carbs += entryNutrition.carbs;
@@ -173,123 +85,53 @@ const FoodDiary = ({ selectedDate, onDateChange }: FoodDiaryProps) => {
 
     info(loggingLevel, "Day totals calculated:", totals);
     setDayTotals(totals);
-  };
+  }, [loggingLevel]); // Dependencies for _calculateDayTotals
 
-  const handleDateSelect = (newDate: Date | undefined) => {
-    debug(loggingLevel, "Handling date select:", newDate);
-    if (newDate) {
-      setDate(newDate);
-      const dateString = formatDateInUserTimezone(newDate, 'yyyy-MM-dd'); // Use formatDateInUserTimezone
-      info(loggingLevel, "Date selected:", dateString);
-      onDateChange(dateString);
-    }
-  };
-
-  const handlePreviousDay = () => {
-    debug(loggingLevel, "Handling previous day button click.");
-    const previousDay = new Date(date);
-    previousDay.setDate(previousDay.getDate() - 1);
-    handleDateSelect(previousDay);
-  };
-
-  const handleNextDay = () => {
-    debug(loggingLevel, "Handling next day button click.");
-    const nextDay = new Date(date);
-    nextDay.setDate(nextDay.getDate() + 1);
-    handleDateSelect(nextDay);
-  };
-
-  const handleDataChange = () => {
-    debug(loggingLevel, "Handling data change, triggering refresh.");
-    setRefreshTrigger(prev => prev + 1);
-  };
-
-  const handleFoodSelect = (food: Food, mealType: string) => {
-    debug(loggingLevel, "Handling food select:", { food, mealType });
-    setSelectedFood(food);
-    setSelectedMealType(mealType);
-    setIsUnitSelectorOpen(true);
-  };
-
-  const handleFoodUnitSelect = async (food: Food, quantity: number, unit: string, variantId?: string) => {
-    debug(loggingLevel, "Handling food unit select:", { food, quantity, unit, variantId });
+  const _loadFoodEntries = useCallback(async () => {
+    debug(loggingLevel, "Loading food entries for date:", selectedDate);
+    debug(loggingLevel, `Querying food_entries for user: ${currentUserId} and entry_date: ${selectedDate}`); // Added debug log
     try {
-      const { error: supabaseError } = await supabase
-        .from('food_entries')
-        .insert([
-          {
-            user_id: currentUserId,
-            food_id: food.id,
-            meal_type: selectedMealType,
-            quantity: quantity, // quantity now represents total amount consumed
-            unit: unit,
-            variant_id: variantId,
-            entry_date: formatDateInUserTimezone(parseDateInUserTimezone(selectedDate), 'yyyy-MM-dd'), // Ensure date is in user's timezone
-          },
-        ]);
-
-      if (supabaseError) {
-        error(loggingLevel, "Error adding food entry:", supabaseError);
-        toast({
-          title: "Error",
-          description: "Failed to add food entry",
-          variant: "destructive",
-        });
-      } else {
-        info(loggingLevel, "Food entry added successfully.");
-        toast({
-          title: "Success",
-          description: "Food entry added successfully",
-        });
-        handleDataChange();
-      }
+      const data = await loadFoodEntries(currentUserId, selectedDate); // Use imported loadFoodEntries
+      info(loggingLevel, "Food entries loaded successfully:", data);
+      setFoodEntries(data || []);
+      _calculateDayTotals(data || []);
     } catch (err) {
-      error(loggingLevel, "Error adding food entry:", err);
+      error(loggingLevel, "Error loading food entries:", err);
     }
-  };
+  }, [currentUserId, selectedDate, loggingLevel, _calculateDayTotals]); // Dependencies for _loadFoodEntries
 
-  const handleRemoveEntry = async (entryId: string) => {
-    debug(loggingLevel, "Handling remove entry:", entryId);
+  const _loadGoals = useCallback(async () => {
+    debug(loggingLevel, "Loading goals for date:", selectedDate);
     try {
-      const { error: supabaseError } = await supabase
-        .from('food_entries')
-        .delete()
-        .eq('id', entryId);
-
-      if (supabaseError) {
-        error(loggingLevel, "Error removing food entry:", supabaseError);
-        toast({
-          title: "Error",
-          description: "Failed to remove food entry",
-          variant: "destructive",
-        });
-      } else {
-        info(loggingLevel, "Food entry removed successfully.");
-        toast({
-          title: "Success",
-          description: "Food entry removed successfully",
-        });
-        handleDataChange();
-      }
+      const goalData = await loadGoals(currentUserId, selectedDate); // Use imported loadGoals
+      info(loggingLevel, 'Goals loaded successfully:', goalData);
+      setGoals({
+        calories: goalData.calories || 2000,
+        protein: goalData.protein || 150,
+        carbs: goalData.carbs || 250,
+        fat: goalData.fat || 67,
+      });
     } catch (err) {
-      error(loggingLevel, "Error removing food entry:", err);
+      error(loggingLevel, 'Error loading goals:', err);
     }
-  };
+  }, [currentUserId, selectedDate, loggingLevel]); // Dependencies for _loadGoals
 
-  const handleEditFood = (entry: FoodEntry) => {
-    debug(loggingLevel, "Handling edit food entry:", entry);
-    // This will trigger the data refresh when the nutrition form is used
-    handleDataChange();
-  };
+  useEffect(() => {
+    debug(loggingLevel, "currentUserId, selectedDate, refreshTrigger useEffect triggered.", { currentUserId, selectedDate, refreshTrigger });
+    if (currentUserId) {
+      _loadFoodEntries();
+      _loadGoals();
+    }
+  }, [currentUserId, selectedDate, refreshTrigger, _loadFoodEntries, _loadGoals]); // Add memoized functions to dependency array
 
-  const getEntryNutrition = (entry: FoodEntry): MealTotals => {
+  const getEntryNutrition = useCallback((entry: FoodEntry): MealTotals => {
     debug(loggingLevel, "Calculating entry nutrition for entry:", entry);
     const nutrition = calculateFoodEntryNutrition(entry);
     debug(loggingLevel, "Calculated nutrition for entry:", nutrition);
     return nutrition;
-  };
+  }, [loggingLevel]);
 
-  const getMealData = (mealType: string): Meal => {
+  const getMealData = useCallback((mealType: string): Meal => {
     debug(loggingLevel, "Getting meal data for meal type:", mealType);
     const mealNames = {
       breakfast: "Breakfast",
@@ -307,9 +149,9 @@ const FoodDiary = ({ selectedDate, onDateChange }: FoodDiaryProps) => {
       entries: entries,
       targetCalories: goals.calories / 4 // Simple distribution
     };
-  };
+  }, [foodEntries, goals, loggingLevel]);
 
-  const getMealTotals = (mealType: string): MealTotals => {
+  const getMealTotals = useCallback((mealType: string): MealTotals => {
     debug(loggingLevel, "Calculating meal totals for meal type:", mealType);
     const entries = foodEntries.filter(entry => entry.meal_type === mealType);
     const totals = entries.reduce((acc, entry) => {
@@ -322,7 +164,92 @@ const FoodDiary = ({ selectedDate, onDateChange }: FoodDiaryProps) => {
     }, { calories: 0, protein: 0, carbs: 0, fat: 0 });
     debug(loggingLevel, `Calculated totals for ${mealType}:`, totals);
     return totals;
-  };
+  }, [foodEntries, getEntryNutrition, loggingLevel]);
+
+  const handleDateSelect = useCallback((newDate: Date | undefined) => {
+    debug(loggingLevel, "Handling date select:", newDate);
+    if (newDate) {
+      setDate(newDate);
+      const dateString = formatDateInUserTimezone(newDate, 'yyyy-MM-dd'); // Use formatDateInUserTimezone
+      info(loggingLevel, "Date selected:", dateString);
+      onDateChange(dateString);
+    }
+  }, [debug, loggingLevel, setDate, formatDateInUserTimezone, info, onDateChange]);
+
+  const handlePreviousDay = useCallback(() => {
+    debug(loggingLevel, "Handling previous day button click.");
+    const previousDay = new Date(date);
+    previousDay.setDate(previousDay.getDate() - 1);
+    handleDateSelect(previousDay);
+  }, [debug, loggingLevel, date, handleDateSelect]);
+
+  const handleNextDay = useCallback(() => {
+    debug(loggingLevel, "Handling next day button click.");
+    const nextDay = new Date(date);
+    nextDay.setDate(nextDay.getDate() + 1);
+    handleDateSelect(nextDay);
+  }, [debug, loggingLevel, date, handleDateSelect]);
+
+  const handleDataChange = useCallback(() => {
+    debug(loggingLevel, "Handling data change, triggering refresh.");
+    setRefreshTrigger(prev => prev + 1);
+  }, [debug, loggingLevel, setRefreshTrigger]);
+
+  const handleFoodSelect = useCallback((food: Food, mealType: string) => {
+    debug(loggingLevel, "Handling food select:", { food, mealType });
+    setSelectedFood(food);
+    setSelectedMealType(mealType);
+    setIsUnitSelectorOpen(true);
+  }, [debug, loggingLevel, setSelectedFood, setSelectedMealType, setIsUnitSelectorOpen]);
+
+  const handleFoodUnitSelect = useCallback(async (food: Food, quantity: number, unit: string, variantId?: string) => {
+    debug(loggingLevel, "Handling food unit select:", { food, quantity, unit, variantId });
+    try {
+      await addFoodEntry({
+        user_id: currentUserId,
+        food_id: food.id,
+        meal_type: selectedMealType,
+        quantity: quantity,
+        unit: unit,
+        variant_id: variantId,
+        entry_date: formatDateInUserTimezone(parseDateInUserTimezone(selectedDate), 'yyyy-MM-dd'),
+      });
+      info(loggingLevel, "Food entry added successfully.");
+      toast({
+        title: "Success",
+        description: "Food entry added successfully",
+      });
+      handleDataChange();
+    } catch (err) {
+      error(loggingLevel, "Error adding food entry:", err);
+    }
+  }, [debug, loggingLevel, addFoodEntry, currentUserId, selectedMealType, formatDateInUserTimezone, parseDateInUserTimezone, selectedDate, info, toast, handleDataChange, error]);
+
+  const handleRemoveEntry = useCallback(async (entryId: string) => {
+    debug(loggingLevel, "Handling remove entry:", entryId);
+    try {
+      await removeFoodEntry(entryId);
+      info(loggingLevel, "Food entry removed successfully.");
+      toast({
+        title: "Success",
+        description: "Food entry removed successfully",
+      });
+      handleDataChange();
+    } catch (err) {
+      error(loggingLevel, "Error removing food entry:", err);
+    }
+  }, [debug, loggingLevel, removeFoodEntry, info, toast, handleDataChange, error]);
+
+  const handleEditEntry = useCallback((entry: FoodEntry) => {
+    debug(loggingLevel, "Handling edit food entry:", entry);
+    setEditingEntry(entry);
+  }, [debug, loggingLevel, setEditingEntry]);
+
+  const handleEditFood = useCallback(() => {
+    debug(loggingLevel, "Handling edit food, triggering data change.");
+    handleDataChange();
+  }, [debug, loggingLevel, handleDataChange]);
+
 
   // Listen for global food diary refresh events
   useEffect(() => {
@@ -408,7 +335,7 @@ const FoodDiary = ({ selectedDate, onDateChange }: FoodDiaryProps) => {
           meal={getMealData("breakfast")}
           totals={getMealTotals("breakfast")}
           onFoodSelect={handleFoodSelect}
-          onEditEntry={setEditingEntry}
+          onEditEntry={handleEditEntry}
           onEditFood={handleEditFood}
           onRemoveEntry={handleRemoveEntry}
           getEntryNutrition={getEntryNutrition}
@@ -418,7 +345,7 @@ const FoodDiary = ({ selectedDate, onDateChange }: FoodDiaryProps) => {
           meal={getMealData("lunch")}
           totals={getMealTotals("lunch")}
           onFoodSelect={handleFoodSelect}
-          onEditEntry={setEditingEntry}
+          onEditEntry={handleEditEntry}
           onEditFood={handleEditFood}
           onRemoveEntry={handleRemoveEntry}
           getEntryNutrition={getEntryNutrition}
@@ -428,7 +355,7 @@ const FoodDiary = ({ selectedDate, onDateChange }: FoodDiaryProps) => {
           meal={getMealData("dinner")}
           totals={getMealTotals("dinner")}
           onFoodSelect={handleFoodSelect}
-          onEditEntry={setEditingEntry}
+          onEditEntry={handleEditEntry}
           onEditFood={handleEditFood}
           onRemoveEntry={handleRemoveEntry}
           getEntryNutrition={getEntryNutrition}
@@ -438,7 +365,7 @@ const FoodDiary = ({ selectedDate, onDateChange }: FoodDiaryProps) => {
           meal={getMealData("snacks")}
           totals={getMealTotals("snacks")}
           onFoodSelect={handleFoodSelect}
-          onEditEntry={setEditingEntry}
+          onEditEntry={handleEditEntry}
           onEditFood={handleEditFood}
           onRemoveEntry={handleRemoveEntry}
           getEntryNutrition={getEntryNutrition}

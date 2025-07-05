@@ -3,9 +3,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { BarChart3, TrendingUp, Activity } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/useAuth";
-import { useActiveUser } from "@/contexts/ActiveUserContext";
 import { usePreferences } from "@/contexts/PreferencesContext";
 import { toast } from "@/hooks/use-toast";
 import ZoomableChart from "./ZoomableChart";
@@ -17,101 +14,14 @@ import { log, debug, info, warn, error, UserLoggingLevel } from "@/utils/logging
 import { format, parseISO, addDays } from 'date-fns'; // Import format, parseISO, addDays from date-fns
 import { calculateFoodEntryNutrition } from '@/utils/nutritionCalculations'; // Import the new utility function
 
-interface NutritionData {
-  date: string;
-  calories: number;
-  protein: number;
-  carbs: number;
-  fat: number;
-  saturated_fat: number;
-  polyunsaturated_fat: number;
-  monounsaturated_fat: number;
-  trans_fat: number;
-  cholesterol: number;
-  sodium: number;
-  potassium: number;
-  dietary_fiber: number;
-  sugars: number;
-  vitamin_a: number;
-  vitamin_c: number;
-  calcium: number;
-  iron: number;
-}
-
-interface MeasurementData {
-  date: string;
-  weight?: number;
-  neck?: number;
-  waist?: number;
-  hips?: number;
-  steps?: number;
-}
-
-interface DailyFoodEntry {
-  entry_date: string;
-  meal_type: string;
-  quantity: number;
-  unit: string;
-  foods: {
-    name: string;
-    brand?: string;
-    calories: number;
-    protein: number;
-    carbs: number;
-    fat: number;
-    saturated_fat?: number;
-    polyunsaturated_fat?: number;
-    monounsaturated_fat?: number;
-    trans_fat?: number;
-    cholesterol?: number;
-    sodium?: number;
-    potassium?: number;
-    dietary_fiber?: number;
-    sugars?: number;
-    vitamin_a?: number;
-    vitamin_c?: number;
-    calcium?: number;
-    iron?: number;
-    serving_size: number;
-  };
-  food_variants?: { // Add food_variants to DailyFoodEntry
-    id: string;
-    serving_size: number;
-    serving_unit: string;
-    calories?: number;
-    protein?: number;
-    carbs?: number;
-    fat?: number;
-    saturated_fat?: number;
-    polyunsaturated_fat?: number;
-    monounsaturated_fat?: number;
-    trans_fat?: number;
-    cholesterol?: number;
-    sodium?: number;
-    potassium?: number;
-    dietary_fiber?: number;
-    sugars?: number;
-    vitamin_a?: number;
-    vitamin_c?: number;
-    calcium?: number;
-    iron?: number;
-  };
-}
-
-interface CustomCategory {
-  id: string;
-  name: string;
-  measurement_type: string;
-  frequency: string;
-}
-
-interface CustomMeasurementData {
-  category_id: string;
-  date: string;
-  hour?: number;
-  value: number;
-  timestamp: string;
-}
+import {
+  loadReportsData,
+  NutritionData,
+  MeasurementData,
+  DailyFoodEntry,
+  CustomCategory,
+  CustomMeasurementData,
+} from '@/services/reportsService';
 
 // At the very top of Reports.tsx, before the functional component definition
 const Reports = () => {
@@ -185,199 +95,30 @@ const Reports = () => {
     try {
       setLoading(true);
       
-      // Load nutrition data with all nutrients - use activeUserId
-      debug(loggingLevel, 'Reports: Fetching food entries...');
-      const { data: entries, error: entriesError } = await supabase
-        .from('food_entries')
-        .select(`
-          *,
-          foods (*),
-          food_variants (*)
-        `)
-        .eq('user_id', activeUserId)
-        .gte('entry_date', startDate) // Use startDate directly
-        .lte('entry_date', endDate) // Use endDate directly
-        .order('entry_date');
+      const {
+        nutritionData: fetchedNutritionData,
+        tabularData: fetchedTabularData,
+        measurementData: fetchedMeasurementData,
+        customCategories: fetchedCustomCategories,
+        customMeasurementsData: fetchedCustomMeasurementsData,
+      } = await loadReportsData(activeUserId, startDate, endDate);
 
-      if (entriesError) {
-        error(loggingLevel, 'Reports: Error fetching food entries:', entriesError);
-        throw entriesError;
-      }
+      setNutritionData(fetchedNutritionData);
+      setTabularData(fetchedTabularData);
+      
+      // Apply unit conversions to fetchedMeasurementData
+      const measurementDataFormatted = fetchedMeasurementData.map(m => ({
+        date: m.date,
+        weight: m.weight ? convertWeight(m.weight, 'kg', showWeightInKg ? 'kg' : 'lbs') : undefined,
+        neck: m.neck ? convertMeasurement(m.neck, 'cm', showMeasurementsInCm ? 'cm' : 'inches') : undefined,
+        waist: m.waist ? convertMeasurement(m.waist, 'cm', showMeasurementsInCm ? 'cm' : 'inches') : undefined,
+        hips: m.hips ? convertMeasurement(m.hips, 'cm', showMeasurementsInCm ? 'cm' : 'inches') : undefined,
+        steps: m.steps || undefined,
+      }));
+      setMeasurementData(measurementDataFormatted);
 
-      if (entries) {
-        info(loggingLevel, `Reports: Fetched ${entries.length} food entries.`);
-        const nutritionByDate = entries.reduce((acc, entry) => {
-          const date = entry.entry_date;
-          
-          if (!acc[date]) {
-            acc[date] = {
-              date,
-              calories: 0,
-              protein: 0,
-              carbs: 0,
-              fat: 0,
-              saturated_fat: 0,
-              polyunsaturated_fat: 0,
-              monounsaturated_fat: 0,
-              trans_fat: 0,
-              cholesterol: 0,
-              sodium: 0,
-              potassium: 0,
-              dietary_fiber: 0,
-              sugars: 0,
-              vitamin_a: 0,
-              vitamin_c: 0,
-              calcium: 0,
-              iron: 0
-            };
-          }
-
-          const calculatedNutrition = calculateFoodEntryNutrition(entry as any); // Cast to any for now, will fix interface later if needed
-
-          acc[date].calories += calculatedNutrition.calories;
-          acc[date].protein += calculatedNutrition.protein;
-          acc[date].carbs += calculatedNutrition.carbs;
-          acc[date].fat += calculatedNutrition.fat;
-          // Add other nutrients if they are part of calculateFoodEntryNutrition's return
-          // For now, assuming calculateFoodEntryNutrition only returns the main 4.
-          // If it returns all, then we need to map them.
-          // Let's assume it returns all for now and adjust calculateFoodEntryNutrition if needed.
-          acc[date].saturated_fat += calculatedNutrition.saturated_fat || 0;
-          acc[date].polyunsaturated_fat += calculatedNutrition.polyunsaturated_fat || 0;
-          acc[date].monounsaturated_fat += calculatedNutrition.monounsaturated_fat || 0;
-          acc[date].trans_fat += calculatedNutrition.trans_fat || 0;
-          acc[date].cholesterol += calculatedNutrition.cholesterol || 0;
-          acc[date].sodium += calculatedNutrition.sodium || 0;
-          acc[date].potassium += calculatedNutrition.potassium || 0;
-          acc[date].dietary_fiber += calculatedNutrition.dietary_fiber || 0;
-          acc[date].sugars += calculatedNutrition.sugars || 0;
-          acc[date].vitamin_a += calculatedNutrition.vitamin_a || 0;
-          acc[date].vitamin_c += calculatedNutrition.vitamin_c || 0;
-          acc[date].calcium += calculatedNutrition.calcium || 0;
-          acc[date].iron += calculatedNutrition.iron || 0;
-
-          return acc;
-        }, {} as Record<string, NutritionData>);
-
-        setNutritionData(Object.values(nutritionByDate));
-        debug(loggingLevel, 'Reports: Processed nutrition data.');
-      }
-
-      // Load tabular data for the table view with all nutrients - use activeUserId
-      debug(loggingLevel, 'Reports: Fetching tabular food entries...');
-      const { data: tabularEntries, error: tabularEntriesError } = await supabase
-        .from('food_entries')
-        .select(`
-          *,
-          foods (*),
-          food_variants (*)
-        `)
-        .eq('user_id', activeUserId)
-        .gte('entry_date', startDate) // Use startDate directly
-        .lte('entry_date', endDate) // Use endDate directly
-        .order('entry_date', { ascending: false })
-        .order('meal_type');
-
-      if (tabularEntriesError) {
-        error(loggingLevel, 'Reports: Error fetching tabular food entries:', tabularEntriesError);
-        throw tabularEntriesError;
-      }
-
-      if (tabularEntries) {
-        info(loggingLevel, `Reports: Fetched ${tabularEntries.length} tabular food entries.`);
-        setTabularData(tabularEntries);
-      }
-
-      // Load measurement data - use activeUserId
-      debug(loggingLevel, 'Reports: Fetching measurement data...');
-      const { data: measurements, error: measurementsError } = await supabase
-        .from('check_in_measurements')
-        .select('*')
-        .eq('user_id', activeUserId)
-        .gte('entry_date', startDate) // Use startDate directly
-        .lte('entry_date', endDate) // Use endDate directly
-        .order('entry_date');
-
-      if (measurementsError) {
-        error(loggingLevel, 'Reports: Error fetching measurement data:', measurementsError);
-        throw measurementsError;
-      }
-
-      if (measurements) {
-        info(loggingLevel, `Reports: Fetched ${measurements.length} measurement entries.`);
-        debug(loggingLevel, 'Reports: Converting measurement data with units:', {
-          showWeightInKg,
-          showMeasurementsInCm,
-          weightUnit,
-          measurementUnit
-        });
-
-        const measurementDataFormatted = measurements.map(m => ({
-          date: m.entry_date,
-          weight: m.weight ? convertWeight(m.weight, 'kg', showWeightInKg ? 'kg' : 'lbs') : undefined,
-          neck: m.neck ? convertMeasurement(m.neck, 'cm', showMeasurementsInCm ? 'cm' : 'inches') : undefined,
-          waist: m.waist ? convertMeasurement(m.waist, 'cm', showMeasurementsInCm ? 'cm' : 'inches') : undefined,
-          hips: m.hips ? convertMeasurement(m.hips, 'cm', showMeasurementsInCm ? 'cm' : 'inches') : undefined,
-          steps: m.steps || undefined,
-        }));
-
-        setMeasurementData(measurementDataFormatted);
-        debug(loggingLevel, 'Reports: Processed measurement data.');
-      }
-
-      // Load custom categories - use activeUserId
-      debug(loggingLevel, 'Reports: Fetching custom categories...');
-      const { data: categories, error: categoriesError } = await supabase
-        .from('custom_categories')
-        .select('*')
-        .eq('user_id', activeUserId)
-        .order('created_at');
-
-      if (categoriesError) {
-        error(loggingLevel, 'Reports: Error fetching custom categories:', categoriesError);
-        throw categoriesError;
-      }
-
-      if (categories) {
-        info(loggingLevel, `Reports: Fetched ${categories.length} custom categories.`);
-        setCustomCategories(categories);
-        
-        // Load custom measurements for each category - use activeUserId
-        const customMeasurements: Record<string, CustomMeasurementData[]> = {};
-        
-        debug(loggingLevel, 'Reports: Fetching custom measurements for each category...');
-        for (const category of categories) {
-          debug(loggingLevel, `Reports: Fetching measurements for category: ${category.name} (${category.id})`);
-          const { data: measurements, error: customMeasurementsError } = await supabase
-            .from('custom_measurements')
-            .select('*')
-            .eq('user_id', activeUserId)
-            .eq('category_id', category.id)
-            .gte('entry_date', startDate) // Use startDate directly
-            .lte('entry_date', endDate) // Use endDate directly
-            .order('entry_date')
-            .order('entry_timestamp');
-
-          if (customMeasurementsError) {
-            error(loggingLevel, `Reports: Error fetching custom measurements for category ${category.name}:`, customMeasurementsError);
-            throw customMeasurementsError;
-          }
-
-          if (measurements) {
-            debug(loggingLevel, `Reports: Fetched ${measurements.length} custom measurement entries for category ${category.name}.`);
-            customMeasurements[category.id] = measurements.map(m => ({
-              category_id: m.category_id,
-              date: m.entry_date,
-              hour: m.entry_hour,
-              value: m.value,
-              timestamp: m.entry_timestamp
-            }));
-          }
-        }
-        
-        setCustomMeasurementsData(customMeasurements);
-        debug(loggingLevel, 'Reports: Processed custom measurements data.');
-      }
+      setCustomCategories(fetchedCustomCategories);
+      setCustomMeasurementsData(fetchedCustomMeasurementsData);
       info(loggingLevel, 'Reports: Reports loaded successfully.');
     } catch (error) {
       error(loggingLevel, 'Reports: Error loading reports:', error);
@@ -555,18 +296,8 @@ const Reports = () => {
     info(loggingLevel, 'Reports: Attempting to export body measurements.');
     try {
       debug(loggingLevel, 'Reports: Fetching body measurements for export...');
-      const { data: measurements, error: measurementsError } = await supabase
-        .from('check_in_measurements')
-        .select('*')
-        .eq('user_id', activeUserId)
-        .gte('entry_date', startDate)
-        .lte('entry_date', endDate)
-        .order('entry_date');
-
-      if (measurementsError) {
-        error(loggingLevel, 'Reports: Error fetching body measurements for export:', measurementsError);
-        throw measurementsError;
-      }
+      // Data is already loaded by loadReportsData, so we just use the state
+      const measurements = measurementData;
 
       if (!measurements || measurements.length === 0) {
         warn(loggingLevel, 'Reports: No body measurements to export.');

@@ -5,33 +5,21 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Save, Trash2 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useActiveUser } from "@/contexts/ActiveUserContext";
 import { toast } from "sonner";
 import { usePreferences } from "@/contexts/PreferencesContext"; // Import usePreferences
 import { debug, info, warn, error } from '@/utils/logging'; // Import logging utility
+import {
+  getCustomCategories,
+  getCustomMeasurements,
+  getCustomMeasurementsForDate,
+  saveCustomMeasurement,
+  deleteCustomMeasurement,
+  CustomCategory,
+  CustomMeasurement,
+} from "@/services/customMeasurementService";
 
-interface CustomCategory {
-  id: string;
-  name: string;
-  measurement_type: string;
-  frequency: string;
-}
-
-interface CustomMeasurement {
-  id: string;
-  category_id: string;
-  value: number;
-  entry_date: string;
-  entry_hour: number | null;
-  entry_timestamp: string;
-  custom_categories: {
-    name: string;
-    measurement_type: string;
-    frequency: string;
-  };
-}
 
 interface MeasurementValues {
   [categoryId: string]: string;
@@ -65,17 +53,12 @@ const CustomMeasurements = () => {
     if (!activeUserId) return;
 
 
-    const { data, error } = await supabase
-      .from('custom_categories')
-      .select('*')
-      .eq('user_id', activeUserId)
-      .order('name');
-
-    if (error) {
-      console.error('Error fetching categories:', error);
-      toast.error('Failed to load categories');
-    } else {
+    try {
+      const data = await getCustomCategories(activeUserId);
       setCategories(data || []);
+    } catch (err: any) {
+      console.error('Error fetching categories:', err);
+      toast.error(err.message || 'Failed to load categories');
     }
   };
 
@@ -83,31 +66,12 @@ const CustomMeasurements = () => {
     if (!activeUserId) return;
 
 
-    const { data, error } = await supabase
-      .from('custom_measurements')
-      .select(`
-        id,
-        category_id,
-        value,
-        entry_date,
-        entry_hour,
-        entry_timestamp,
-        custom_categories (
-          name,
-          measurement_type,
-          frequency
-        )
-      `)
-      .eq('user_id', activeUserId)
-      .gt('value', 0)  // Only get non-zero values
-      .order('entry_timestamp', { ascending: false })
-      .limit(20);  // Limit to 20 recent measurements
-
-    if (error) {
-      console.error('Error fetching measurements:', error);
-      toast.error('Failed to load measurements');
-    } else {
+    try {
+      const data = await getCustomMeasurements(activeUserId);
       setMeasurements(data || []);
+    } catch (err: any) {
+      console.error('Error fetching measurements:', err);
+      toast.error(err.message || 'Failed to load measurements');
     }
   };
 
@@ -115,26 +79,19 @@ const CustomMeasurements = () => {
     if (!activeUserId) return;
 
     // Load existing values for today
-    const { data, error } = await supabase
-      .from('custom_measurements')
-      .select('*')
-      .eq('user_id', activeUserId)
-      .eq('entry_date', currentDate);
-
-    if (error) {
-      console.error('Error loading today values:', error);
-      return;
+    try {
+      const data = await getCustomMeasurementsForDate(activeUserId, currentDate);
+      const newValues: MeasurementValues = {};
+      if (data) {
+        data.forEach((measurement) => {
+          newValues[measurement.category_id] = measurement.value.toString();
+        });
+      }
+      setValues(newValues);
+    } catch (err: any) {
+      console.error('Error loading today values:', err);
+      toast.error(err.message || 'Failed to load today\'s measurements');
     }
-
-    const newValues: MeasurementValues = {};
-
-    if (data) {
-      data.forEach((measurement) => {
-        newValues[measurement.category_id] = measurement.value.toString();
-      });
-    }
-
-    setValues(newValues);
   };
 
   const handleSave = async (categoryId: string) => {
@@ -180,30 +137,12 @@ const CustomMeasurements = () => {
         entry_timestamp: entryTimestamp,
       };
 
-      let result;
-
+      await saveCustomMeasurement(measurementData, category.frequency);
+      toast.success('Measurement saved successfully');
+      fetchMeasurements();
+      // Clear the input after successful save for 'All' frequency
       if (category.frequency === 'All') {
-        result = await supabase
-          .from('custom_measurements')
-          .insert(measurementData);
-      } else {
-        result = await supabase
-          .from('custom_measurements')
-          .upsert(measurementData, {
-            onConflict: 'user_id,category_id,entry_date,entry_hour'
-          });
-      }
-
-      if (result.error) {
-        console.error('Error saving measurement:', result.error);
-        toast.error('Failed to save measurement');
-      } else {
-        toast.success('Measurement saved successfully');
-        fetchMeasurements();
-        // Clear the input after successful save for 'All' frequency
-        if (category.frequency === 'All') {
-          setValues(prev => ({ ...prev, [categoryId]: '' }));
-        }
+        setValues(prev => ({ ...prev, [categoryId]: '' }));
       }
     } catch (error) {
       console.error('Error saving measurement:', error);
@@ -216,19 +155,14 @@ const CustomMeasurements = () => {
   const handleDelete = async (measurementId: string) => {
     if (!activeUserId) return;
 
-    const { error } = await supabase
-      .from('custom_measurements')
-      .delete()
-      .eq('id', measurementId)
-      .eq('user_id', activeUserId);
-
-    if (error) {
-      console.error('Error deleting measurement:', error);
-      toast.error('Failed to delete measurement');
-    } else {
+    try {
+      await deleteCustomMeasurement(measurementId);
       toast.success('Measurement deleted successfully');
       fetchMeasurements();
       loadTodayValues();
+    } catch (err: any) {
+      console.error('Error deleting measurement:', err);
+      toast.error(err.message || 'Failed to delete measurement');
     }
   };
 

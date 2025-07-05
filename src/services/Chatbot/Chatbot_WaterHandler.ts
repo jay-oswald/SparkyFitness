@@ -1,7 +1,45 @@
-import { supabase } from '@/integrations/supabase/client';
 import { parseISO } from 'date-fns'; // Import parseISO
 import { CoachResponse } from './Chatbot_types'; // Import types
 import { debug, info, warn, error, UserLoggingLevel } from '@/utils/logging'; // Import logging utility
+
+// Define the base URL for your backend API
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3010";
+
+// Function to fetch water intake from the backend
+const fetchWaterIntake = async (userId: string, date: string) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/water-intake/${userId}/${date}`);
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || "Failed to fetch water intake.");
+    }
+    return await response.json();
+  } catch (err) {
+    console.error("Error fetching water intake:", err);
+    throw err;
+  }
+};
+
+// Function to upsert water intake to the backend
+const upsertWaterIntake = async (payload: { user_id: string; entry_date: string; glasses_consumed: number }) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/water-intake`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || "Failed to upsert water intake.");
+    }
+    return await response.json();
+  } catch (err) {
+    console.error("Error upserting water intake:", err);
+    throw err;
+  }
+};
 
 // Function to process water intake input
 export const processWaterInput = async (userId: string, data: { glasses_consumed: number | null }, entryDate: string | undefined, formatDateInUserTimezone: (date: string | Date, formatStr?: string) => string, userLoggingLevel: UserLoggingLevel): Promise<CoachResponse> => {
@@ -16,14 +54,10 @@ export const processWaterInput = async (userId: string, data: { glasses_consumed
     const dateToUse = formatDateInUserTimezone(entryDate ? parseISO(entryDate) : new Date(), 'yyyy-MM-dd');
 
     // Get current water intake
-    const { data: currentWater, error: fetchError } = await supabase
-      .from('water_intake')
-      .select('glasses_consumed')
-      .eq('user_id', userId)
-      .eq('entry_date', dateToUse) // Use the determined date
-      .single();
-
-    if (fetchError) {
+    let currentWater = null;
+    try {
+      currentWater = await fetchWaterIntake(userId, dateToUse);
+    } catch (fetchError: any) {
       error(userLoggingLevel, '❌ [Nutrition Coach] Error fetching current water intake:', fetchError.message);
       return {
         action: 'none',
@@ -46,15 +80,16 @@ export const processWaterInput = async (userId: string, data: { glasses_consumed
       glasses_consumed: newTotal
     });
 
-    const { error: upsertError } = await supabase
-      .from('water_intake')
-      .upsert({
+    let upsertError = null;
+    try {
+      await upsertWaterIntake({
         user_id: userId,
-        entry_date: dateToUse, // Use the determined date
-        glasses_consumed: newTotal as number // Explicitly cast to number
-      }, {
-        onConflict: 'user_id,entry_date'
+        entry_date: dateToUse,
+        glasses_consumed: newTotal as number
       });
+    } catch (err: any) {
+      upsertError = err;
+    }
 
     debug(userLoggingLevel, 'Upserting water intake for date:', dateToUse);
 

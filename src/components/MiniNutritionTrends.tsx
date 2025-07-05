@@ -1,59 +1,19 @@
 
 import { useState, useEffect } from "react";
 import { LineChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useActiveUser } from "@/contexts/ActiveUserContext";
 import { parseISO, subDays, addDays, format } from "date-fns"; // Import date-fns functions
 import { usePreferences } from "@/contexts/PreferencesContext"; // Import usePreferences
 import { calculateFoodEntryNutrition } from '@/utils/nutritionCalculations'; // Import the new utility function
+import { loadMiniNutritionTrendData, DayData } from '@/services/miniNutritionTrendsService';
 
-interface Food {
-  id: string;
-  name: string;
-  brand?: string;
-  calories: number;
-  protein: number;
-  carbs: number;
-  fat: number;
-  serving_size: number;
-  serving_unit: string;
-  user_id?: string;
-}
-
-interface FoodVariant {
-  id: string;
-  serving_size: number;
-  serving_unit: string;
-  calories?: number;
-  protein?: number;
-  carbs?: number;
-  fat?: number;
-}
-
-interface FoodEntry {
-  id: string;
-  food_id: string;
-  meal_type: string;
-  quantity: number;
-  unit: string;
-  variant_id?: string;
-  foods: Food;
-  food_variants?: FoodVariant;
-}
 
 interface MiniNutritionTrendsProps {
   selectedDate: string;
   refreshTrigger?: number; // Add refreshTrigger to props
 }
 
-interface DayData {
-  date: string;
-  calories: number;
-  protein: number;
-  carbs: number;
-  fat: number;
-}
 
 const MiniNutritionTrends = ({ selectedDate, refreshTrigger }: MiniNutritionTrendsProps) => {
   const { user } = useAuth();
@@ -77,58 +37,13 @@ const MiniNutritionTrends = ({ selectedDate, refreshTrigger }: MiniNutritionTren
       const endDateStr = formatDateInUserTimezone(endDate, 'yyyy-MM-dd');
 
       // Get food entries for the past 14 days - use activeUserId
-      const { data: entriesData, error: entriesError } = await supabase
-        .from('food_entries')
-        .select(`
-          *,
-          foods (*),
-          food_variants (*)
-        `)
-        .eq('user_id', activeUserId)
-        .gte('entry_date', startDateStr)
-        .lte('entry_date', endDateStr)
-        .order('entry_date', { ascending: true });
+      const fetchedChartData = await loadMiniNutritionTrendData(
+        activeUserId,
+        startDateStr,
+        endDateStr
+      );
+      setChartData(fetchedChartData);
 
-      if (entriesError) {
-        console.error('Error loading mini trend data:', entriesError);
-        return;
-      }
-
-      // Group entries by date and calculate totals
-      const dailyTotals: Record<string, { calories: number; protein: number; carbs: number; fat: number }> = {};
-      
-      entriesData?.forEach(entry => {
-        const date = entry.entry_date;
-        if (!dailyTotals[date]) {
-          dailyTotals[date] = { calories: 0, protein: 0, carbs: 0, fat: 0 };
-        }
-
-        const nutrition = calculateFoodEntryNutrition(entry as FoodEntry); // Cast to FoodEntry
-        
-        dailyTotals[date].calories += nutrition.calories;
-        dailyTotals[date].protein += nutrition.protein;
-        dailyTotals[date].carbs += nutrition.carbs;
-        dailyTotals[date].fat += nutrition.fat;
-      });
-
-      // Create chart data for all dates in range
-      const chartDataArray: DayData[] = [];
-      for (let i = 0; i < 14; i++) { // Iterate 14 times for 14 days
-        const currentDateForLoop = addDays(startDate, i); // Get the current date in the loop
-        const dateStr = formatDateInUserTimezone(currentDateForLoop, 'yyyy-MM-dd'); // Format date in user's timezone
-        const totals = dailyTotals[dateStr] || { calories: 0, protein: 0, carbs: 0, fat: 0 };
-        
-        // Always include all 14 days, even if no data, to ensure consistent chart axis
-        chartDataArray.push({
-          date: dateStr,
-          calories: Math.round(totals.calories),
-          protein: Math.round(totals.protein * 10) / 10,
-          carbs: Math.round(totals.carbs * 10) / 10,
-          fat: Math.round(totals.fat * 10) / 10,
-        });
-      }
-
-      setChartData(chartDataArray);
     } catch (error) {
       console.error('Error loading mini trend data:', error);
     }

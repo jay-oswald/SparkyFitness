@@ -3,20 +3,25 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Target, Zap } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useActiveUser } from "@/contexts/ActiveUserContext";
 import { usePreferences } from "@/contexts/PreferencesContext";
 import { debug, info, warn, error } from '@/utils/logging';
 import { format, parseISO, addDays } from 'date-fns'; // Import format, parseISO, and addDays from date-fns
 import { calculateFoodEntryNutrition } from '@/utils/nutritionCalculations'; // Import the new utility function
+import {
+  getGoalsForDate,
+  getFoodEntriesForDate,
+  getExerciseEntriesForDate,
+  getCheckInMeasurementsForDate,
+  Goals,
+  FoodEntry,
+  ExerciseEntry,
+  CheckInMeasurement,
+} from "@/services/dailyProgressService";
 
-interface DailyProgressProps {
-  selectedDate: string;
-  refreshTrigger?: number;
-}
 
-const DailyProgress = ({ selectedDate, refreshTrigger }: DailyProgressProps) => {
+const DailyProgress = ({ selectedDate, refreshTrigger }: { selectedDate: string; refreshTrigger?: number }) => {
  const { user } = useAuth();
  const { activeUserId } = useActiveUser();
  const { loggingLevel } = usePreferences();
@@ -75,42 +80,19 @@ const DailyProgress = ({ selectedDate, refreshTrigger }: DailyProgressProps) => 
      
      // Use the database function to get goals for the selected date
      debug(loggingLevel, "DailyProgress: Fetching goals...");
-     const { data: goalsData, error: goalsError } = await supabase.rpc('get_goals_for_date', {
-       p_user_id: currentUserId,
-       p_date: selectedDate // p_date is a DATE type, so pass the YYYY-MM-DD string directly
+     const goalsData = await getGoalsForDate(currentUserId, selectedDate);
+     info(loggingLevel, 'DailyProgress: Goals loaded successfully:', goalsData);
+     setDailyGoals({
+       calories: goalsData.calories || 2000,
+       protein: goalsData.protein || 150,
+       carbs: goalsData.carbs || 250,
+       fat: goalsData.fat || 67,
      });
-
-     if (goalsError) {
-       error(loggingLevel, 'DailyProgress: Error loading goals:', goalsError);
-     } else if (goalsData && goalsData.length > 0) {
-       info(loggingLevel, 'DailyProgress: Goals loaded successfully:', goalsData[0]);
-       const goalData = goalsData[0];
-       setDailyGoals({
-         calories: goalData.calories || 2000,
-         protein: goalData.protein || 150,
-         carbs: goalData.carbs || 250,
-         fat: goalData.fat || 67,
-       });
-     } else {
-       info(loggingLevel, 'DailyProgress: No goals found for the selected date, using defaults.');
-     }
 
      // Load daily intake from food entries
      debug(loggingLevel, "DailyProgress: Fetching food entries for intake calculation...");
-     const { data: entriesData, error: entriesError } = await supabase
-       .from('food_entries')
-       .select(`
-         *,
-         foods (*),
-         food_variants (*)
-       `)
-       .eq('user_id', currentUserId)
-       .gte('entry_date', selectedDate) // Start of the selected day
-       .lt('entry_date', addDays(parseISO(selectedDate), 1).toISOString().split('T')[0]); // Start of the next day
-
-     if (entriesError) {
-       error(loggingLevel, 'DailyProgress: Error loading food entries for intake:', entriesError);
-     } else if (entriesData) {
+     try {
+       const entriesData = await getFoodEntriesForDate(currentUserId, selectedDate);
        info(loggingLevel, `DailyProgress: Fetched ${entriesData.length} food entries for intake.`);
        const totals = entriesData.reduce((acc, entry) => {
          const nutrition = calculateFoodEntryNutrition(entry);
@@ -128,56 +110,46 @@ const DailyProgress = ({ selectedDate, refreshTrigger }: DailyProgressProps) => 
          carbs: Math.round(totals.carbs),
          fat: Math.round(totals.fat),
        });
+     } catch (err: any) {
+       error(loggingLevel, 'DailyProgress: Error loading food entries for intake:', err);
      }
 
      // Load exercise calories burned
      debug(loggingLevel, "DailyProgress: Fetching exercise entries...");
-     const { data: exerciseData, error: exerciseError } = await supabase
-       .from('exercise_entries')
-       .select('calories_burned')
-       .eq('user_id', currentUserId)
-       .gte('entry_date', selectedDate) // Start of the selected day
-       .lt('entry_date', addDays(parseISO(selectedDate), 1).toISOString().split('T')[0]); // Start of the next day
-
-     if (exerciseError) {
-       error(loggingLevel, 'DailyProgress: Error loading exercise entries:', exerciseError);
-     } else if (exerciseData) {
+     try {
+       const exerciseData = await getExerciseEntriesForDate(currentUserId, selectedDate);
        info(loggingLevel, `DailyProgress: Fetched ${exerciseData.length} exercise entries.`);
        const totalExerciseCalories = exerciseData.reduce((sum, entry) => sum + entry.calories_burned, 0);
        info(loggingLevel, "DailyProgress: Total exercise calories burned:", totalExerciseCalories);
        setExerciseCalories(totalExerciseCalories);
-     } else {
-       info(loggingLevel, "DailyProgress: No exercise entries found.");
+     } catch (err: any) {
+       error(loggingLevel, 'DailyProgress: Error loading exercise entries:', err);
        setExerciseCalories(0);
      }
 
      // Load daily steps from body measurements
      debug(loggingLevel, "DailyProgress: Fetching daily steps...");
-     const { data: stepsData, error: stepsError } = await supabase
-       .from('check_in_measurements')
-       .select('steps')
-       .eq('user_id', currentUserId)
-       .gte('entry_date', selectedDate) // Start of the selected day
-       .lt('entry_date', addDays(parseISO(selectedDate), 1).toISOString().split('T')[0]); // Start of the next day
-
-     if (stepsError) {
-       error(loggingLevel, 'DailyProgress: Error loading daily steps:', stepsError);
-     } else if (stepsData && stepsData.length > 0 && stepsData[0].steps) {
-       error(loggingLevel, 'DailyProgress: Error loading daily steps:', stepsError);
-     } else if (stepsData && stepsData.length > 0 && stepsData[0].steps) {
-       info(loggingLevel, "DailyProgress: Daily steps loaded:", stepsData[0].steps);
-       setDailySteps(stepsData[0].steps);
-       const stepsCaloriesBurned = convertStepsToCalories(stepsData[0].steps);
-       info(loggingLevel, "DailyProgress: Calories burned from steps:", stepsCaloriesBurned);
-       setStepsCalories(stepsCaloriesBurned);
-     } else {
-       info(loggingLevel, "DailyProgress: No daily steps found.");
+     try {
+       const stepsData = await getCheckInMeasurementsForDate(currentUserId, selectedDate);
+       if (stepsData && stepsData.steps) {
+         info(loggingLevel, "DailyProgress: Daily steps loaded:", stepsData.steps);
+         setDailySteps(stepsData.steps);
+         const stepsCaloriesBurned = convertStepsToCalories(stepsData.steps);
+         info(loggingLevel, "DailyProgress: Calories burned from steps:", stepsCaloriesBurned);
+         setStepsCalories(stepsCaloriesBurned);
+       } else {
+         info(loggingLevel, "DailyProgress: No daily steps found.");
+         setDailySteps(0);
+         setStepsCalories(0);
+       }
+     } catch (err: any) {
+       error(loggingLevel, 'DailyProgress: Error loading daily steps:', err);
        setDailySteps(0);
        setStepsCalories(0);
      }
      info(loggingLevel, "DailyProgress: Goals and intake loaded successfully.");
-   } catch (error) {
-     error(loggingLevel, 'DailyProgress: Error in loadGoalsAndIntake:', error);
+   } catch (err: any) {
+     error(loggingLevel, 'DailyProgress: Error in loadGoalsAndIntake:', err);
    } finally {
      setLoading(false);
      debug(loggingLevel, "DailyProgress: Loading state set to false.");

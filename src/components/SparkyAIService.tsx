@@ -1,4 +1,4 @@
-import { supabase } from "@/integrations/supabase/client";
+import { apiCall } from '@/services/api';
 import { FoodOption } from "@/services/Chatbot/Chatbot_types";
 
 interface AIServiceConfig {
@@ -100,42 +100,33 @@ interface NutritionData {
 class SparkyAIService {
   private async getActiveService(): Promise<AIServiceConfig | null> {
     try {
-      const { data, error } = await supabase
-        .from('ai_service_settings')
-        .select('*')
-        .eq('is_active', true)
-        .single();
+      // Assuming user ID is available globally or passed in
+      // For now, we'll use a placeholder or assume it's handled by a higher-level component
+      // that calls this service.
+      // In a real app, you'd likely pass the user ID or get it from a global state/context.
+      const userId = localStorage.getItem('userId'); // Temporary: get from localStorage
 
-      if (error || !data) {
-        console.error('No active AI service found:', error);
+      if (!userId) {
+        console.error('No user ID available to fetch AI service config.');
         return null;
       }
 
+      const data = await apiCall(`/api/ai-service-settings/${userId}`, {
+        method: 'GET',
+      });
 
-      // Parse the configuration from the stored data
-      let apiKey = data.api_key;
-      let modelName = this.getDefaultModel(data.service_type);
-      
-      // Try to parse JSON configuration if it exists
-      try {
-        const parsed = JSON.parse(data.api_key);
-        if (parsed.api_key && parsed.config) {
-          apiKey = parsed.api_key;
-          modelName = parsed.config.model_name || modelName;
-        }
-      } catch {
-        // If parsing fails, treat as simple API key
-        // Keep the original values
+      if (!data) {
+        console.error('No active AI service found for user:', userId);
+        return null;
       }
 
-
       return {
-        service_name: data.service_type, // Use service_type instead of service_name
-        api_key: apiKey,
+        service_name: data.service_type,
+        api_key: data.api_key, // Assuming API key is returned directly from backend
         custom_url: data.custom_url,
-        model_name: modelName
+        model_name: data.model_name
       };
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching AI service config:', error);
       return null;
     }
@@ -248,11 +239,10 @@ class SparkyAIService {
     return measurements;
   }
 
-  private async saveMeasurements(measurements: MeasurementSuggestion[]): Promise<boolean> {
+  private async saveMeasurements(measurements: MeasurementSuggestion[], userId: string): Promise<boolean> {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        console.error('No authenticated user');
+      if (!userId) {
+        console.error('No user ID provided to save measurements.');
         return false;
       }
 
@@ -267,7 +257,7 @@ class SparkyAIService {
           }
 
           const dataToSave: any = {
-            user_id: user.id,
+            user_id: userId,
             entry_date: measurement.date,
           };
 
@@ -278,21 +268,20 @@ class SparkyAIService {
             dataToSave[measurement.type] = valueToStore;
           }
 
-          const { error } = await supabase
-            .from('check_in_measurements')
-            .upsert(dataToSave, {
-              onConflict: 'user_id,entry_date'
-            });
+          const response = await apiCall('/api/measurements/check-in', {
+            method: 'POST',
+            body: dataToSave,
+          });
 
-          if (error) {
-            console.error('Error saving measurement:', error);
+          if (!response) {
+            console.error('Error saving measurement via API.');
             return false;
           }
         }
       }
 
       return true;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error in saveMeasurements:', error);
       return false;
     }
@@ -883,11 +872,10 @@ class SparkyAIService {
     return measurements;
   }
 
-  private async saveCustomMeasurements(measurements: MeasurementSuggestion[]): Promise<boolean> {
+  private async saveCustomMeasurements(measurements: MeasurementSuggestion[], userId: string): Promise<boolean> {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        console.error('No authenticated user');
+      if (!userId) {
+        console.error('No user ID provided to save custom measurements.');
         return false;
       }
 
@@ -906,55 +894,106 @@ class SparkyAIService {
         const categoryInfo = categoryMapping[measurement.type as string];
         if (categoryInfo) {
           // Check if category exists
-          let { data: category, error: categoryError } = await supabase
-            .from('custom_categories')
-            .select('id')
-            .eq('user_id', user.id)
-            .eq('name', categoryInfo.name)
-            .maybeSingle();
+          let category: { id: string } | null = null;
+          try {
+            category = await apiCall(`/api/measurements/custom-categories/${userId}/${encodeURIComponent(categoryInfo.name)}`, {
+              method: 'GET',
+            });
+          } catch (e: any) {
+            if (e.message && e.message.includes('404')) {
+              // Category not found, proceed to create
+              console.log(`Category "${categoryInfo.name}" not found, creating...`);
+            } else {
+              console.error(`Error checking for custom category "${categoryInfo.name}":`, e);
+              return false;
+            }
+          }
 
-          if (categoryError || !category) {
+          if (!category || !category.id) {
             // Create category if it doesn't exist
-            const { data: newCategory, error: createError } = await supabase
-              .from('custom_categories')
-              .insert({
-                user_id: user.id,
-                name: categoryInfo.name,
-                measurement_type: categoryInfo.unit,
-                frequency: 'All'
-              })
-              .select('id')
-              .single();
-
-            if (createError) {
+            try {
+              const newCategory = await apiCall('/api/measurements/custom-categories', {
+                method: 'POST',
+                body: {
+                  user_id: userId,
+                  name: categoryInfo.name,
+                  measurement_type: categoryInfo.unit,
+                  frequency: 'All'
+                },
+              });
+              category = newCategory;
+            } catch (createError: any) {
               console.error(`Error creating ${categoryInfo.name} category:`, createError);
               return false;
             }
-            category = newCategory;
           }
 
           // Save the measurement
-          const { error } = await supabase
-            .from('custom_measurements')
-            .insert({
-              user_id: user.id,
-              category_id: category.id,
-              value: measurement.value,
-              entry_date: measurement.date,
-              entry_timestamp: new Date().toISOString()
+          try {
+            await apiCall('/api/measurements/custom-entries', {
+              method: 'POST',
+              body: {
+                user_id: userId,
+                category_id: category.id,
+                value: measurement.value,
+                entry_date: measurement.date,
+                entry_timestamp: new Date().toISOString()
+              },
             });
-
-          if (error) {
-            console.error(`Error saving ${categoryInfo.name} measurement:`, error);
+          } catch (saveError: any) {
+            console.error(`Error saving ${categoryInfo.name} measurement:`, saveError);
             return false;
           }
         }
       }
 
       return true;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error in saveCustomMeasurements:', error);
       return false;
+    }
+  }
+
+  public async processMessage(message: string, userId: string): Promise<AIResponse> {
+    try {
+      // First, try to extract and save measurements
+      const measurements = this.extractMeasurementsFromMessage(message);
+      const customMeasurements = this.extractCustomMeasurementsFromMessage(message);
+
+      let measurementSaveSuccess = true;
+      if (measurements.length > 0) {
+        measurementSaveSuccess = await this.saveMeasurements(measurements, userId);
+      }
+      if (customMeasurements.length > 0) {
+        const customSaveSuccess = await this.saveCustomMeasurements(customMeasurements, userId);
+        if (!customSaveSuccess) measurementSaveSuccess = false;
+      }
+
+      if (measurements.length > 0 || customMeasurements.length > 0) {
+        const allMeasurements = [...measurements, ...customMeasurements];
+        return {
+          content: this.createMeasurementResponse(allMeasurements, measurementSaveSuccess),
+          actionType: 'measurement',
+          measurementSuggestions: allMeasurements
+        };
+      }
+
+      // If no measurements, proceed with AI chat
+      const activeService = await this.getActiveService();
+      if (!activeService) {
+        return { content: "I'm sorry, I couldn't find an active AI service configuration. Please set one up in your settings.", actionType: 'general' };
+      }
+
+      // Placeholder for actual AI call
+      // In a real scenario, you would make an API call to your backend's /api/chat endpoint
+      // using activeService.api_key, activeService.custom_url, activeService.model_name
+      // and the user's message.
+      // For now, we'll return a generic response.
+      return { content: "I'm sorry, I can only process measurements at the moment. AI chat functionality is under development.", actionType: 'general' };
+
+    } catch (error: any) {
+      console.error('Error processing message:', error);
+      return { content: `An unexpected error occurred: ${error.message}`, actionType: 'general' };
     }
   }
 

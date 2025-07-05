@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Target } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { apiCall } from '@/services/api';
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "@/hooks/use-toast";
 
@@ -67,15 +67,9 @@ const GoalsSettings = () => {
       
       const today = new Date().toISOString().split('T')[0];
       
-      const { data, error } = await supabase.rpc('get_goals_for_date', {
-        p_user_id: user?.id,
-        p_date: today
+      const data = await apiCall(`${API_BASE_URL}/api/goals/for-date?userId=${user?.id}&date=${today}`, {
+        method: 'GET',
       });
-
-      if (error) {
-        console.error('Error loading goals:', error);
-        return;
-      }
 
       if (data && data.length > 0) {
         const goalData = data[0];
@@ -115,38 +109,36 @@ const GoalsSettings = () => {
       
       const today = new Date().toISOString().split('T')[0];
       
-      const { error } = await supabase.rpc('manage_goal_timeline', {
-        p_user_id: user.id,
-        p_start_date: today,
-        p_calories: goals.calories,
-        p_protein: goals.protein,
-        p_carbs: goals.carbs,
-        p_fat: goals.fat,
-        p_water_goal: goals.water_goal,
-        p_saturated_fat: goals.saturated_fat,
-        p_polyunsaturated_fat: goals.polyunsaturated_fat,
-        p_monounsaturated_fat: goals.monounsaturated_fat,
-        p_trans_fat: goals.trans_fat,
-        p_cholesterol: goals.cholesterol,
-        p_sodium: goals.sodium,
-        p_potassium: goals.potassium,
-        p_dietary_fiber: goals.dietary_fiber,
-        p_sugars: goals.sugars,
-        p_vitamin_a: goals.vitamin_a,
-        p_vitamin_c: goals.vitamin_c,
-        p_calcium: goals.calcium,
-        p_iron: goals.iron
+      await apiCall(`${API_BASE_URL}/api/goals/manage-timeline`, {
+        method: 'POST',
+        body: JSON.stringify({
+          userId: user.id,
+          p_start_date: today,
+          p_calories: goals.calories,
+          p_protein: goals.protein,
+          p_carbs: goals.carbs,
+          p_fat: goals.fat,
+          p_water_goal: goals.water_goal,
+          p_saturated_fat: goals.saturated_fat,
+          p_polyunsaturated_fat: goals.polyunsaturated_fat,
+          p_monounsaturated_fat: goals.monounsaturated_fat,
+          p_trans_fat: goals.trans_fat,
+          p_cholesterol: goals.cholesterol,
+          p_sodium: goals.sodium,
+          p_potassium: goals.potassium,
+          p_dietary_fiber: goals.dietary_fiber,
+          p_sugars: goals.sugars,
+          p_vitamin_a: goals.vitamin_a,
+          p_vitamin_c: goals.vitamin_c,
+          p_calcium: goals.calcium,
+          p_iron: goals.iron
+        }),
       });
 
-      if (error) {
-        console.error('Error saving goals with cascade:', error);
-        toast({
-          title: "Error",
-          description: "Failed to save goals",
-          variant: "destructive",
-        });
-        return;
-      }
+      toast({
+        title: "Success",
+        description: "Goals updated and will apply for the next 6 months (or until your next future goal)",
+      });
 
       toast({
         title: "Success",

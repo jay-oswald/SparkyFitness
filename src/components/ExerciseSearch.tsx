@@ -2,17 +2,10 @@
 import { useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { supabase } from "@/integrations/supabase/client";
 import { usePreferences } from "@/contexts/PreferencesContext";
 import { debug, info, warn, error } from '@/utils/logging';
+import { searchExercises as searchExercisesService, Exercise } from '@/services/exerciseSearchService';
 
-interface Exercise {
-  id: string;
-  name: string;
-  category: string;
-  calories_per_hour: number;
-  description?: string;
-}
 
 interface ExerciseSearchProps {
   onExerciseSelect: (exerciseId: string) => void;
@@ -35,18 +28,9 @@ const ExerciseSearch = ({ onExerciseSelect }: ExerciseSearchProps) => {
 
    setLoading(true);
    try {
-     const { data, error: supabaseError } = await supabase
-       .from('exercises')
-       .select('*')
-       .ilike('name', `%${query}%`)
-       .limit(10);
-
-     if (supabaseError) {
-       error(loggingLevel, "ExerciseSearch: Error searching exercises:", supabaseError);
-     } else {
-       info(loggingLevel, "ExerciseSearch: Exercises search results:", data);
-       setExercises(data || []);
-     }
+     const data = await searchExercisesService(query);
+     info(loggingLevel, "ExerciseSearch: Exercises search results:", data);
+     setExercises(data || []);
    } catch (err) {
      error(loggingLevel, "ExerciseSearch: Error searching exercises:", err);
    } finally {

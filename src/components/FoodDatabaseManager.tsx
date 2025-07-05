@@ -8,41 +8,21 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
 import { Search, Edit, Trash2, Plus, Share2, Users, Filter } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/useAuth";
 import { useActiveUser } from "@/contexts/ActiveUserContext";
+import { useAuth } from "@/hooks/useAuth";
 import { toast } from "@/hooks/use-toast";
 import EnhancedCustomFoodForm from "./EnhancedCustomFoodForm";
+import FoodUnitSelector from "./FoodUnitSelector"; // Import FoodUnitSelector
+import {
+  loadFoods,
+  togglePublicSharing,
+  deleteFood as deleteFoodService,
+  Food,
+  FoodFilter,
+} from '@/services/foodService';
+import { createFoodEntry } from '@/services/foodEntryService'; // Import foodEntryService
 
-interface Food {
-  id: string;
-  name: string;
-  brand?: string;
-  calories: number;
-  protein: number;
-  carbs: number;
-  fat: number;
-  serving_size: number;
-  serving_unit: string;
-  is_custom: boolean;
-  user_id?: string;
-  shared_with_public?: boolean;
-  saturated_fat?: number;
-  polyunsaturated_fat?: number;
-  monounsaturated_fat?: number;
-  trans_fat?: number;
-  cholesterol?: number;
-  sodium?: number;
-  potassium?: number;
-  dietary_fiber?: number;
-  sugars?: number;
-  vitamin_a?: number;
-  vitamin_c?: number;
-  calcium?: number;
-  iron?: number;
-}
 
-type FoodFilter = 'all' | 'mine' | 'family' | 'public';
 
 const FoodDatabaseManager = () => {
   const { user } = useAuth();
@@ -57,84 +37,30 @@ const FoodDatabaseManager = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const [foodFilter, setFoodFilter] = useState<FoodFilter>('all');
+  const [sortOrder, setSortOrder] = useState<string>('name:asc');
+  const [showFoodUnitSelectorDialog, setShowFoodUnitSelectorDialog] = useState(false); // New state
+  const [foodToAddToMeal, setFoodToAddToMeal] = useState<Food | null>(null); // New state
 
   useEffect(() => {
     if (user && activeUserId) {
-      loadFoods();
+      fetchFoodsData();
     }
-  }, [user, activeUserId, searchTerm, currentPage, itemsPerPage, foodFilter]);
+  }, [user, activeUserId, searchTerm, currentPage, itemsPerPage, foodFilter, sortOrder]); // Add sortOrder to dependencies
 
-  const loadFoods = async () => {
+  const fetchFoodsData = async () => {
     try {
       setLoading(true);
       
-      // Get total count first - this will be filtered by RLS automatically
-      let countQuery = supabase
-        .from('foods')
-        .select('*', { count: 'exact', head: true });
-
-      if (searchTerm) {
-        countQuery = countQuery.ilike('name', `%${searchTerm}%`);
-      }
-
-      // Apply filter to count query
-      if (foodFilter === 'mine') {
-        countQuery = countQuery.eq('user_id', user?.id);
-      } else if (foodFilter === 'family') {
-        countQuery = countQuery.neq('user_id', user?.id).is('shared_with_public', false);
-      } else if (foodFilter === 'public') {
-        countQuery = countQuery.eq('shared_with_public', true);
-      }
-
-      const { count, error: countError } = await countQuery;
-      
-      if (countError) {
-        console.error('Error getting count:', countError);
-        toast({
-          title: "Error",
-          description: "Failed to load food count",
-          variant: "destructive",
-        });
-        return;
-      }
-      
-      setTotalCount(count || 0);
-
-      // Get paginated data - RLS will automatically filter this
-      const from = (currentPage - 1) * itemsPerPage;
-      const to = from + itemsPerPage - 1;
-
-      let query = supabase
-        .from('foods')
-        .select('*')
-        .range(from, to);
-
-      if (searchTerm) {
-        query = query.ilike('name', `%${searchTerm}%`);
-      }
-
-      // Apply filter to data query
-      if (foodFilter === 'mine') {
-        query = query.eq('user_id', user?.id);
-      } else if (foodFilter === 'family') {
-        query = query.neq('user_id', user?.id).is('shared_with_public', false);
-      } else if (foodFilter === 'public') {
-        query = query.eq('shared_with_public', true);
-      }
-
-      const { data, error } = await query.order('name');
-
-      if (error) {
-        console.error('Error loading foods:', error);
-        toast({
-          title: "Error",
-          description: "Failed to load foods",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      setFoods(data || []);
+      const { foods: fetchedFoods, totalCount: fetchedTotalCount } = await loadFoods(
+        searchTerm,
+        foodFilter,
+        currentPage,
+        itemsPerPage,
+        activeUserId,
+        sortOrder // Pass the new sortOrder
+      );
+      setFoods(fetchedFoods || []);
+      setTotalCount(fetchedTotalCount || 0);
     } catch (error) {
       console.error('Error:', error);
     } finally {
@@ -149,27 +75,14 @@ const FoodDatabaseManager = () => {
 
   const togglePublicSharing = async (foodId: string, currentState: boolean) => {
     try {
-      const { error } = await supabase
-        .from('foods')
-        .update({ shared_with_public: !currentState })
-        .eq('id', foodId);
-
-      if (error) {
-        console.error('Error updating sharing:', error);
-        toast({
-          title: "Error",
-          description: "Failed to update sharing settings",
-          variant: "destructive",
-        });
-        return;
-      }
+      await togglePublicSharing(foodId, currentState);
 
       toast({
         title: "Success",
         description: !currentState ? "Food shared with public" : "Food made private",
       });
 
-      loadFoods();
+      fetchFoodsData();
     } catch (error) {
       console.error('Error:', error);
     }
@@ -181,27 +94,15 @@ const FoodDatabaseManager = () => {
     }
 
     try {
-      const { error } = await supabase
-        .from('foods')
-        .delete()
-        .eq('id', foodId);
-
-      if (error) {
-        console.error('Error deleting food:', error);
-        toast({
-          title: "Error",
-          description: "Failed to delete food",
-          variant: "destructive",
-        });
-        return;
-      }
+      // Pass activeUserId to the service function
+      await deleteFoodService(foodId, activeUserId); // Use the renamed import
 
       toast({
         title: "Success",
         description: "Food deleted successfully",
       });
 
-      loadFoods();
+      fetchFoodsData();
     } catch (error) {
       console.error('Error:', error);
     }
@@ -212,12 +113,56 @@ const FoodDatabaseManager = () => {
     setShowEditDialog(true);
   };
 
-  const handleSaveComplete = () => {
-    loadFoods();
+  const handleSaveComplete = (savedFood: Food) => {
+    fetchFoodsData();
     setShowAddDialog(false);
     setShowEditDialog(false);
     setEditingFood(null);
+
+    // If a new food was saved, open the FoodUnitSelector dialog
+    if (savedFood && !editingFood) { // Check if it's a new food (editingFood will be null)
+      setFoodToAddToMeal(savedFood);
+      setShowFoodUnitSelectorDialog(true);
+    }
   };
+
+  const handleAddFoodToMeal = async (food: Food, quantity: number, unit: string, variantId?: string) => {
+    if (!user || !activeUserId) {
+      toast({
+        title: "Error",
+        description: "User not authenticated.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      await createFoodEntry({
+        user_id: activeUserId,
+        food_id: food.id!,
+        meal_type: "breakfast", // Default to breakfast for now, or make dynamic
+        quantity: quantity,
+        unit: unit,
+        entry_date: new Date().toISOString().split('T')[0], // Current date
+        variant_id: variantId || null,
+      });
+
+      toast({
+        title: "Success",
+        description: `${food.name} has been added to your meal.`,
+      });
+      setShowFoodUnitSelectorDialog(false);
+      setFoodToAddToMeal(null);
+    } catch (error) {
+      console.error("Error adding food to meal:", error);
+      toast({
+        title: "Error",
+        description: `Failed to add ${food.name} to meal.`,
+        variant: "destructive",
+      });
+    }
+  };
+
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
@@ -321,6 +266,22 @@ const FoodDatabaseManager = () => {
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-4">
+          {/* Sort by dropdown */}
+          <div className="flex items-center gap-2 whitespace-nowrap">
+            <span className="text-sm">Sort by:</span>
+            <Select value={sortOrder} onValueChange={setSortOrder}>
+              <SelectTrigger className="w-32">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="name:asc">Name (A-Z)</SelectItem>
+                <SelectItem value="name:desc">Name (Z-A)</SelectItem>
+                <SelectItem value="calories:asc">Calories (Low to High)</SelectItem>
+                <SelectItem value="calories:desc">Calories (High to Low)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
           {/* Items per page selector */}
           <div className="flex items-center gap-2 whitespace-nowrap">
             <span className="text-sm">Items per page:</span>
@@ -424,7 +385,7 @@ const FoodDatabaseManager = () => {
                           <Button 
                             size="sm" 
                             variant="ghost" 
-                            onClick={() => deleteFood(food.id)}
+                            onClick={() => deleteFood(food.id)} // No change needed here, as the function signature was updated
                           >
                             <Trash2 className="w-4 h-4" />
                           </Button>
@@ -491,6 +452,16 @@ const FoodDatabaseManager = () => {
           )}
           </DialogContent>
       </Dialog>
+
+      {/* FoodUnitSelector Dialog */}
+      {foodToAddToMeal && (
+        <FoodUnitSelector
+          food={foodToAddToMeal}
+          open={showFoodUnitSelectorDialog}
+          onOpenChange={setShowFoodUnitSelectorDialog}
+          onSelect={handleAddFoodToMeal}
+        />
+      )}
     </div>
   );
 };

@@ -8,24 +8,18 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
 import { Plus, Edit, Trash2, Share2, Lock, Settings } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/useAuth";
 import { toast } from "@/hooks/use-toast";
 import { usePreferences } from "@/contexts/PreferencesContext";
 import { debug, info, warn, error } from '@/utils/logging';
+import {
+  loadExercises,
+  createExercise,
+  updateExercise,
+  deleteExercise,
+  updateExerciseShareStatus,
+  Exercise,
+} from '@/services/exerciseService';
 
-interface Exercise {
-  id: string;
-  name: string;
-  category: string;
-  calories_per_hour: number;
-  description: string | null;
-  user_id: string | null;
-  is_custom: boolean;
-  shared_with_public: boolean;
-  created_at: string;
-  updated_at: string;
-}
 
 const ExerciseDatabaseManager = () => {
   const { user } = useAuth();
@@ -62,23 +56,8 @@ const ExerciseDatabaseManager = () => {
 
   const loadExercises = async () => {
     try {
-      const query = supabase
-        .from('exercises')
-        .select('*')
-        .order('name', { ascending: true });
-
-      const { data, error } = await query;
-
-      if (error) {
-        console.error("Error loading exercises:", error);
-        toast({
-          title: "Error",
-          description: "Failed to load exercises",
-          variant: "destructive",
-        });
-      } else {
-        setExercises(data || []);
-      }
+      const data = await loadExercises();
+      setExercises(data || []);
     } catch (error) {
       console.error("Error loading exercises:", error);
       toast({
@@ -127,38 +106,25 @@ const ExerciseDatabaseManager = () => {
 
   const handleAddExercise = async () => {
     try {
-      const { data, error } = await supabase
-        .from('exercises')
-        .insert([
-          {
-            name: newExerciseName,
-            category: newExerciseCategory,
-            calories_per_hour: newExerciseCalories,
-            description: newExerciseDescription,
-            user_id: user?.id,
-            is_custom: true,
-          },
-        ]);
-
-      if (error) {
-        console.error("Error adding exercise:", error);
-        toast({
-          title: "Error",
-          description: "Failed to add exercise",
-          variant: "destructive",
-        });
-      } else {
-        toast({
-          title: "Success",
-          description: "Exercise added successfully",
-        });
-        loadExercises();
-        setIsAddDialogOpen(false);
-        setNewExerciseName("");
-        setNewExerciseCategory("general");
-        setNewExerciseCalories(300);
-        setNewExerciseDescription("");
-      }
+      const newExercise = {
+        name: newExerciseName,
+        category: newExerciseCategory,
+        calories_per_hour: newExerciseCalories,
+        description: newExerciseDescription,
+        user_id: user?.id,
+        is_custom: true,
+      };
+      await createExercise(newExercise);
+      toast({
+        title: "Success",
+        description: "Exercise added successfully",
+      });
+      loadExercises();
+      setIsAddDialogOpen(false);
+      setNewExerciseName("");
+      setNewExerciseCategory("general");
+      setNewExerciseCalories(300);
+      setNewExerciseDescription("");
     } catch (error) {
       console.error("Error adding exercise:", error);
       toast({
@@ -173,32 +139,20 @@ const ExerciseDatabaseManager = () => {
     if (!selectedExercise) return;
 
     try {
-      const { data, error } = await supabase
-        .from('exercises')
-        .update({
-          name: editExerciseName,
-          category: editExerciseCategory,
-          calories_per_hour: editExerciseCalories,
-          description: editExerciseDescription,
-        })
-        .eq('id', selectedExercise.id);
-
-      if (error) {
-        console.error("Error editing exercise:", error);
-        toast({
-          title: "Error",
-          description: "Failed to edit exercise",
-          variant: "destructive",
-        });
-      } else {
-        toast({
-          title: "Success",
-          description: "Exercise edited successfully",
-        });
-        loadExercises();
-        setIsEditDialogOpen(false);
-        setSelectedExercise(null);
-      }
+      const updatedExercise = {
+        name: editExerciseName,
+        category: editExerciseCategory,
+        calories_per_hour: editExerciseCalories,
+        description: editExerciseDescription,
+      };
+      await updateExercise(selectedExercise.id, updatedExercise);
+      toast({
+        title: "Success",
+        description: "Exercise edited successfully",
+      });
+      loadExercises();
+      setIsEditDialogOpen(false);
+      setSelectedExercise(null);
     } catch (error) {
       console.error("Error editing exercise:", error);
       toast({
@@ -211,25 +165,12 @@ const ExerciseDatabaseManager = () => {
 
   const handleDeleteExercise = async (exerciseId: string) => {
     try {
-      const { data, error } = await supabase
-        .from('exercises')
-        .delete()
-        .eq('id', exerciseId);
-
-      if (error) {
-        console.error("Error deleting exercise:", error);
-        toast({
-          title: "Error",
-          description: "Failed to delete exercise",
-          variant: "destructive",
-        });
-      } else {
-        toast({
-          title: "Success",
-          description: "Exercise deleted successfully",
-        });
-        loadExercises();
-      }
+      await deleteExercise(exerciseId);
+      toast({
+        title: "Success",
+        description: "Exercise deleted successfully",
+      });
+      loadExercises();
     } catch (error) {
       console.error("Error deleting exercise:", error);
       toast({
@@ -242,25 +183,12 @@ const ExerciseDatabaseManager = () => {
 
   const handleShareExercise = async (exerciseId: string, share: boolean) => {
     try {
-      const { data, error } = await supabase
-        .from('exercises')
-        .update({ shared_with_public: share })
-        .eq('id', exerciseId);
-
-      if (error) {
-        console.error("Error sharing exercise:", error);
-        toast({
-          title: "Error",
-          description: "Failed to share exercise",
-          variant: "destructive",
-        });
-      } else {
-        toast({
-          title: "Success",
-          description: `Exercise ${share ? 'shared' : 'unshared'} successfully`,
-        });
-        loadExercises();
-      }
+      await updateExerciseShareStatus(exerciseId, share);
+      toast({
+        title: "Success",
+        description: `Exercise ${share ? 'shared' : 'unshared'} successfully`,
+      });
+      loadExercises();
     } catch (error) {
       console.error("Error sharing exercise:", error);
       toast({

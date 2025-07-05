@@ -5,24 +5,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast"; // Import toast
 import { usePreferences } from "@/contexts/PreferencesContext";
 import { debug, info, warn, error } from '@/utils/logging';
+import {
+  fetchExerciseDetails,
+  updateExerciseEntry,
+  ExerciseEntry,
+} from '@/services/editExerciseEntryService';
 
-interface ExerciseEntry {
-  id: string;
-  exercise_id: string;
-  duration_minutes: number;
-  calories_burned: number;
-  entry_date: string;
-  notes?: string;
-  exercises: {
-    id: string;
-    name: string;
-    user_id?: string;
-  } | null;
-}
 
 interface EditExerciseEntryDialogProps {
   entry: ExerciseEntry;
@@ -52,16 +43,7 @@ const EditExerciseEntryDialog = ({ entry, open, onOpenChange, onSave }: EditExer
    try {
      // Fetch the exercise to get calories_per_hour for recalculation
      debug(loggingLevel, "EditExerciseEntryDialog: Fetching exercise details for recalculation:", entry.exercise_id);
-     const { data: exerciseData, error: exerciseError } = await supabase
-       .from('exercises')
-       .select('calories_per_hour')
-       .eq('id', entry.exercise_id)
-       .single();
-
-     if (exerciseError) {
-       error(loggingLevel, "EditExerciseEntryDialog: Error fetching exercise details:", exerciseError);
-       // Continue with default calories_per_hour if fetch fails
-     }
+     const exerciseData = await fetchExerciseDetails(entry.exercise_id);
 
      const caloriesPerHour = exerciseData?.calories_per_hour || 300;
      const caloriesBurned = (caloriesPerHour / 60) * duration;

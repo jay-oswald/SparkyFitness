@@ -1,9 +1,47 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { debug, info, warn, error } from '@/utils/logging';
 import { formatInTimeZone, toZonedTime } from 'date-fns-tz'; // Import formatInTimeZone and toZonedTime
 import { format, parseISO, startOfDay } from 'date-fns'; // Import format, parseISO and startOfDay
+
+// Define the base URL for your backend API
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3010";
+
+// Function to fetch user preferences from the backend
+const fetchUserPreferences = async (userId: string) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/user-preferences/${userId}`);
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || "Failed to fetch user preferences.");
+    }
+    return await response.json();
+  } catch (err) {
+    console.error("Error fetching user preferences:", err);
+    throw err;
+  }
+};
+
+// Function to upsert user preferences to the backend
+const upsertUserPreferences = async (payload: any) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/user-preferences`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || "Failed to upsert user preferences.");
+    }
+    return await response.json();
+  } catch (err) {
+    console.error("Error upserting user preferences:", err);
+    throw err;
+  }
+};
 
 interface PreferencesContextType {
   weightUnit: 'kg' | 'lbs';
@@ -26,6 +64,7 @@ interface PreferencesContextType {
   formatDateInUserTimezone: (date: string | Date, formatStr?: string) => string; // New function for timezone-aware formatting
   parseDateInUserTimezone: (dateString: string) => Date; // New function to parse date string in user's timezone
   loadPreferences: () => Promise<void>;
+  saveAllPreferences: () => Promise<void>; // New function to save all preferences
 }
 
 const PreferencesContext = createContext<PreferencesContextType | undefined>(undefined);
@@ -44,7 +83,7 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const [measurementUnit, setMeasurementUnitState] = useState<'cm' | 'inches'>('cm');
   const [dateFormat, setDateFormatState] = useState<string>('MM/dd/yyyy');
   const [autoClearHistory, setAutoClearHistoryState] = useState<string>('never'); // Add state for auto_clear_history
-  const [loggingLevel, setLoggingLevelState] = useState<'DEBUG' | 'INFO' | 'WARN' | 'ERROR' | 'SILENT'>('SILENT'); // Add state for logging level
+  const [loggingLevel, setLoggingLevelState] = useState<'DEBUG' | 'INFO' | 'WARN' | 'ERROR' | 'SILENT'>('ERROR'); // Change default to ERROR
   const [timezone, setTimezoneState] = useState<string>(Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'); // Add state for timezone, default to browser's timezone
   const [defaultFoodDataProviderId, setDefaultFoodDataProviderIdState] = useState<string | null>(null); // Default food data provider ID
 
@@ -84,7 +123,7 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
         debug(loggingLevel, "PreferencesProvider: Loaded timezone from localStorage:", savedTimezone);
       }
     }
-  }, [user, loggingLevel]); // Add loggingLevel to dependency array
+  }, [user]); // Removed loggingLevel from dependency array
 
   const loadPreferences = async () => {
     if (!user) {
@@ -94,15 +133,17 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
     info(loggingLevel, "PreferencesProvider: Loading preferences for user:", user.id);
 
     try {
-      const { data, error: supabaseError } = await supabase
-        .from('user_preferences')
-        .select('*')
-        .eq('user_id', user.id)
-        .maybeSingle();
+      let data = null;
+      let fetchError = null;
+      try {
+        data = await fetchUserPreferences(user.id);
+      } catch (err: any) {
+        fetchError = err;
+      }
 
-      if (supabaseError && supabaseError.code !== 'PGRST116') { // PGRST116 means no rows found
-        error(loggingLevel, 'PreferencesContext: Error loading preferences from Supabase:', supabaseError);
-        throw supabaseError; // Re-throw other errors
+      if (fetchError && fetchError.message !== "Failed to fetch user preferences.") { // "Failed to fetch user preferences." means no rows found
+        error(loggingLevel, 'PreferencesContext: Error loading preferences from backend:', fetchError);
+        throw fetchError; // Re-throw other errors
       } else if (data) {
         debug(loggingLevel, 'PreferencesContext: Preferences data loaded:', data);
         setWeightUnitState(data.default_weight_unit as 'kg' | 'lbs');
@@ -144,17 +185,16 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
       };
 
 
-      const { data, error: supabaseError } = await supabase
-        .from('user_preferences')
-        .upsert(defaultPrefs, {
-          onConflict: 'user_id'
-        })
-        .select()
-        .single();
+      let createError = null;
+      try {
+        await upsertUserPreferences(defaultPrefs);
+      } catch (err: any) {
+        createError = err;
+      }
 
-      if (supabaseError) {
-        error(loggingLevel, 'PreferencesContext: Error creating default preferences in Supabase:', supabaseError);
-        throw supabaseError;
+      if (createError) {
+        error(loggingLevel, 'PreferencesContext: Error creating default preferences in backend:', createError);
+        throw createError;
       } else {
         info(loggingLevel, 'PreferencesContext: Default preferences created successfully.');
       }
@@ -208,23 +248,19 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
       };
 
 
-      const { data, error: supabaseError } = await supabase
-        .from('user_preferences')
-        .upsert(updateData, {
-          onConflict: 'user_id'
-        })
-        .select()
-        .single();
+      let updateError = null;
+      try {
+        await upsertUserPreferences(updateData);
+      } catch (err: any) {
+        updateError = err;
+      }
 
-      if (supabaseError) {
-        error(loggingLevel, 'PreferencesContext: Error updating preferences in Supabase:', supabaseError);
+      if (updateError) {
+        error(loggingLevel, 'PreferencesContext: Error updating preferences in backend:', updateError);
         error(loggingLevel, 'PreferencesContext: Error details:', {
-          code: supabaseError.code,
-          message: supabaseError.message,
-          details: supabaseError.details,
-          hint: supabaseError.hint
+          message: updateError.message,
         });
-        throw supabaseError;
+        throw updateError;
       } else {
         info(loggingLevel, 'PreferencesContext: Preferences updated successfully.');
       }
@@ -234,74 +270,29 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
     }
   };
 
-  const setWeightUnit = async (unit: 'kg' | 'lbs') => {
+  const setWeightUnit = (unit: 'kg' | 'lbs') => {
     info(loggingLevel, "PreferencesProvider: Setting weight unit to:", unit);
-    try {
-      setWeightUnitState(unit);
-      await updatePreferences({ default_weight_unit: unit });
-      info(loggingLevel, "PreferencesProvider: Weight unit updated successfully.");
-    } catch (err) {
-      error(loggingLevel, 'PreferencesContext: Error setting weight unit:', err);
-      // Revert state on error
-      setWeightUnitState(weightUnit);
-      throw err;
-    }
+    setWeightUnitState(unit);
   };
 
-  const setMeasurementUnit = async (unit: 'cm' | 'inches') => {
+  const setMeasurementUnit = (unit: 'cm' | 'inches') => {
     info(loggingLevel, "PreferencesProvider: Setting measurement unit to:", unit);
-    try {
-      setMeasurementUnitState(unit);
-      await updatePreferences({ default_measurement_unit: unit });
-      info(loggingLevel, "PreferencesProvider: Measurement unit updated successfully.");
-    } catch (err) {
-      error(loggingLevel, 'PreferencesContext: Error setting measurement unit:', err);
-      // Revert state on error
-      setMeasurementUnitState(measurementUnit);
-      throw err;
-    }
+    setMeasurementUnitState(unit);
   };
 
-  const setDateFormat = async (format: string) => {
+  const setDateFormat = (format: string) => {
     info(loggingLevel, "PreferencesProvider: Setting date format to:", format);
-    try {
-      setDateFormatState(format.replace(/DD/g, 'dd').replace(/YYYY/g, 'yyyy'));
-      await updatePreferences({ date_format: format });
-      info(loggingLevel, "PreferencesProvider: Date format updated successfully.");
-    } catch (err) {
-      error(loggingLevel, 'PreferencesContext: Error setting date format:', err);
-      // Revert state on error
-      setDateFormatState(dateFormat);
-      throw err;
-    }
+    setDateFormatState(format.replace(/DD/g, 'dd').replace(/YYYY/g, 'yyyy'));
   };
 
-  const setAutoClearHistory = async (value: string) => {
+  const setAutoClearHistory = (value: string) => {
     info(loggingLevel, "PreferencesProvider: Setting auto clear history to:", value);
-    try {
-      setAutoClearHistoryState(value);
-      await updatePreferences({ auto_clear_history: value });
-      info(loggingLevel, "PreferencesProvider: Auto clear history updated successfully.");
-    } catch (err) {
-      error(loggingLevel, 'PreferencesContext: Error setting auto clear history:', err);
-      // Revert state on error
-      setAutoClearHistoryState(autoClearHistory);
-      throw err;
-    }
+    setAutoClearHistoryState(value);
   };
 
-  const setLoggingLevel = async (level: 'DEBUG' | 'INFO' | 'WARN' | 'ERROR' | 'SILENT') => {
+  const setLoggingLevel = (level: 'DEBUG' | 'INFO' | 'WARN' | 'ERROR' | 'SILENT') => {
     info(loggingLevel, "PreferencesProvider: Setting logging level to:", level);
-    try {
-      setLoggingLevelState(level);
-      await updatePreferences({ logging_level: level });
-      info(loggingLevel, "PreferencesProvider: Logging level updated successfully.");
-    } catch (err) {
-      error(loggingLevel, 'PreferencesContext: Error setting logging level:', err);
-      // Revert state on error
-      setLoggingLevelState(loggingLevel);
-      throw err;
-    }
+    setLoggingLevelState(level);
   };
 
   const convertWeight = (value: number, from: 'kg' | 'lbs', to: 'kg' | 'lbs') => {
@@ -318,18 +309,9 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
     return value;
   };
 
-  const setTimezone = async (newTimezone: string) => {
+  const setTimezone = (newTimezone: string) => {
     info(loggingLevel, "PreferencesProvider: Setting timezone to:", newTimezone);
-    try {
-      setTimezoneState(newTimezone);
-      await updatePreferences({ timezone: newTimezone });
-      info(loggingLevel, "PreferencesProvider: Timezone updated successfully.");
-    } catch (err) {
-      error(loggingLevel, 'PreferencesContext: Error setting timezone:', err);
-      // Revert state on error
-      setTimezoneState(timezone);
-      throw err;
-    }
+    setTimezoneState(newTimezone);
   };
 
   const formatDate = (date: string | Date) => {
@@ -387,16 +369,26 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
     return startOfDay(zonedDate);
   };
 
-  const setDefaultFoodDataProviderId = async (id: string | null) => {
+  const setDefaultFoodDataProviderId = (id: string | null) => {
     info(loggingLevel, "PreferencesProvider: Setting default food data provider ID to:", id);
+    setDefaultFoodDataProviderIdState(id);
+  };
+
+  const saveAllPreferences = async () => {
+    info(loggingLevel, "PreferencesProvider: Saving all preferences to backend.");
     try {
-      setDefaultFoodDataProviderIdState(id);
-      await updatePreferences({ default_food_data_provider_id: id });
-      info(loggingLevel, "PreferencesProvider: Default food data provider ID updated successfully.");
+      await updatePreferences({
+        default_weight_unit: weightUnit,
+        default_measurement_unit: measurementUnit,
+        date_format: dateFormat,
+        auto_clear_history: autoClearHistory,
+        logging_level: loggingLevel,
+        timezone: timezone,
+        default_food_data_provider_id: defaultFoodDataProviderId,
+      });
+      info(loggingLevel, "PreferencesProvider: All preferences saved successfully.");
     } catch (err) {
-      error(loggingLevel, 'PreferencesContext: Error setting default food data provider ID:', err);
-      // Revert state on error
-      setDefaultFoodDataProviderIdState(defaultFoodDataProviderId);
+      error(loggingLevel, 'PreferencesContext: Error saving all preferences:', err);
       throw err;
     }
   };
@@ -422,7 +414,8 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
       formatDate,
       formatDateInUserTimezone, // Expose new function
       parseDateInUserTimezone, // Expose new function
-      loadPreferences
+      loadPreferences,
+      saveAllPreferences // Expose new function
     }}>
       {children}
     </PreferencesContext.Provider>

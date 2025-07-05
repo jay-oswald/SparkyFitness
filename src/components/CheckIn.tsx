@@ -5,7 +5,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/useAuth";
 import { useActiveUser } from "@/contexts/ActiveUserContext";
-import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import CheckInPreferences from "./CheckInPreferences";
 import { usePreferences } from "@/contexts/PreferencesContext";
@@ -13,28 +12,19 @@ import { Trash2 } from "lucide-react";
 import { toast as sonnerToast } from "sonner";
 import { debug, info, warn, error } from '@/utils/logging'; // Import logging utility
 import { format } from 'date-fns'; // Import format from date-fns
+import {
+  loadCustomCategories,
+  fetchRecentMeasurements,
+  handleDeleteMeasurement,
+  loadExistingCheckInMeasurements,
+  loadExistingCustomMeasurements,
+  saveCheckInMeasurements,
+  saveCustomMeasurement,
+  CustomCategory,
+  CustomMeasurement,
+} from '@/services/checkInService';
 
 
-interface CustomCategory {
-  id: string;
-  name: string;
-  measurement_type: string;
-  frequency: string;
-}
-
-interface CustomMeasurement {
-  id: string;
-  category_id: string;
-  value: number;
-  entry_date: string;
-  entry_hour: number | null;
-  entry_timestamp: string;
-  custom_categories: {
-    name: string;
-    measurement_type: string;
-    frequency: string;
-  };
-}
 
 const CheckIn = () => {
   const { user } = useAuth();
@@ -94,16 +84,7 @@ const CheckIn = () => {
     }
 
     try {
-      const { data, error: supabaseError } = await supabase
-        .from('custom_categories')
-        .select('*')
-        .eq('user_id', currentUserId)
-        .order('created_at');
-
-      if (supabaseError) {
-        error(loggingLevel, 'Error loading custom categories:', supabaseError);
-        throw supabaseError; // Re-throw to be caught by the outer catch
-      }
+      const data = await loadCustomCategories(currentUserId);
       info(loggingLevel, "Custom categories loaded successfully:", data);
       setCustomCategories(data || []);
     } catch (err) {
@@ -119,32 +100,13 @@ const CheckIn = () => {
     }
 
 
-    const { data, error: supabaseError } = await supabase
-      .from('custom_measurements')
-      .select(`
-        id,
-        category_id,
-        value,
-        entry_date,
-        entry_hour,
-        entry_timestamp,
-        custom_categories (
-          name,
-          measurement_type,
-          frequency
-        )
-      `)
-      .eq('user_id', currentUserId)
-      .gt('value', 0)  // Only get non-zero values
-      .order('entry_timestamp', { ascending: false })
-      .limit(20);  // Limit to 20 recent measurements
-
-    if (supabaseError) {
-      error(loggingLevel, 'Error fetching recent measurements:', supabaseError);
-      sonnerToast.error('Failed to load recent measurements');
-    } else {
+    try {
+      const data = await fetchRecentMeasurements(currentUserId);
       info(loggingLevel, "Recent measurements fetched successfully:", data);
       setRecentMeasurements(data || []);
+    } catch (err) {
+      error(loggingLevel, 'Error fetching recent measurements:', err);
+      sonnerToast.error('Failed to load recent measurements');
     }
   };
 
@@ -155,20 +117,15 @@ const CheckIn = () => {
       return;
     }
 
-    const { error: supabaseError } = await supabase
-      .from('custom_measurements')
-      .delete()
-      .eq('id', measurementId)
-      .eq('user_id', currentUserId);
-
-    if (supabaseError) {
-      error(loggingLevel, 'Error deleting measurement:', supabaseError);
-      sonnerToast.error('Failed to delete measurement');
-    } else {
+    try {
+      await handleDeleteMeasurement(measurementId, currentUserId);
       info(loggingLevel, 'Measurement deleted successfully:', measurementId);
       sonnerToast.success('Measurement deleted successfully');
       fetchRecentMeasurements();
       loadExistingData(); // Reload today's values
+    } catch (err) {
+      error(loggingLevel, 'Error deleting measurement:', err);
+      sonnerToast.error('Failed to delete measurement');
     }
   };
 
@@ -176,18 +133,7 @@ const CheckIn = () => {
     debug(loggingLevel, "Loading existing data for date:", selectedDate);
     try {
       // Load check-in measurements
-      const { data, error: supabaseError } = await supabase
-        .from('check_in_measurements')
-        .select('*')
-        .eq('user_id', currentUserId)
-        .eq('entry_date', selectedDate) // Use selectedDate directly
-        .maybeSingle();
-
-      if (supabaseError && supabaseError.code !== 'PGRST116') {
-        error(loggingLevel, 'Error loading check-in data:', supabaseError);
-        return;
-      }
-
+      const data = await loadExistingCheckInMeasurements(currentUserId, selectedDate);
       if (data) {
         info(loggingLevel, "Existing check-in data loaded:", data);
         setWeight(data.weight?.toString() || "");
@@ -197,7 +143,6 @@ const CheckIn = () => {
         setSteps(data.steps?.toString() || "");
       } else {
         info(loggingLevel, "No existing check-in data for this date, clearing form.");
-        // Clear form if no data for this date
         setWeight("");
         setNeck("");
         setWaist("");
@@ -205,18 +150,7 @@ const CheckIn = () => {
         setSteps("");
       }
 
-      // Load custom measurements for the selected date
-      const { data: customData, error: customError } = await supabase
-        .from('custom_measurements')
-        .select('*')
-        .eq('user_id', currentUserId)
-        .eq('entry_date', selectedDate); // Use selectedDate directly
-
-      if (customError) {
-        error(loggingLevel, 'Error loading custom measurements:', customError);
-        return;
-      }
-
+      const customData = await loadExistingCustomMeasurements(currentUserId, selectedDate);
       info(loggingLevel, "Custom measurements loaded for date:", { selectedDate, customData });
       const newCustomValues: {[key: string]: string} = {};
       if (customData) {
@@ -301,25 +235,9 @@ const CheckIn = () => {
       if (hips) measurementData.hips = parseFloat(hips);
       if (steps) measurementData.steps = parseInt(steps);
 
-      debug(loggingLevel, "Standard measurement data:", measurementData);
-      const { error: supabaseError } = await supabase
-        .from('check_in_measurements')
-        .upsert(measurementData, {
-          onConflict: 'user_id,entry_date'
-        });
-
-      if (supabaseError) {
-        error(loggingLevel, 'Error saving check-in data:', supabaseError);
-        toast({
-          title: "Error",
-          description: "Failed to save check-in data",
-          variant: "destructive",
-        });
-        return;
-      }
+      await saveCheckInMeasurements(measurementData);
       info(loggingLevel, "Standard check-in data saved successfully.");
 
-      // Save custom measurements
       debug(loggingLevel, "Saving custom measurements:", customValues);
       for (const [categoryId, value] of Object.entries(customValues)) {
         if (value && parseFloat(value) > 0) {
@@ -344,32 +262,14 @@ const CheckIn = () => {
               user_id: currentUserId,
               category_id: categoryId,
               value: parseFloat(value),
-              entry_date: selectedDate, // Use selectedDate directly
+              entry_date: selectedDate,
               entry_hour: entryHour,
               entry_timestamp: entryTimestamp,
             };
             debug(loggingLevel, "Custom measurement data:", customMeasurementData);
 
-            let result;
-            if (category.frequency === 'All') {
-              result = await supabase
-                .from('custom_measurements')
-                .insert(customMeasurementData);
-              debug(loggingLevel, "Inserting custom measurement (frequency: All).");
-            } else {
-              result = await supabase
-                .from('custom_measurements')
-                .upsert(customMeasurementData, {
-                  onConflict: 'user_id,category_id,entry_date,entry_hour'
-                });
-              debug(loggingLevel, "Upserting custom measurement (frequency: Daily/Hourly).");
-            }
-
-            if (result.error) {
-              error(loggingLevel, 'Error saving custom measurement:', result.error);
-            } else {
-              info(loggingLevel, `Custom measurement for category ${category.name} saved successfully.`);
-            }
+            await saveCustomMeasurement(customMeasurementData, category.frequency);
+            info(loggingLevel, `Custom measurement for category ${category.name} saved successfully.`);
           } else {
             warn(loggingLevel, `Custom category not found for ID: ${categoryId}`);
           }

@@ -1,9 +1,11 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/integrations/supabase/client';
 import { debug, info, warn, error } from '@/utils/logging';
 import { usePreferences } from "@/contexts/PreferencesContext";
+
+// Define the base URL for your backend API
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3010";
 
 interface AccessibleUser {
   user_id: string;
@@ -39,8 +41,10 @@ export const useActiveUser = () => {
   return context;
 };
 
+import { NavigateFunction } from 'react-router-dom';
+
 export const ActiveUserProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user } = useAuth();
+  const { user } = useAuth(); // No longer passing navigate
   const { loggingLevel } = usePreferences();
   debug(loggingLevel, "ActiveUserProvider: Initializing ActiveUserProvider.");
 
@@ -70,14 +74,14 @@ export const ActiveUserProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     info(loggingLevel, "ActiveUserProvider: Loading accessible users for user:", user.id);
 
     try {
-      const { data, error: supabaseError } = await supabase.rpc('get_accessible_users', {
-        p_user_id: user.id
-      });
-
-      if (supabaseError) {
-        error(loggingLevel, 'ActiveUserProvider: Error fetching accessible users from Supabase:', supabaseError);
-        throw supabaseError;
+      const response = await fetch(`${API_BASE_URL}/api/users/accessible-users?userId=${user.id}`);
+      if (!response.ok) {
+        const errorData = await response.json();
+        error(loggingLevel, 'ActiveUserProvider: Error fetching accessible users from backend:', errorData);
+        throw new Error(errorData.error || 'Failed to fetch accessible users.');
       }
+      const data = await response.json();
+
       info(loggingLevel, 'ActiveUserProvider: Accessible users data received:', data);
       
       // Transform the data to ensure proper typing

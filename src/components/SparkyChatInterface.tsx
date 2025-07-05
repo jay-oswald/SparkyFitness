@@ -6,17 +6,19 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Send, Loader2, ImageIcon, X } from 'lucide-react';
 import { toast } from "@/hooks/use-toast";
 import SparkyNutritionCoach from './SparkyNutritionCoach';
-import { supabase } from '@/integrations/supabase/client';
-import { info, error, warn, UserLoggingLevel } from '@/utils/logging'; // Import logging utilities
 import { usePreferences } from '@/contexts/PreferencesContext'; // Import usePreferences
+import { debug, info, warn, error } from '@/utils/logging'; // Import logging utilities
+import {
+  loadUserPreferences,
+  loadChatHistory,
+  saveMessageToHistory,
+  clearChatHistory,
+  processUserInput,
+  getTodaysNutrition,
+  Message,
+  UserPreferences,
+} from '@/services/sparkyChatService';
 
-interface Message {
-  id: string;
-  content: string;
-  isUser: boolean;
-  timestamp: Date;
-  metadata?: any;
-}
 
 interface SparkyChatInterfaceProps {
   userId: string;
@@ -108,61 +110,17 @@ const SparkyChatInterface = ({ userId }: SparkyChatInterfaceProps) => {
     if (!userId) return;
 
     // Load user preferences
-    const { data: preferencesData, error: preferencesError } = await supabase
-      .from('user_preferences')
-      .select('auto_clear_history')
-      .eq('user_id', userId)
-      .single();
-
-    if (preferencesError) {
-      console.error('Error loading user preferences:', preferencesError);
-      // Continue without preferences if there's an error
-      setUserPreferences({ auto_clear_history: 'never' }); // Default to never clear
-    } else {
-      setUserPreferences(preferencesData || { auto_clear_history: 'never' });
-    }
-
-    // Load chat history based on preference
-    let historyQuery = supabase
-      .from('sparky_chat_history')
-      .select('id, content, message_type, created_at, metadata')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: true });
+    const preferencesData = await loadUserPreferences(userId);
+    setUserPreferences(preferencesData);
 
     const autoClearHistory = preferencesData?.auto_clear_history || 'never';
 
-    // Clear history based on preference before loading (only for 'all')
     if (autoClearHistory === 'all') {
-      // Use the clearHistory function from the coach ref
-      await coachRef.current.clearHistory('all');
-      // After clearing for 'all', the history query will naturally return empty
-    } else if (autoClearHistory === '7days') {
-      // The database function handles clearing older than 7 days,
-      // so we only need to filter the *loading* query here.
-      const sevenDaysAgo = new Date();
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-      historyQuery = historyQuery.gte('created_at', sevenDaysAgo.toISOString());
-    } else {
-      // 'never' or 'session' - load all history
-      // For 'session', history is cleared on unmount (tab/window close)
-      // No additional filter needed here
+      await clearChatHistory(userId, 'all');
     }
 
-
-    const { data: historyData, error: historyError } = await historyQuery;
-
-    if (historyError) {
-      console.error('Error loading chat history:', historyError);
-    } else {
-      const formattedHistory: Message[] = (historyData || []).map(item => ({
-        id: item.id,
-        content: item.content,
-        isUser: item.message_type === 'user',
-        timestamp: new Date(item.created_at),
-        metadata: item.metadata
-      }));
-      setMessages(formattedHistory);
-    }
+    const historyData = await loadChatHistory(userId, autoClearHistory);
+    setMessages(historyData);
     
     // Mark as initialized after loading history and preferences
     setIsInitialized(true);
@@ -188,7 +146,7 @@ const SparkyChatInterface = ({ userId }: SparkyChatInterfaceProps) => {
     setIsLoading(true);
     try {
       const today = new Date().toISOString().split('T')[0];
-      const nutritionData = await coachRef.current.getTodaysNutrition(today);
+      const nutritionData = await getTodaysNutrition(userId, today);
       
       // Only add welcome message if no messages were loaded from history AND messages state is still empty
       // This prevents adding the welcome message if history was loaded but was empty
@@ -257,8 +215,7 @@ const SparkyChatInterface = ({ userId }: SparkyChatInterfaceProps) => {
     };
 
     setMessages(prev => [...prev, userMessage]);
-    // Save user message to history
-    coachRef.current.saveMessageToHistory(userMessage.content, 'user');
+    await saveMessageToHistory(userId, userMessage.content, 'user');
     
     const currentInput = inputValue.trim();
     setInputValue('');
@@ -283,7 +240,7 @@ const SparkyChatInterface = ({ userId }: SparkyChatInterfaceProps) => {
         };
         setMessages(prev => [...prev, userMessageWithImage]);
         
-        response = await coachRef.current.processUserInput(inputValue.trim(), selectedImage, transactionId); // Pass transactionId
+        response = await processUserInput(userId, inputValue.trim(), selectedImage, transactionId);
         setSelectedImage(null); // Clear the selected image after sending
         
       } else {
@@ -299,14 +256,14 @@ const SparkyChatInterface = ({ userId }: SparkyChatInterfaceProps) => {
           if (lastBotMessage?.metadata?.foodOptions) {
             const optionIndex = parseInt(numberMatch[1]) - 1;
             info(userPreferences?.logging_level || 'INFO', `[${transactionId}] Processing food option selection:`, optionIndex, lastBotMessage.metadata);
-            response = await coachRef.current.addFoodOption(optionIndex, lastBotMessage.metadata, transactionId); // Pass transactionId
+            response = await processUserInput(userId, currentInput, null, transactionId, lastBotMessage.metadata);
           } else {
             info(userPreferences?.logging_level || 'INFO', `[${transactionId}] No food options metadata found on last bot message, processing as new input.`);
-            response = await coachRef.current.processUserInput(currentInput, null, transactionId); // Pass transactionId
+            response = await processUserInput(userId, currentInput, null, transactionId);
           }
         } else {
           info(userPreferences?.logging_level || 'INFO', `[${transactionId}] Processing input as new request:`, currentInput);
-          response = await coachRef.current.processUserInput(currentInput, null, transactionId); // Pass transactionId
+          response = await processUserInput(userId, currentInput, null, transactionId);
         }
       }
       
@@ -328,7 +285,7 @@ const SparkyChatInterface = ({ userId }: SparkyChatInterfaceProps) => {
               try {
                 info(userPreferences?.logging_level || 'INFO', `[${transactionId}] Triggering data refresh after logging.`);
                 const today = new Date().toISOString().split('T')[0];
-                const nutritionData = await coachRef.current.getTodaysNutrition(today);
+                const nutritionData = await getTodaysNutrition(userId, today);
                 if (nutritionData && nutritionData.analysis) {
                   const updateMessage: Message = {
                     id: `msg-${Date.now()}-update`,
@@ -385,8 +342,7 @@ const SparkyChatInterface = ({ userId }: SparkyChatInterfaceProps) => {
       
       // Always add the bot message after processing, regardless of whether an image was sent
       setMessages(prev => [...prev, botMessage]);
-      // Save bot message to history
-      coachRef.current.saveMessageToHistory(botMessage.content, 'assistant', botMessage.metadata);
+      await saveMessageToHistory(userId, botMessage.content, 'assistant', botMessage.metadata);
       
       
     } catch (err) {
@@ -450,7 +406,7 @@ const SparkyChatInterface = ({ userId }: SparkyChatInterfaceProps) => {
       <SparkyNutritionCoach
         ref={coachRef}
         userId={userId}
-        userLoggingLevel={userPreferences?.logging_level || 'INFO'} // Pass logging level
+        userLoggingLevel={userPreferences?.logging_level || 'ERROR'} // Pass logging level, default to ERROR
         timezone={timezone} // Pass timezone
         formatDateInUserTimezone={formatDateInUserTimezone} // Pass formatter
       />

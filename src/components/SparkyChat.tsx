@@ -1,47 +1,40 @@
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Button } from "@/components/ui/button";
 import { MessageCircle, Trash2 } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/integrations/supabase/client';
 import SparkyChatInterface from './SparkyChatInterface';
 import { useChatbotVisibility } from '@/contexts/ChatbotVisibilityContext';
+import { getAIServices } from '@/services/aiServiceSettingsService';
 
 const SparkyChat = () => {
   const { user } = useAuth();
   const { isChatOpen, closeChat } = useChatbotVisibility();
   const [hasEnabledServices, setHasEnabledServices] = useState(false); // Keep this state
 
-  useEffect(() => {
-    if (user) {
-      checkEnabledServices();
+  const checkEnabledServices = useCallback(async () => {
+    if (!user?.id) {
+      setHasEnabledServices(false);
+      return;
     }
-  }, [user]);
-
-  const checkEnabledServices = async () => {
     try {
-      const { data, error } = await supabase
-        .from('ai_service_settings')
-        .select('is_active')
-        .eq('user_id', user?.id)
-        .eq('is_active', true);
-
-      if (error) {
-        console.error('Error checking AI services:', error);
-        return;
-      }
-
-      setHasEnabledServices(data && data.length > 0);
+      const services = await getAIServices(user.id);
+      const enabled = services.some(service => service.is_active);
+      setHasEnabledServices(enabled);
     } catch (error) {
-      console.error('Error:', error);
+      console.error('Error fetching AI services:', error);
+      setHasEnabledServices(false);
     }
-  };
+  }, [user?.id]);
 
-  // Temporarily render the chat even if no enabled services for debugging
-  // if (!hasEnabledServices) {
-  //   return null;
-  // }
+  useEffect(() => {
+    checkEnabledServices();
+  }, [checkEnabledServices]);
+
+  if (!hasEnabledServices) {
+    return null;
+  }
 
   return (
     <Sheet open={isChatOpen} onOpenChange={closeChat}>

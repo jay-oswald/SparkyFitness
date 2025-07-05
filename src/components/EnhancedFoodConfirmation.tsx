@@ -9,22 +9,16 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Calendar, Clock, Plus, Minus } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useActiveUser } from "@/contexts/ActiveUserContext";
 import { toast } from "@/hooks/use-toast";
 import { usePreferences } from "@/contexts/PreferencesContext"; // Import usePreferences
+import {
+  createFoodInDatabase,
+  addFoodEntry,
+  FoodSuggestion,
+} from '@/services/enhancedFoodConfirmationService';
 
-interface FoodSuggestion {
-  name: string;
-  quantity: number;
-  unit: string;
-  calories: number;
-  protein: number;
-  carbs: number;
-  fat: number;
-  meal_type: string;
-}
 
 interface EnhancedFoodConfirmationProps {
   suggestions: FoodSuggestion[];
@@ -96,61 +90,60 @@ const EnhancedFoodConfirmation = ({
     setEditedSuggestions(newSuggestions);
   };
 
-  const createFoodInDatabase = async (foodSuggestion: FoodSuggestion) => {
-    try {
-      // Check if food already exists
-      const { data: existingFood } = await supabase
-        .from('foods')
-        .select('id')
-        .ilike('name', foodSuggestion.name)
-        .maybeSingle();
+  const handleConfirm = async () => {
+    if (!user || !activeUserId) {
+      toast({
+        title: "Authentication required",
+        description: "Please sign in to add foods",
+        variant: "destructive",
+      });
+      return;
+    }
 
-      if (existingFood) {
-        return existingFood.id;
+    // Validate that selected foods have meal types
+    const selectedSuggestionsWithTypes = editedSuggestions
+      .filter((_, index) => selectedFoods[index])
+      .filter(suggestion => suggestion.meal_type);
+
+    if (selectedSuggestionsWithTypes.length === 0) {
+      toast({
+        title: "Please select foods and meal types",
+        description: "Select at least one food and specify its meal type",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      // Process each selected food
+      for (const suggestion of selectedSuggestionsWithTypes) {
+        const foodId = await createFoodInDatabase(suggestion, activeUserId);
+        await addFoodEntry(
+          suggestion,
+          foodId,
+          activeUserId,
+          formatDateInUserTimezone(new Date(targetDate), 'yyyy-MM-dd')
+        );
       }
 
-      // Create new food entry
-      const { data: newFood, error } = await supabase
-        .from('foods')
-        .insert({
-          name: foodSuggestion.name,
-          calories: foodSuggestion.calories,
-          protein: foodSuggestion.protein,
-          carbs: foodSuggestion.carbs,
-          fat: foodSuggestion.fat,
-          serving_size: foodSuggestion.quantity,
-          serving_unit: foodSuggestion.unit,
-          is_custom: true,
-          user_id: activeUserId
-        })
-        .select('id')
-        .single();
+      toast({
+        title: "Foods added successfully!",
+        description: `Added ${selectedSuggestionsWithTypes.length} food(s) to your diary for ${targetDate}`,
+      });
 
-      if (error) throw error;
-      return newFood.id;
+      onConfirm(selectedSuggestionsWithTypes);
+      onClose();
     } catch (error) {
-      console.error('Error creating food:', error);
-      throw error;
-    }
-  };
-
-  const addFoodEntry = async (foodSuggestion: FoodSuggestion, foodId: string) => {
-    try {
-      const { error } = await supabase
-        .from('food_entries')
-        .insert({
-          user_id: activeUserId,
-          food_id: foodId,
-          meal_type: foodSuggestion.meal_type,
-          quantity: foodSuggestion.quantity,
-          unit: foodSuggestion.unit,
-          entry_date: formatDateInUserTimezone(new Date(targetDate), 'yyyy-MM-dd') // Ensure date is in user's timezone
-        });
-
-      if (error) throw error;
-    } catch (error) {
-      console.error('Error adding food entry:', error);
-      throw error;
+      console.error('Error processing foods:', error);
+      toast({
+        title: "Error adding foods",
+        description: "Failed to add some foods to your diary. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
 

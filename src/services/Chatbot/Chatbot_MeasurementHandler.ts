@@ -1,6 +1,90 @@
-import { supabase } from '@/integrations/supabase/client';
 import { CoachResponse } from './Chatbot_types'; // Import types
 import { debug, info, warn, error, UserLoggingLevel } from '@/utils/logging'; // Import logging utility
+
+// Define the base URL for your backend API
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3010";
+
+// Function to upsert check-in measurements
+const upsertCheckInMeasurement = async (payload: any) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/measurements/check-in`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || "Failed to upsert check-in measurement.");
+    }
+    return await response.json();
+  } catch (err) {
+    console.error("Error upserting check-in measurement:", err);
+    throw err;
+  }
+};
+
+// Function to search for a custom category
+const searchCustomCategory = async (userId: string, name: string) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/measurements/custom-categories/${userId}/${encodeURIComponent(name)}`);
+    if (!response.ok) {
+      // If not found, the backend should return 404, which is handled here
+      if (response.status === 404) {
+        return null;
+      }
+      const errorData = await response.json();
+      throw new Error(errorData.error || "Failed to search custom category.");
+    }
+    return await response.json();
+  } catch (err) {
+    console.error("Error searching custom category:", err);
+    throw err;
+  }
+};
+
+// Function to create a custom category
+const createCustomCategory = async (payload: { user_id: string; name: string; frequency: string; measurement_type: string }) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/measurements/custom-categories`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || "Failed to create custom category.");
+    }
+    return await response.json();
+  } catch (err) {
+    console.error("Error creating custom category:", err);
+    throw err;
+  }
+};
+
+// Function to insert custom measurement entry
+const insertCustomMeasurement = async (payload: { user_id: string; category_id: string; entry_date: string; value: number; entry_timestamp: string }) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/measurements/custom-entries`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || "Failed to insert custom measurement.");
+    }
+    return await response.json();
+  } catch (err) {
+    console.error("Error inserting custom measurement:", err);
+    throw err;
+  }
+};
 
 // Function to process measurement input
 export const processMeasurementInput = async (userId: string, data: { measurements: Array<{ type: string; value: number; unit?: string | null; name?: string | null }> }, entryDate: string | undefined, formatDateInUserTimezone: (date: string | Date, formatStr?: string) => string, userLoggingLevel: UserLoggingLevel): Promise<CoachResponse> => {
@@ -21,11 +105,12 @@ export const processMeasurementInput = async (userId: string, data: { measuremen
         };
         updateData[measurement.type] = measurement.value;
 
-        const { error: upsertError } = await supabase
-          .from('check_in_measurements')
-          .upsert(updateData, {
-            onConflict: 'user_id,entry_date'
-          });
+        let upsertError = null;
+        try {
+          await upsertCheckInMeasurement(updateData);
+        } catch (err: any) {
+          upsertError = err;
+        }
 
         if (upsertError) {
           error(userLoggingLevel, `❌ [Nutrition Coach] Error saving ${measurement.type} measurement:`, upsertError.message);
@@ -38,12 +123,13 @@ export const processMeasurementInput = async (userId: string, data: { measuremen
         // Handle custom measurements
         // First, find or create the custom category
         let categoryId: string;
-        const { data: existingCategory, error: categorySearchError } = await supabase
-          .from('custom_categories')
-          .select('id')
-          .eq('user_id', userId)
-          .eq('name', measurement.name)
-          .single();
+        let existingCategory = null;
+        let categorySearchError: any = null;
+        try {
+          existingCategory = await searchCustomCategory(userId, measurement.name);
+        } catch (err: any) {
+          categorySearchError = err;
+        }
 
         if (categorySearchError && categorySearchError.code !== 'PGRST116') { // PGRST116 means no rows found
           error(userLoggingLevel, '❌ [Nutrition Coach] Error searching custom category:', categorySearchError.message);
@@ -55,16 +141,18 @@ export const processMeasurementInput = async (userId: string, data: { measuremen
           categoryId = existingCategory.id;
         } else if (categorySearchError && categorySearchError.code === 'PGRST116') { // Category not found, create it
           info(userLoggingLevel, `Custom category "${measurement.name}" not found, creating...`);
-          const { data: newCategory, error: categoryCreateError } = await supabase
-            .from('custom_categories')
-            .insert({
+          let newCategory = null;
+          let categoryCreateError: any = null;
+          try {
+            newCategory = await createCustomCategory({
               user_id: userId,
               name: measurement.name,
-              frequency: 'Daily', // Corrected default frequency
-              measurement_type: 'numeric' // Default type
-            })
-            .select('id')
-            .single();
+              frequency: 'Daily',
+              measurement_type: 'numeric'
+            });
+          } catch (err: any) {
+            categoryCreateError = err;
+          }
 
           if (categoryCreateError) {
             error(userLoggingLevel, '❌ [Nutrition Coach] Error creating custom category:', categoryCreateError.message);
@@ -81,15 +169,18 @@ export const processMeasurementInput = async (userId: string, data: { measuremen
 
 
         // Now insert the custom measurement entry
-        const { error: customEntryError } = await supabase
-          .from('custom_measurements')
-          .insert({
+        let customEntryError: any = null;
+        try {
+          await insertCustomMeasurement({
             user_id: userId,
             category_id: categoryId,
-            entry_date: dateToUse, // Use the determined date
+            entry_date: dateToUse,
             value: measurement.value,
-            entry_timestamp: new Date().toISOString() // Use current timestamp
+            entry_timestamp: new Date().toISOString()
           });
+        } catch (err: any) {
+          customEntryError = err;
+        }
 
         if (customEntryError) {
           error(userLoggingLevel, `❌ [Nutrition Coach] Error saving custom measurement "${measurement.name}":`, customEntryError.message);

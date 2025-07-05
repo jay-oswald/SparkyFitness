@@ -9,24 +9,20 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { Bot, Plus, Trash2, Edit, Save, X } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import {
+  getAIServices,
+  getPreferences,
+  addAIService,
+  updateAIService,
+  deleteAIService,
+  updateAIServiceStatus,
+  updateUserPreferences,
+  AIService,
+  UserPreferences,
+} from "@/services/aiServiceSettingsService";
 
-interface AIService {
-  id: string;
-  service_name: string;
-  service_type: string;
-  api_key: string; // This will temporarily hold the plain text key from the user
-  custom_url: string | null;
-  system_prompt: string | null;
-  is_active: boolean;
-  model_name?: string;
-}
-
-interface UserPreferences {
-  auto_clear_history: string;
-}
 
 const AIServiceSettings = () => {
   const { user } = useAuth();
@@ -59,49 +55,33 @@ const AIServiceSettings = () => {
   const loadServices = async () => {
     if (!user) return;
 
-    const { data, error } = await supabase
-      .from('ai_service_settings')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false });
-
-    if (error) {
+    try {
+      const data = await getAIServices(user.id);
+      setServices(data);
+    } catch (error: any) {
       console.error('Error loading AI services:', error);
       toast({
         title: "Error",
-        description: "Failed to load AI services",
+        description: error.message || "Failed to load AI services",
         variant: "destructive"
       });
-    } else {
-      // Explicitly map data to AIService
-      const mappedData: AIService[] = (data || []).map((service: any) => ({
-        id: service.id,
-        service_name: service.service_name,
-        service_type: service.service_type,
-        api_key: '', // API key is not loaded from DB for security
-        custom_url: service.custom_url,
-        system_prompt: service.system_prompt,
-        is_active: service.is_active,
-        model_name: service.model_name,
-      }));
-      setServices(mappedData);
     }
   };
 
   const loadPreferences = async () => {
     if (!user) return;
 
-    const { data, error } = await supabase
-      .from('user_preferences')
-      .select('auto_clear_history')
-      .eq('user_id', user.id)
-      .single();
-
-    if (error) {
-      console.error('Error loading preferences:', error);
-    } else {
+    try {
+      const data = await getPreferences(user.id);
       setPreferences({
         auto_clear_history: data.auto_clear_history || 'never'
+      });
+    } catch (error: any) {
+      console.error('Error loading preferences:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to load preferences",
+        variant: "destructive"
       });
     }
   };
@@ -117,29 +97,17 @@ const AIServiceSettings = () => {
     }
 
     setLoading(true);
-    const { data, error } = await supabase.functions.invoke('chat', {
-      body: {
-        action: 'save_ai_service_settings',
-        service_data: {
-          service_name: newService.service_name,
-          service_type: newService.service_type,
-          api_key: newService.api_key,
-          custom_url: newService.custom_url || null,
-          system_prompt: newService.system_prompt || '',
-          is_active: newService.is_active,
-          model_name: newService.model_name || null
-        }
-      }
-    });
-
-    if (error) {
-      console.error('Error adding AI service:', error);
-      toast({
-        title: "Error",
-        description: "Failed to add AI service",
-        variant: "destructive"
-      });
-    } else {
+    try {
+      const serviceData = {
+        service_name: newService.service_name,
+        service_type: newService.service_type,
+        api_key: newService.api_key,
+        custom_url: newService.custom_url || null,
+        system_prompt: newService.system_prompt || '',
+        is_active: newService.is_active,
+        model_name: newService.model_name || null
+      };
+      await addAIService(serviceData);
       toast({
         title: "Success",
         description: "AI service added successfully"
@@ -155,8 +123,16 @@ const AIServiceSettings = () => {
       });
       setShowAddForm(false);
       loadServices();
+    } catch (error: any) {
+      console.error('Error adding AI service:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to add AI service",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const handleUpdateService = async (serviceId: string) => {
@@ -176,21 +152,9 @@ const AIServiceSettings = () => {
       serviceUpdateData.api_key = editData.api_key;
     }
 
-    const { data, error } = await supabase.functions.invoke('chat', {
-      body: {
-        action: 'save_ai_service_settings',
-        service_data: serviceUpdateData
-      }
-    });
-
-    if (error) {
-      console.error('Error updating AI service:', error);
-      toast({
-        title: "Error",
-        description: "Failed to update AI service",
-        variant: "destructive"
-      });
-    } else {
+    setLoading(true);
+    try {
+      await updateAIService(serviceId, serviceUpdateData);
       toast({
         title: "Success",
         description: "AI service updated successfully"
@@ -198,87 +162,82 @@ const AIServiceSettings = () => {
       setEditingService(null);
       setEditData({});
       loadServices();
+    } catch (error: any) {
+      console.error('Error updating AI service:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update AI service",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const handleDeleteService = async (serviceId: string) => {
     if (!confirm('Are you sure you want to delete this AI service?')) return;
 
     setLoading(true);
-    const { error } = await supabase
-      .from('ai_service_settings')
-      .delete()
-      .eq('id', serviceId)
-      .eq('user_id', user?.id);
-
-    if (error) {
-      console.error('Error deleting AI service:', error);
-      toast({
-        title: "Error",
-        description: "Failed to delete AI service",
-        variant: "destructive"
-      });
-    } else {
+    try {
+      await deleteAIService(serviceId);
       toast({
         title: "Success",
         description: "AI service deleted successfully"
       });
       loadServices();
+    } catch (error: any) {
+      console.error('Error deleting AI service:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete AI service",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const handleToggleActive = async (serviceId: string, isActive: boolean) => {
     setLoading(true);
-    const { error } = await supabase
-      .from('ai_service_settings')
-      .update({ is_active: isActive })
-      .eq('id', serviceId)
-      .eq('user_id', user?.id);
-
-    if (error) {
-      console.error('Error updating AI service status:', error);
-      toast({
-        title: "Error",
-        description: "Failed to update AI service status",
-        variant: "destructive"
-      });
-    } else {
+    try {
+      await updateAIServiceStatus(serviceId, isActive);
       toast({
         title: "Success",
         description: `AI service ${isActive ? 'activated' : 'deactivated'}`
       });
       loadServices();
+    } catch (error: any) {
+      console.error('Error updating AI service status:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update AI service status",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const handleUpdatePreferences = async () => {
     if (!user) return;
 
     setLoading(true);
-    const { error } = await supabase
-      .from('user_preferences')
-      .update({
-        auto_clear_history: preferences.auto_clear_history
-      })
-      .eq('user_id', user.id);
-
-    if (error) {
-      console.error('Error updating preferences:', error);
-      toast({
-        title: "Error",
-        description: "Failed to update preferences",
-        variant: "destructive"
-      });
-    } else {
+    try {
+      await updateUserPreferences(user.id, preferences);
       toast({
         title: "Success",
         description: "Chat preferences updated successfully"
       });
+    } catch (error: any) {
+      console.error('Error updating preferences:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update preferences",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const startEditing = (service: AIService) => {

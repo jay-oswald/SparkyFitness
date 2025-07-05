@@ -5,19 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { supabase } from "@/integrations/supabase/client";
 import { usePreferences } from "@/contexts/PreferencesContext"; // Import usePreferences
 import { debug, info, warn, error } from '@/utils/logging'; // Import logging utility
+import { loadFoodVariants, FoodVariant } from '@/services/foodUnitService';
 
-interface FoodVariant {
-  id: string;
-  serving_size: number;
-  serving_unit: string;
-  calories?: number;
-  protein?: number;
-  carbs?: number;
-  fat?: number;
-}
 
 interface FoodUnitSelectorProps {
   food: any;
@@ -52,14 +43,7 @@ const FoodUnitSelector = ({ food, open, onOpenChange, onSelect }: FoodUnitSelect
     setLoading(true);
     try {
 
-      const { data, error: supabaseError } = await supabase
-        .from('food_variants')
-        .select('*')
-        .eq('food_id', food.id);
-
-      if (supabaseError) {
-        error(loggingLevel, 'Error loading variants:', supabaseError);
-      }
+      const data = await loadFoodVariants(food.id);
 
 
       // Always include the primary food unit as the first option

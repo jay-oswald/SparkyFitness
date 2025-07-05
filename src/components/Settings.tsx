@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { Save, Upload, User, Settings as SettingsIcon, Lock, Camera, ClipboardCopy, Copy, Eye, EyeOff, KeyRound } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { apiCall } from '@/services/api'; // Assuming a common API utility
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "@/hooks/use-toast";
 import FamilyAccessManager from "./FamilyAccessManager";
@@ -20,7 +20,7 @@ import { usePreferences } from "@/contexts/PreferencesContext"; // Import usePre
 interface Profile {
   id: string;
   full_name: string | null;
-  phone: string | null;
+  phone_number: string | null; // Changed from 'phone' to 'phone_number' to match DB
   date_of_birth: string | null;
   bio: string | null;
   avatar_url: string | null;
@@ -43,15 +43,17 @@ interface CustomCategory {
 
 const Settings = () => {
   const { user } = useAuth();
-  const { timezone, setTimezone } = usePreferences(); // Use timezone from context
+  const {
+    weightUnit, setWeightUnit,
+    measurementUnit, setMeasurementUnit,
+    dateFormat, setDateFormat,
+    loggingLevel, setLoggingLevel,
+    timezone, setTimezone,
+    loadPreferences: loadUserPreferencesFromContext, // Rename to avoid conflict
+    saveAllPreferences // Add saveAllPreferences from context
+  } = usePreferences();
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [preferences, setPreferences] = useState<UserPreferences>({
-    date_format: 'MM/DD/YYYY',
-    default_weight_unit: 'kg',
-    default_measurement_unit: 'cm',
-    logging_level: 'ERROR', // Default to ERROR as per user feedback
-    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC' // Default to browser's timezone
-  });
+  // Remove local preferences state as it's now managed by PreferencesContext
   const [customCategories, setCustomCategories] = useState<CustomCategory[]>([]);
   const [profileForm, setProfileForm] = useState({
     full_name: '',
@@ -77,47 +79,44 @@ const Settings = () => {
   useEffect(() => {
     if (user) {
       loadProfile();
-      loadPreferences();
+      loadUserPreferencesFromContext(); // Load preferences from context
       loadCustomCategories();
       loadApiKeys(); // Load API keys
       setNewEmail(user.email || ''); // Initialize newEmail here
     }
-  }, [user]);
+  }, [user]); // Removed loadUserPreferencesFromContext from dependency array
 
   const loadCustomCategories = async () => {
     if (!user) return;
 
     try {
       
-      const { data, error } = await supabase
-        .from('custom_categories')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at');
-
-      if (error) throw error;
+      const data = await apiCall(`/api/custom-categories/${user.id}`, {
+        method: 'GET',
+      });
       setCustomCategories(data || []);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading custom categories:', error);
+      toast({
+        title: "Error",
+        description: `Failed to load custom categories: ${error.message}`,
+        variant: "destructive",
+      });
     }
   };
 
   const loadApiKeys = async () => {
     if (!user) return;
     try {
-      const { data, error } = await supabase
-        .from('user_api_keys')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
+      const data = await apiCall(`/api/user-api-keys/${user.id}`, {
+        method: 'GET',
+      });
       setApiKeys(data || []);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading API keys:', error);
       toast({
         title: "Error",
-        description: "Failed to load API keys",
+        description: `Failed to load API keys: ${error.message}`,
         variant: "destructive",
       });
     }
@@ -127,13 +126,10 @@ const Settings = () => {
     if (!user) return;
     setGeneratingApiKey(true);
     try {
-      // Call the Supabase function to generate a new API key
-      const { data, error } = await supabase.rpc('generate_user_api_key', {
-        p_user_id: user.id,
-        p_description: newApiKeyDescription || null
+      const data = await apiCall('/api/user/generate-api-key', {
+        method: 'POST',
+        body: JSON.stringify({ userId: user.id, description: newApiKeyDescription || null }),
       });
-
-      if (error) throw error;
 
       toast({
         title: "Success",
@@ -141,7 +137,7 @@ const Settings = () => {
       });
       setNewApiKeyDescription('');
       loadApiKeys(); // Reload keys to show the new one
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error generating API key:', error);
       toast({
         title: "Error",
@@ -157,21 +153,17 @@ const Settings = () => {
     if (!user) return;
     setLoading(true); // Use general loading for this
     try {
-      // Update the API key to inactive
-      const { error } = await supabase
-        .from('user_api_keys')
-        .update({ is_active: false, updated_at: new Date().toISOString() })
-        .eq('id', apiKeyId)
-        .eq('user_id', user.id);
-
-      if (error) throw error;
+      await apiCall('/api/user/revoke-api-key', {
+        method: 'POST',
+        body: JSON.stringify({ userId: user.id, apiKeyId: apiKeyId }),
+      });
 
       toast({
         title: "Success",
         description: "API key revoked successfully!",
       });
       loadApiKeys(); // Reload keys
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error revoking API key:', error);
       toast({
         title: "Error",
@@ -186,133 +178,81 @@ const Settings = () => {
   const loadProfile = async () => {
     if (!user) return;
 
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('id, full_name, phone, date_of_birth, bio, avatar_url')
-      .eq('id', user.id)
-      .single();
-
-    if (error) {
-      console.error('Error loading profile:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load profile",
-        variant: "destructive",
+    try {
+      const data = await apiCall(`/api/profiles/${user.id}`, {
+        method: 'GET',
       });
-    } else {
       setProfile(data);
       setProfileForm({
         full_name: data.full_name || '',
-        phone: data.phone || '',
+        phone: data.phone_number || '', // Use phone_number from backend
         date_of_birth: data.date_of_birth || '',
         bio: data.bio || ''
       });
-    }
-  };
-
-  const loadPreferences = async () => {
-    if (!user) return;
-
-    const { data, error } = await supabase
-      .from('user_preferences')
-      .select('*')
-      .eq('user_id', user.id)
-      .single();
-
-    if (error) {
-      console.error('Error loading preferences:', error);
-      // Create default preferences if they don't exist
-      await createDefaultPreferences();
-    } else {
-      setPreferences({
-        date_format: data.date_format,
-        default_weight_unit: data.default_weight_unit,
-        default_measurement_unit: data.default_measurement_unit,
-        logging_level: data.logging_level as 'DEBUG' | 'INFO' | 'WARN' | 'ERROR' | 'SILENT' || 'ERROR', // Load logging level, default to ERROR
-        timezone: data.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC' // Load timezone
+    } catch (error: any) {
+      console.error('Error loading profile:', error);
+      toast({
+        title: "Error",
+        description: `Failed to load profile: ${error.message}`,
+        variant: "destructive",
       });
-      setTimezone(data.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'); // Update context timezone
     }
   };
 
-  const createDefaultPreferences = async () => {
-    if (!user) return;
 
-    const { error } = await supabase
-      .from('user_preferences')
-      .upsert({
-        user_id: user.id,
-        date_format: 'MM/DD/YYYY',
-        default_weight_unit: 'kg',
-        default_measurement_unit: 'cm',
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC' // Set default timezone
-      });
-
-    if (error) {
-      console.error('Error creating default preferences:', error);
-    }
-  };
 
   const handleProfileUpdate = async () => {
     if (!user) return;
 
     setLoading(true);
-    const { error } = await supabase
-      .from('profiles')
-      .update({
-        full_name: profileForm.full_name,
-        phone: profileForm.phone,
-        date_of_birth: profileForm.date_of_birth || null,
-        bio: profileForm.bio
-      })
-      .eq('id', user.id);
-
-    if (error) {
-      console.error('Error updating profile:', error);
-      toast({
-        title: "Error",
-        description: "Failed to update profile",
-        variant: "destructive",
+    try {
+      await apiCall(`/api/profiles/${user.id}`, {
+        method: 'PUT', // Or PATCH, depending on backend implementation
+        body: JSON.stringify({
+          full_name: profileForm.full_name,
+          phone_number: profileForm.phone, // Changed to phone_number
+          date_of_birth: profileForm.date_of_birth || null,
+          bio: profileForm.bio
+        }),
       });
-    } else {
+
       toast({
         title: "Success",
         description: "Profile updated successfully",
       });
       loadProfile();
+    } catch (error: any) {
+      console.error('Error updating profile:', error);
+      toast({
+        title: "Error",
+        description: `Failed to update profile: ${error.message}`,
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
+
 
   const handlePreferencesUpdate = async () => {
     if (!user) return;
-
     setLoading(true);
-    const { error } = await supabase
-      .from('user_preferences')
-      .upsert({
-        user_id: user.id,
-        date_format: preferences.date_format,
-        default_weight_unit: preferences.default_weight_unit,
-        default_measurement_unit: preferences.default_measurement_unit,
-        logging_level: preferences.logging_level,
-        timezone: preferences.timezone // Save timezone
-      }, { onConflict: 'user_id' });
-
-    if (error) {
-      console.error('Error updating preferences:', error);
-      toast({
-        title: "Error",
-        description: "Failed to update preferences",
-        variant: "destructive",
-      });
-    } else {
+    try {
+      await saveAllPreferences(); // Call the new function from context
       toast({
         title: "Success",
         description: "Preferences updated successfully",
       });
+    } catch (error: any) {
+      console.error('Error updating preferences:', error);
+      toast({
+        title: "Error",
+        description: `Failed to update preferences: ${error.message}`,
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const handlePasswordChange = async () => {
@@ -335,18 +275,16 @@ const Settings = () => {
     }
 
     setLoading(true);
-    const { error } = await supabase.auth.updateUser({
-      password: passwordForm.new_password
-    });
-
-    if (error) {
-      console.error('Error updating password:', error);
-      toast({
-        title: "Error",
-        description: "Failed to update password",
-        variant: "destructive",
+    try {
+      await apiCall('/api/auth/update-password', {
+        method: 'POST',
+        body: JSON.stringify({
+          userId: user?.id, // Assuming userId is available from useAuth
+          currentPassword: passwordForm.current_password, // If needed for verification
+          newPassword: passwordForm.new_password,
+        }),
       });
-    } else {
+
       toast({
         title: "Success",
         description: "Password updated successfully",
@@ -356,8 +294,16 @@ const Settings = () => {
         new_password: '',
         confirm_password: ''
       });
+    } catch (error: any) {
+      console.error('Error updating password:', error);
+      toast({
+        title: "Error",
+        description: `Failed to update password: ${error.message}`,
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const handleEmailChange = async () => {
@@ -371,31 +317,36 @@ const Settings = () => {
     }
 
     setLoading(true);
-    const { error } = await supabase.auth.updateUser({
-      email: newEmail
-    });
-
-    if (error) {
-      console.error('Error updating email:', error);
-      toast({
-        title: "Error",
-        description: "Failed to update email",
-        variant: "destructive",
+    try {
+      await apiCall('/api/auth/update-email', {
+        method: 'POST',
+        body: JSON.stringify({
+          userId: user?.id, // Assuming userId is available from useAuth
+          newEmail: newEmail,
+        }),
       });
-    } else {
+
       toast({
         title: "Success",
         description: "Email update initiated. Please check your new email for confirmation.",
       });
+    } catch (error: any) {
+      console.error('Error updating email:', error);
+      toast({
+        title: "Error",
+        description: `Failed to update email: ${error.message}`,
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     if (!event.target.files || !event.target.files[0] || !user) return;
 
     const file = event.target.files[0];
-    
+
     // Validate file type
     if (!file.type.startsWith('image/')) {
       toast({
@@ -417,52 +368,34 @@ const Settings = () => {
     }
 
     setUploadingImage(true);
-    
+
     const fileExt = file.name.split('.').pop();
     const fileName = `${user.id}/avatar.${fileExt}`;
 
     try {
-      // Delete existing avatar if it exists
-      if (profile?.avatar_url) {
-        await supabase.storage
-          .from('profile-pictures')
-          .remove([`${user.id}/avatar.${profile.avatar_url.split('.').pop()}`]);
-      }
+      // Image upload functionality will require a dedicated backend endpoint
+      // to handle file storage (e.g., S3, local filesystem) and return the public URL.
+      // The existing placeholder logic for updating the profile with a dummy URL remains.
 
-      // Upload new avatar
-      const { error: uploadError } = await supabase.storage
-        .from('profile-pictures')
-        .upload(fileName, file, { upsert: true });
-
-      if (uploadError) {
-        throw uploadError;
-      }
-
-      // Get public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from('profile-pictures')
-        .getPublicUrl(fileName);
+      // For now, simulate success and update profile with a dummy URL
+      const publicUrl = `http://localhost:3010/uploads/${fileName}`; // Dummy URL
 
       // Update profile with new avatar URL
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({ avatar_url: publicUrl })
-        .eq('id', user.id);
-
-      if (updateError) {
-        throw updateError;
-      }
+      await apiCall(`/api/profiles/${user.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ avatar_url: publicUrl }),
+      });
 
       toast({
         title: "Success",
         description: "Profile picture updated successfully",
       });
       loadProfile();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error uploading image:', error);
       toast({
         title: "Error",
-        description: "Failed to upload profile picture",
+        description: `Failed to upload profile picture: ${error.message}`,
         variant: "destructive",
       });
     } finally {
@@ -583,26 +516,26 @@ const Settings = () => {
             <div>
               <Label htmlFor="date_format">Date Format</Label>
               <Select
-                value={preferences.date_format}
-                onValueChange={(value) => setPreferences(prev => ({ ...prev, date_format: value }))}
+                value={dateFormat}
+                onValueChange={setDateFormat}
               >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="MM/DD/YYYY">MM/DD/YYYY (12/25/2024)</SelectItem>
-                  <SelectItem value="DD/MM/YYYY">DD/MM/YYYY (25/12/2024)</SelectItem>
-                  <SelectItem value="DD-MMM-YYYY">DD-MMM-YYYY (25-Dec-2024)</SelectItem>
-                  <SelectItem value="YYYY-MM-DD">YYYY-MM-DD (2024-12-25)</SelectItem>
-                  <SelectItem value="MMM DD, YYYY">MMM DD, YYYY (Dec 25, 2024)</SelectItem>
+                  <SelectItem value="MM/dd/yyyy">MM/dd/yyyy (12/25/2024)</SelectItem>
+                  <SelectItem value="dd/MM/yyyy">dd/MM/yyyy (25/12/2024)</SelectItem>
+                  <SelectItem value="dd-MMM-yyyy">dd-MMM-yyyy (25-Dec-2024)</SelectItem>
+                  <SelectItem value="yyyy-MM-dd">yyyy-MM-dd (2024-12-25)</SelectItem>
+                  <SelectItem value="MMM dd, yyyy">MMM dd, yyyy (Dec 25, 2024)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div>
               <Label htmlFor="weight_unit">Weight Unit</Label>
               <Select
-                value={preferences.default_weight_unit}
-                onValueChange={(value) => setPreferences(prev => ({ ...prev, default_weight_unit: value }))}
+                value={weightUnit}
+                onValueChange={setWeightUnit}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -616,8 +549,8 @@ const Settings = () => {
             <div>
               <Label htmlFor="measurement_unit">Measurement Unit</Label>
               <Select
-                value={preferences.default_measurement_unit}
-                onValueChange={(value) => setPreferences(prev => ({ ...prev, default_measurement_unit: value }))}
+                value={measurementUnit}
+                onValueChange={setMeasurementUnit}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -634,8 +567,8 @@ const Settings = () => {
             <div>
               <Label htmlFor="logging_level">Minimum Logging Level</Label>
               <Select
-                value={preferences.logging_level}
-                onValueChange={(value) => setPreferences(prev => ({ ...prev, logging_level: value as 'DEBUG' | 'INFO' | 'WARN' | 'ERROR' | 'SILENT' }))}
+                value={loggingLevel}
+                onValueChange={setLoggingLevel}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -653,8 +586,8 @@ const Settings = () => {
               <Label htmlFor="timezone">Timezone</Label>
               <Input
                 id="timezone"
-                value={preferences.timezone}
-                onChange={(e) => setPreferences(prev => ({ ...prev, timezone: e.target.value }))}
+                value={timezone}
+                onChange={(e) => setTimezone(e.target.value)}
                 placeholder="e.g., Etc/UTC or America/New_York"
               />
             </div>

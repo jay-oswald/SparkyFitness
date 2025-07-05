@@ -4,9 +4,34 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Trash2, Save } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
+
+// Define the base URL for your backend API
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3010";
+
+// Helper function for API calls
+const apiCall = async (endpoint: string, method: string, body?: any) => {
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+  };
+
+  const config: RequestInit = {
+    method,
+    headers,
+  };
+
+  if (body) {
+    config.body = JSON.stringify(body);
+  }
+
+  const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.error || `API call to ${endpoint} failed.`);
+  }
+  return response.json();
+};
 
 interface SparkyHistoryManagerProps {
   onClose: () => void;
@@ -26,11 +51,13 @@ const SparkyHistoryManager = ({ onClose }: SparkyHistoryManagerProps) => {
   const loadUserPreferences = async () => {
     if (!user) return;
 
-    const { data, error } = await supabase
-      .from('user_preferences')
-      .select('auto_clear_history')
-      .eq('user_id', user.id)
-      .single();
+    let data = null;
+    let error = null;
+    try {
+      data = await apiCall(`/api/user-preferences/${user.id}`, 'GET');
+    } catch (err: any) {
+      error = err;
+    }
 
     if (error) {
       console.error('Error loading user preferences:', error);
@@ -43,12 +70,15 @@ const SparkyHistoryManager = ({ onClose }: SparkyHistoryManagerProps) => {
     if (!user) return;
 
     setLoading(true);
-    const { error } = await supabase
-      .from('user_preferences')
-      .update({
+    let error = null;
+    try {
+      await apiCall('/api/user-preferences', 'POST', {
+        user_id: user.id,
         auto_clear_history: clearPreference
-      })
-      .eq('user_id', user.id);
+      });
+    } catch (err: any) {
+      error = err;
+    }
 
     if (error) {
       console.error('Error updating preferences:', error);
@@ -65,10 +95,12 @@ const SparkyHistoryManager = ({ onClose }: SparkyHistoryManagerProps) => {
     if (!confirm('Are you sure you want to clear all chat history? This cannot be undone.')) return;
 
     setLoading(true);
-    const { error } = await supabase
-      .from('sparky_chat_history')
-      .delete()
-      .eq('user_id', user.id);
+    let error = null;
+    try {
+      await apiCall(`/api/sparky-chat-history/${user.id}`, 'DELETE');
+    } catch (err: any) {
+      error = err;
+    }
 
     if (error) {
       console.error('Error clearing chat history:', error);

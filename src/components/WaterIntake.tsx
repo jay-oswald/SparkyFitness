@@ -3,9 +3,11 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Droplet } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "@/hooks/use-toast";
+
+// Define the base URL for your backend API
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3010";
 
 interface WaterIntakeProps {
   selectedDate: string;
@@ -39,27 +41,26 @@ const WaterIntake = ({ selectedDate }: WaterIntakeProps) => {
     try {
       
       // Load water goal for selected date
-      const { data: goalData } = await supabase.rpc('get_goals_for_date', {
-        p_user_id: user?.id,
-        p_date: selectedDate
-      });
+      const goalResponse = await fetch(`${API_BASE_URL}/api/goals/for-date?userId=${user?.id}&date=${selectedDate}`);
+      if (!goalResponse.ok) {
+        console.error('Error loading water goal:', await goalResponse.json());
+        setWaterGoal(8);
+      }
+      const goalData = await goalResponse.json();
 
       if (goalData && goalData.length > 0) {
         setWaterGoal(goalData[0].water_goal || 8);
       }
 
       // Load water intake for selected date - get all records and sum them
-      const { data: waterData, error } = await supabase
-        .from('water_intake')
-        .select('glasses_consumed')
-        .eq('user_id', user?.id)
-        .eq('entry_date', selectedDate);
-
-      if (error) {
-        console.error('Error loading water intake:', error);
+      const waterResponse = await fetch(`${API_BASE_URL}/api/water-intake/${user?.id}/${selectedDate}`);
+      if (!waterResponse.ok) {
+        console.error('Error loading water intake:', await waterResponse.json());
         setWaterGlasses(0);
         return;
       }
+      const waterData = await waterResponse.json();
+
 
       if (waterData && waterData.length > 0) {
         // Sum all glasses consumed for the day
@@ -81,18 +82,21 @@ const WaterIntake = ({ selectedDate }: WaterIntakeProps) => {
       setLoading(true);
 
       // Use upsert for atomic update/insert
-      const { error } = await supabase
-        .from('water_intake')
-        .upsert({
+      const response = await fetch(`${API_BASE_URL}/api/water-intake`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
           user_id: user.id,
           entry_date: selectedDate,
           glasses_consumed: newGlasses,
-        }, {
-          onConflict: 'user_id,entry_date'
-        });
+        }),
+      });
 
-      if (error) {
-        console.error('Error saving water intake:', error);
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Error saving water intake:', errorData);
         toast({
           title: "Error",
           description: "Failed to save water intake",
@@ -100,6 +104,7 @@ const WaterIntake = ({ selectedDate }: WaterIntakeProps) => {
         });
         return;
       }
+
 
       toast({
         title: "Success",
