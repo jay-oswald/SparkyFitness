@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 
 interface User {
   id: string;
@@ -7,13 +7,22 @@ interface User {
   // Add other user properties as needed
 }
 
-export const useAuth = () => {
+interface AuthContextType {
+  user: User | null;
+  loading: boolean;
+  signOut: () => Promise<void>;
+  signIn: (userId: string, userEmail: string) => void;
+}
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const storedUserId = localStorage.getItem('userId');
-    const storedUserEmail = localStorage.getItem('userEmail'); // Assuming you'll store email too
+    const storedUserEmail = localStorage.getItem('userEmail');
 
     if (storedUserId && storedUserEmail) {
       setUser({ id: storedUserId, email: storedUserEmail });
@@ -28,7 +37,7 @@ export const useAuth = () => {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ userId: user?.id }), // Send userId if available
+        body: JSON.stringify({ userId: user?.id }),
       });
 
       if (response.ok) {
@@ -43,12 +52,26 @@ export const useAuth = () => {
     }
   };
 
-  // Function to update user state after successful login
   const signIn = (userId: string, userEmail: string) => {
     localStorage.setItem('userId', userId);
     localStorage.setItem('userEmail', userEmail);
     setUser({ id: userId, email: userEmail });
   };
 
-  return { user, loading, signOut, signIn };
+  const value = {
+    user,
+    loading,
+    signOut,
+    signIn,
+  };
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+};
+
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
 };

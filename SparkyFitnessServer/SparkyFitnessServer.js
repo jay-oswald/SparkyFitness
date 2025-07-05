@@ -1410,11 +1410,11 @@ app.put('/api/measurements/custom-categories/:id', express.json(), async (req, r
 });
 
 // Endpoint to delete a custom category
-app.delete('/api/custom-categories/:id', async (req, res) => {
+app.delete('/api/measurements/custom-categories/:id', async (req, res) => {
   const { id } = req.params;
-  const { user_id } = req.query; // Correctly extract user_id from query parameters
+  const { userId } = req.query; // Correctly extract userId from query parameters
 
-  if (!id || !user_id) { // Use user_id here
+  if (!id || !userId) {
     return res.status(400).json({ error: 'Category ID and User ID are required.' });
   }
 
@@ -1422,7 +1422,7 @@ app.delete('/api/custom-categories/:id', async (req, res) => {
   try {
     const result = await client.query(
       'DELETE FROM custom_categories WHERE id = $1 AND user_id = $2 RETURNING id',
-      [id, user_id] // Use user_id here
+      [id, userId]
     );
 
     if (result.rowCount === 0) {
@@ -1597,6 +1597,68 @@ app.get('/api/measurements/custom-entries/:userId/:date', async (req, res) => {
     res.status(200).json(result.rows || []);
   } catch (error) {
     log('error', 'Error fetching custom measurements by user and date:', error);
+    res.status(500).json({ error: 'Internal server error.' });
+  } finally {
+    client.release();
+  }
+});
+
+app.get('/api/measurements/custom-entries', async (req, res) => {
+  const { userId, limit, orderBy, filter } = req.query;
+
+  if (!userId) {
+    return res.status(400).json({ error: 'User ID is required.' });
+  }
+
+  let query = `
+    SELECT cm.*, cc.name AS custom_category_name, cc.measurement_type, cc.frequency
+    FROM custom_measurements cm
+    JOIN custom_categories cc ON cm.category_id = cc.id
+    WHERE cm.user_id = $1
+  `;
+  const queryParams = [userId];
+  let paramIndex = 2;
+
+  if (filter) {
+    // Basic filter parsing, assuming format like "value.gt.0"
+    const [field, operator, value] = filter.split('.');
+    if (field && operator && value) {
+      let sqlOperator = '';
+      switch (operator) {
+        case 'eq': sqlOperator = '='; break;
+        case 'gt': sqlOperator = '>'; break;
+        case 'lt': sqlOperator = '<'; break;
+        case 'gte': sqlOperator = '>='; break;
+        case 'lte': sqlOperator = '<='; break;
+        case 'neq': sqlOperator = '!='; break;
+        default: sqlOperator = '='; // Default to equals
+      }
+      query += ` AND cm.${field} ${sqlOperator} $${paramIndex++}`;
+      queryParams.push(value);
+    }
+  }
+
+  if (orderBy) {
+    // Basic order by parsing, assuming format like "entry_timestamp.desc"
+    const [field, direction] = orderBy.split('.');
+    if (field && (direction === 'asc' || direction === 'desc')) {
+      query += ` ORDER BY cm.${field} ${direction.toUpperCase()}`;
+    }
+  } else {
+    query += ` ORDER BY cm.entry_date DESC, cm.entry_timestamp DESC`; // Default order
+  }
+
+  if (limit) {
+    query += ` LIMIT $${paramIndex++}`;
+    queryParams.push(parseInt(limit, 10));
+  }
+
+  const client = await pool.connect();
+  try {
+    const result = await client.query(query, queryParams);
+    res.status(200).json(result.rows || []);
+  } catch (error) {
+    log('error', 'Error fetching custom measurements:', error);
     res.status(500).json({ error: 'Internal server error.' });
   } finally {
     client.release();
@@ -3737,6 +3799,92 @@ app.post('/api/food-entries', express.json(), async (req, res) => {
   }
 });
 
+// Endpoint to fetch exercises with search, filter, and pagination
+app.get('/api/exercises', async (req, res) => {
+  const { userId, searchTerm, categoryFilter, ownershipFilter, currentPage, itemsPerPage } = req.query;
+
+  if (!userId) {
+    return res.status(400).json({ error: 'User ID is required.' });
+  }
+
+  const client = await pool.connect();
+  try {
+    let whereClauses = ['1=1']; // Start with a true condition
+    const queryParams = [];
+    const countQueryParams = [];
+    let paramIndex = 1;
+
+    // Apply search filter
+    if (searchTerm) {
+      whereClauses.push(`name ILIKE $${paramIndex}`);
+      queryParams.push(`%${searchTerm}%`);
+      countQueryParams.push(`%${searchTerm}%`);
+      paramIndex++;
+    }
+
+    // Apply category filter
+    if (categoryFilter && categoryFilter !== 'all') {
+      whereClauses.push(`category = $${paramIndex}`);
+      queryParams.push(categoryFilter);
+      countQueryParams.push(categoryFilter);
+      paramIndex++;
+    }
+
+    // Apply ownership filter
+    if (ownershipFilter === 'own') {
+      whereClauses.push(`user_id = $${paramIndex}`);
+      queryParams.push(userId);
+      countQueryParams.push(userId);
+      paramIndex++;
+    } else if (ownershipFilter === 'public') {
+      whereClauses.push(`user_id IS NULL OR shared_with_public = TRUE`);
+    } else if (ownershipFilter === 'family') {
+      whereClauses.push(`user_id != $${paramIndex} AND is_custom = TRUE`); // Assuming family exercises are custom and not owned by current user
+      queryParams.push(userId);
+      countQueryParams.push(userId);
+      paramIndex++;
+    } else if (ownershipFilter === 'all') {
+      whereClauses.push(`(user_id IS NULL OR user_id = $${paramIndex} OR shared_with_public = TRUE OR user_id IN (SELECT owner_user_id FROM family_access WHERE family_user_id = $${paramIndex} AND is_active = TRUE AND (access_end_date IS NULL OR access_end_date > NOW())))`);
+      queryParams.push(userId);
+      countQueryParams.push(userId);
+      paramIndex++;
+    }
+
+    let query = `
+      SELECT id, name, category, calories_per_hour, description, user_id, is_custom, shared_with_public, created_at, updated_at
+      FROM exercises
+      WHERE ${whereClauses.join(' AND ')}
+    `;
+    const countQuery = `
+      SELECT COUNT(*)
+      FROM exercises
+      WHERE ${whereClauses.join(' AND ')}
+    `;
+
+    query += ` ORDER BY name ASC`; // Default sort for exercises
+
+    const limit = parseInt(itemsPerPage, 10) || 10;
+    const offset = ((parseInt(currentPage, 10) || 1) - 1) * limit;
+    query += ` LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+    queryParams.push(limit, offset);
+
+    const [exercisesResult, countResult] = await Promise.all([
+      client.query(query, queryParams),
+      client.query(countQuery, countQueryParams)
+    ]);
+
+    res.status(200).json({
+      exercises: exercisesResult.rows,
+      totalCount: parseInt(countResult.rows[0].count, 10)
+    });
+  } catch (error) {
+    log('error', 'Error fetching exercises:', error);
+    res.status(500).json({ error: 'Internal server error.' });
+  } finally {
+    client.release();
+  }
+});
+
 // Endpoint to search for exercises
 app.get('/api/exercises/search/:name', async (req, res) => {
   const { name } = req.params;
@@ -3973,7 +4121,7 @@ app.put('/api/exercises/:id', express.json(), async (req, res) => {
 // Endpoint to delete an exercise
 app.delete('/api/exercises/:id', async (req, res) => {
   const { id } = req.params;
-  const { userId } = req.body; // Assuming userId is sent in the body for authorization
+  const { userId } = req.query; // Assuming userId is sent in the query for authorization
 
   if (!id || !userId) {
     return res.status(400).json({ error: 'Exercise ID and User ID are required.' });
@@ -4149,6 +4297,119 @@ app.get('/api/check-in-measurements-range/:userId/:startDate/:endDate', async (r
   }
 });
 
+// New endpoint for reports
+app.get('/api/reports', async (req, res) => {
+  const { userId, startDate, endDate } = req.query;
+
+  if (!userId || !startDate || !endDate) {
+    return res.status(400).json({ error: 'User ID, start date, and end date are required.' });
+  }
+
+  const client = await pool.connect();
+  try {
+    // Fetch nutrition data
+    const nutritionResult = await client.query(
+      `SELECT
+         fe.entry_date AS date,
+         SUM(f.calories * fe.quantity / f.serving_size) AS calories,
+         SUM(f.protein * fe.quantity / f.serving_size) AS protein,
+         SUM(f.carbs * fe.quantity / f.serving_size) AS carbs,
+         SUM(f.fat * fe.quantity / f.serving_size) AS fat,
+         SUM(COALESCE(f.saturated_fat, 0) * fe.quantity / f.serving_size) AS saturated_fat,
+         SUM(COALESCE(f.polyunsaturated_fat, 0) * fe.quantity / f.serving_size) AS polyunsaturated_fat,
+         SUM(COALESCE(f.monounsaturated_fat, 0) * fe.quantity / f.serving_size) AS monounsaturated_fat,
+         SUM(COALESCE(f.trans_fat, 0) * fe.quantity / f.serving_size) AS trans_fat,
+         SUM(COALESCE(f.cholesterol, 0) * fe.quantity / f.serving_size) AS cholesterol,
+         SUM(COALESCE(f.sodium, 0) * fe.quantity / f.serving_size) AS sodium,
+         SUM(COALESCE(f.potassium, 0) * fe.quantity / f.serving_size) AS potassium,
+         SUM(COALESCE(f.dietary_fiber, 0) * fe.quantity / f.serving_size) AS dietary_fiber,
+         SUM(COALESCE(f.sugars, 0) * fe.quantity / f.serving_size) AS sugars,
+         SUM(COALESCE(f.vitamin_a, 0) * fe.quantity / f.serving_size) AS vitamin_a,
+         SUM(COALESCE(f.vitamin_c, 0) * fe.quantity / f.serving_size) AS vitamin_c,
+         SUM(COALESCE(f.calcium, 0) * fe.quantity / f.serving_size) AS calcium,
+         SUM(COALESCE(f.iron, 0) * fe.quantity / f.serving_size) AS iron
+       FROM food_entries fe
+       JOIN foods f ON fe.food_id = f.id
+       WHERE fe.user_id = $1 AND fe.entry_date BETWEEN $2 AND $3
+       GROUP BY fe.entry_date
+       ORDER BY fe.entry_date`,
+      [userId, startDate, endDate]
+    );
+
+    // Fetch tabular food data
+    const tabularDataResult = await client.query(
+      `SELECT fe.*, f.name AS food_name, f.brand, f.calories, f.protein, f.carbs, f.fat,
+              f.saturated_fat, f.polyunsaturated_fat, f.monounsaturated_fat, f.trans_fat,
+              f.cholesterol, f.sodium, f.potassium, f.dietary_fiber, f.sugars,
+              f.vitamin_a, f.vitamin_c, f.calcium, f.iron, f.serving_size
+       FROM food_entries fe
+       JOIN foods f ON fe.food_id = f.id
+       WHERE fe.user_id = $1 AND fe.entry_date BETWEEN $2 AND $3
+       ORDER BY fe.entry_date, fe.meal_type`,
+      [userId, startDate, endDate]
+    );
+
+    // Fetch measurement data
+    const measurementResult = await client.query(
+      'SELECT entry_date, weight, neck, waist, hips, steps FROM check_in_measurements WHERE user_id = $1 AND entry_date BETWEEN $2 AND $3 ORDER BY entry_date',
+      [userId, startDate, endDate]
+    );
+
+    // Fetch custom categories
+    const customCategoriesResult = await client.query(
+      'SELECT id, name, measurement_type, frequency FROM custom_categories WHERE user_id = $1',
+      [userId]
+    );
+
+    // Fetch custom measurements data
+    const customMeasurementsData = {};
+    for (const category of customCategoriesResult.rows) {
+      const customMeasurementResult = await client.query(
+        'SELECT category_id, entry_date AS date, EXTRACT(HOUR FROM entry_timestamp) AS hour, value, entry_timestamp AS timestamp FROM custom_measurements WHERE user_id = $1 AND category_id = $2 AND entry_date BETWEEN $3 AND $4 ORDER BY entry_date, entry_timestamp',
+        [userId, category.id, startDate, endDate]
+      );
+      customMeasurementsData[category.id] = customMeasurementResult.rows;
+    }
+
+    res.status(200).json({
+      nutritionData: nutritionResult.rows,
+      tabularData: tabularDataResult.rows.map(row => ({
+        ...row,
+        foods: {
+          name: row.food_name,
+          brand: row.brand,
+          calories: row.calories,
+          protein: row.protein,
+          carbs: row.carbs,
+          fat: row.fat,
+          saturated_fat: row.saturated_fat,
+          polyunsaturated_fat: row.polyunsaturated_fat,
+          monounsaturated_fat: row.monounsaturated_fat,
+          trans_fat: row.trans_fat,
+          cholesterol: row.cholesterol,
+          sodium: row.sodium,
+          potassium: row.potassium,
+          dietary_fiber: row.dietary_fiber,
+          sugars: row.sugars,
+          vitamin_a: row.vitamin_a,
+          vitamin_c: row.vitamin_c,
+          calcium: row.calcium,
+          iron: row.iron,
+          serving_size: row.serving_size,
+        }
+      })),
+      measurementData: measurementResult.rows,
+      customCategories: customCategoriesResult.rows,
+      customMeasurementsData: customMeasurementsData,
+    });
+  } catch (error) {
+    log('error', 'Error fetching reports data:', error);
+    res.status(500).json({ error: 'Internal server error.' });
+  } finally {
+    client.release();
+  }
+});
+
 // Endpoint to fetch custom measurements for a specific user, category, and date range
 app.get('/api/custom-measurements-range/:userId/:categoryId/:startDate/:endDate', async (req, res) => {
   const { userId, categoryId, startDate, endDate } = req.params;
@@ -4275,12 +4536,12 @@ app.get('/api/ai-service-settings/active/:userId', async (req, res) => {
 });
 
 // Endpoint to fetch custom categories for a user
-app.get('/api/custom-categories', async (req, res) => {
-  const { user_id } = req.query;
-  log('info', `Received request for /api/custom-categories with user_id: ${user_id}`); // Added for debugging
+app.get('/api/measurements/custom-categories', async (req, res) => {
+  const { userId } = req.query;
+  log('info', `Received request for /api/measurements/custom-categories with userId: ${userId}`);
 
-  if (!user_id) {
-    log('warn', 'Missing user ID for /api/custom-categories request.');
+  if (!userId) {
+    log('warn', 'Missing user ID for /api/measurements/custom-categories request.');
     return res.status(400).json({ error: 'User ID is required.' });
   }
 
@@ -4288,34 +4549,12 @@ app.get('/api/custom-categories', async (req, res) => {
   try {
     const result = await client.query(
       'SELECT id, name, frequency, measurement_type FROM custom_categories WHERE user_id = $1',
-      [user_id]
+      [userId]
     );
     res.status(200).json(result.rows || []);
   } catch (error) {
-    log('error', 'Error fetching custom categories:', error.message, error.stack); // Enhanced error logging
+    log('error', 'Error fetching custom categories:', error.message, error.stack);
     res.status(500).json({ error: 'Internal server error.', details: error.message });
-  } finally {
-    client.release();
-  }
-});
-
-app.get('/api/custom-categories/:userId', async (req, res) => {
-  const { userId } = req.params;
-
-  if (!userId) {
-    return res.status(400).json({ error: 'User ID is required.' });
-  }
-
-  const client = await pool.connect();
-  try {
-    const result = await client.query(
-      'SELECT name, frequency, measurement_type FROM custom_categories WHERE user_id = $1',
-      [userId]
-    );
-    res.status(200).json(result.rows || []); // Return empty array if no categories found
-  } catch (error) {
-    log('error', 'Error fetching custom categories:', error);
-    res.status(500).json({ error: 'Internal server error.' });
   } finally {
     client.release();
   }

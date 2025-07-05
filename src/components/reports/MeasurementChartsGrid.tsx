@@ -8,7 +8,7 @@ import { debug, info, warn, error } from "@/utils/logging";
 import { parseISO } from "date-fns"; // Import parseISO
 
 interface MeasurementData {
-  date: string;
+  entry_date: string; // Changed from 'date' to 'entry_date'
   weight?: number;
   neck?: number;
   waist?: number;
@@ -26,8 +26,13 @@ const MeasurementChartsGrid = ({ measurementData, showWeightInKg, showMeasuremen
   const { loggingLevel, formatDateInUserTimezone } = usePreferences(); // Destructure formatDateInUserTimezone
   info(loggingLevel, 'MeasurementChartsGrid: Rendering component.');
 
-  const formatDateForChart = (dateStr: string) => {
-    return formatDateInUserTimezone(parseISO(dateStr), 'MMM dd');
+  const formatDateForChart = (date: string) => {
+    // Ensure date is a valid string before parsing
+    if (!date || typeof date !== 'string') {
+      error(loggingLevel, `MeasurementChartsGrid: Invalid date string provided to formatDateForChart:`, date);
+      return ''; // Return empty string for invalid input
+    }
+    return formatDateInUserTimezone(parseISO(date), 'MMM dd');
   };
 
   return (
@@ -49,7 +54,7 @@ const MeasurementChartsGrid = ({ measurementData, showWeightInKg, showMeasuremen
                   <LineChart data={measurementData.filter(d => d.weight)}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis
-                      dataKey="date"
+                      dataKey="entry_date" // Changed from 'date' to 'entry_date'
                       fontSize={10}
                       tickFormatter={formatDateForChart} // Apply formatter
                     />
@@ -77,7 +82,7 @@ const MeasurementChartsGrid = ({ measurementData, showWeightInKg, showMeasuremen
                   <LineChart data={measurementData.filter(d => d.neck)}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis
-                      dataKey="date"
+                      dataKey="entry_date" // Changed from 'date' to 'entry_date'
                       fontSize={10}
                       tickFormatter={formatDateForChart} // Apply formatter
                     />
@@ -105,7 +110,7 @@ const MeasurementChartsGrid = ({ measurementData, showWeightInKg, showMeasuremen
                   <LineChart data={measurementData.filter(d => d.waist)}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis
-                      dataKey="date"
+                      dataKey="entry_date" // Changed from 'date' to 'entry_date'
                       fontSize={10}
                       tickFormatter={formatDateForChart} // Apply formatter
                     />
@@ -133,7 +138,7 @@ const MeasurementChartsGrid = ({ measurementData, showWeightInKg, showMeasuremen
                   <LineChart data={measurementData.filter(d => d.hips)}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis
-                      dataKey="date"
+                      dataKey="entry_date" // Changed from 'date' to 'entry_date'
                       fontSize={10}
                       tickFormatter={formatDateForChart} // Apply formatter
                     />
@@ -165,7 +170,7 @@ const MeasurementChartsGrid = ({ measurementData, showWeightInKg, showMeasuremen
                 <BarChart data={measurementData.filter(d => d.steps)}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis
-                    dataKey="date"
+                    dataKey="entry_date" // Changed from 'date' to 'entry_date'
                     tickFormatter={formatDateForChart} // Apply formatter
                   />
                   <YAxis />

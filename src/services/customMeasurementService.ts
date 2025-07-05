@@ -22,7 +22,7 @@ export interface CustomMeasurement {
 }
 
 export const getCustomCategories = async (userId: string): Promise<CustomCategory[]> => {
-  return apiCall(`/api/custom-categories?user_id=${userId}`, {
+  return apiCall(`/api/measurements/custom-categories?userId=${userId}`, {
     method: 'GET',
   });
 };

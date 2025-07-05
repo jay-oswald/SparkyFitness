@@ -22,7 +22,7 @@ export interface NutritionData {
 }
 
 export interface MeasurementData {
-  date: string;
+  entry_date: string;
   weight?: number;
   neck?: number;
   waist?: number;
@@ -90,7 +90,7 @@ export interface CustomCategory {
 
 export interface CustomMeasurementData {
   category_id: string;
-  date: string;
+  entry_date: string;
   hour?: number;
   value: number;
   timestamp: string;

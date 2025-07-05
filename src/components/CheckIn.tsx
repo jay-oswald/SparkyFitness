@@ -13,8 +13,8 @@ import { toast as sonnerToast } from "sonner";
 import { debug, info, warn, error } from '@/utils/logging'; // Import logging utility
 import { format } from 'date-fns'; // Import format from date-fns
 import {
-  loadCustomCategories,
-  fetchRecentMeasurements,
+  loadCustomCategories as loadCustomCategoriesService,
+  fetchRecentMeasurements as fetchRecentMeasurementsService,
   handleDeleteMeasurement,
   loadExistingCheckInMeasurements,
   loadExistingCustomMeasurements,
@@ -39,7 +39,6 @@ const CheckIn = () => {
     parseDateInUserTimezone, // Add parseDateInUserTimezone
     loggingLevel // Get logging level
   } = usePreferences();
-  debug(loggingLevel, "CheckIn component rendered.");
   const [selectedDate, setSelectedDate] = useState(formatDateInUserTimezone(new Date(), 'yyyy-MM-dd')); // Use formatDateInUserTimezone for initial date
   const [weight, setWeight] = useState("");
   const [neck, setNeck] = useState("");
@@ -55,7 +54,6 @@ const CheckIn = () => {
   debug(loggingLevel, "Current user ID:", currentUserId);
 
   useEffect(() => {
-    debug(loggingLevel, "currentUserId or selectedDate useEffect triggered.", { currentUserId, selectedDate });
     if (currentUserId) {
       loadExistingData();
       loadPreferences();
@@ -77,14 +75,13 @@ const CheckIn = () => {
   }, [currentUserId, selectedDate, loadPreferences, formatDateInUserTimezone, parseDateInUserTimezone]); // Update dependency array
 
   const loadCustomCategories = async () => {
-    debug(loggingLevel, "Loading custom categories.");
     if (!currentUserId) {
       warn(loggingLevel, "loadCustomCategories called with no current user ID.");
       return;
     }
 
     try {
-      const data = await loadCustomCategories(currentUserId);
+      const data = await loadCustomCategoriesService(currentUserId);
       info(loggingLevel, "Custom categories loaded successfully:", data);
       setCustomCategories(data || []);
     } catch (err) {
@@ -93,7 +90,6 @@ const CheckIn = () => {
   };
 
   const fetchRecentMeasurements = async () => {
-    debug(loggingLevel, "Fetching recent measurements.");
     if (!currentUserId) {
       warn(loggingLevel, "fetchRecentMeasurements called with no current user ID.");
       return;
@@ -101,7 +97,7 @@ const CheckIn = () => {
 
 
     try {
-      const data = await fetchRecentMeasurements(currentUserId);
+      const data = await fetchRecentMeasurementsService(currentUserId);
       info(loggingLevel, "Recent measurements fetched successfully:", data);
       setRecentMeasurements(data || []);
     } catch (err) {
@@ -110,10 +106,9 @@ const CheckIn = () => {
     }
   };
 
-  const handleDeleteMeasurement = async (measurementId: string) => {
-    debug(loggingLevel, "Handling delete measurement:", measurementId);
+  const handleDeleteMeasurementClick = async (measurementId: string) => {
     if (!currentUserId) {
-      warn(loggingLevel, "handleDeleteMeasurement called with no current user ID.");
+      warn(loggingLevel, "handleDeleteMeasurementClick called with no current user ID.");
       return;
     }
 
@@ -130,7 +125,6 @@ const CheckIn = () => {
   };
 
   const loadExistingData = async () => {
-    debug(loggingLevel, "Loading existing data for date:", selectedDate);
     try {
       // Load check-in measurements
       const data = await loadExistingCheckInMeasurements(currentUserId, selectedDate);
@@ -165,7 +159,6 @@ const CheckIn = () => {
   };
 
   const handleWeightUnitChange = async (unit: string) => {
-    debug(loggingLevel, "Handling weight unit change:", unit);
     try {
       await updateWeightUnit(unit as 'kg' | 'lbs');
 
@@ -185,7 +178,6 @@ const CheckIn = () => {
   };
 
   const handleMeasurementUnitChange = async (unit: string) => {
-    debug(loggingLevel, "Handling measurement unit change:", unit);
     try {
       await updateMeasurementUnit(unit as 'cm' | 'inches');
 
@@ -205,7 +197,6 @@ const CheckIn = () => {
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
-    debug(loggingLevel, "Handling form submit.");
     e.preventDefault();
 
     if (!currentUserId) {
@@ -219,7 +210,6 @@ const CheckIn = () => {
     }
 
     setLoading(true);
-    debug(loggingLevel, "Saving check-in data...");
 
     try {
       // Save standard check-in measurements
@@ -238,7 +228,6 @@ const CheckIn = () => {
       await saveCheckInMeasurements(measurementData);
       info(loggingLevel, "Standard check-in data saved successfully.");
 
-      debug(loggingLevel, "Saving custom measurements:", customValues);
       for (const [categoryId, value] of Object.entries(customValues)) {
         if (value && parseFloat(value) > 0) {
           const category = customCategories.find(c => c.id === categoryId);
@@ -252,10 +241,8 @@ const CheckIn = () => {
               const selectedDateTime = new Date();
               selectedDateTime.setHours(currentTime.getHours(), 0, 0, 0);
               entryTimestamp = selectedDateTime.toISOString();
-              debug(loggingLevel, `Saving hourly custom measurement for category ${category.name} at hour ${entryHour}.`);
             } else {
               entryTimestamp = currentTime.toISOString();
-              debug(loggingLevel, `Saving custom measurement for category ${category.name}.`);
             }
 
             const customMeasurementData = {
@@ -266,7 +253,6 @@ const CheckIn = () => {
               entry_hour: entryHour,
               entry_timestamp: entryTimestamp,
             };
-            debug(loggingLevel, "Custom measurement data:", customMeasurementData);
 
             await saveCustomMeasurement(customMeasurementData, category.frequency);
             info(loggingLevel, `Custom measurement for category ${category.name} saved successfully.`);
@@ -293,7 +279,6 @@ const CheckIn = () => {
       });
     } finally {
       setLoading(false);
-      debug(loggingLevel, "Finished saving check-in data.");
     }
   };
 
@@ -329,7 +314,6 @@ const CheckIn = () => {
                   step="0.1"
                   value={weight}
                   onChange={(e) => {
-                    debug(loggingLevel, "Weight input changed:", e.target.value);
                     setWeight(e.target.value);
                   }}
                   placeholder={`Enter weight in ${weightUnit}`}
@@ -343,7 +327,6 @@ const CheckIn = () => {
                   type="number"
                   value={steps}
                   onChange={(e) => {
-                    debug(loggingLevel, "Steps input changed:", e.target.value);
                     setSteps(e.target.value);
                   }}
                   placeholder="Enter daily steps"
@@ -358,7 +341,6 @@ const CheckIn = () => {
                   step="0.1"
                   value={neck}
                   onChange={(e) => {
-                    debug(loggingLevel, "Neck input changed:", e.target.value);
                     setNeck(e.target.value);
                   }}
                   placeholder={`Enter neck measurement in ${measurementUnit}`}
@@ -373,7 +355,6 @@ const CheckIn = () => {
                   step="0.1"
                   value={waist}
                   onChange={(e) => {
-                    debug(loggingLevel, "Waist input changed:", e.target.value);
                     setWaist(e.target.value);
                   }}
                   placeholder={`Enter waist measurement in ${measurementUnit}`}
@@ -388,7 +369,6 @@ const CheckIn = () => {
                   step="0.1"
                   value={hips}
                   onChange={(e) => {
-                    debug(loggingLevel, "Hips input changed:", e.target.value);
                     setHips(e.target.value);
                   }}
                   placeholder={`Enter hips measurement in ${measurementUnit}`}
@@ -407,7 +387,6 @@ const CheckIn = () => {
                     step="0.01"
                     value={customValues[category.id] || ''}
                     onChange={(e) => {
-                      debug(loggingLevel, `Custom measurement input changed for category ${category.name}:`, e.target.value);
                       setCustomValues(prev => ({
                       ...prev,
                       [category.id]: e.target.value
@@ -457,8 +436,7 @@ const CheckIn = () => {
                     variant="outline"
                     size="sm"
                     onClick={() => {
-                      debug(loggingLevel, "Delete measurement button clicked:", measurement.id);
-                      handleDeleteMeasurement(measurement.id);
+                      handleDeleteMeasurementClick(measurement.id);
                     }}
                   >
                     <Trash2 className="h-4 w-4" />

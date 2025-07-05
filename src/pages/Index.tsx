@@ -22,7 +22,7 @@ import { toast } from "@/hooks/use-toast";
 // Define the base URL for your backend API
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3010";
 const Index = () => {
-   const { user } = useAuth();
+   const { user, signOut } = useAuth();
    const { isActingOnBehalf, hasPermission, hasWritePermission, activeUserName } = useActiveUser();
    const { loggingLevel } = usePreferences();
    debug(loggingLevel, "Index: Component rendered.");
@@ -34,29 +34,18 @@ const Index = () => {
    const handleSignOut = async () => {
      info(loggingLevel, "Index: Attempting to sign out.");
      try {
-       const response = await fetch(`${API_BASE_URL}/api/auth/logout`, {
-         method: 'POST',
+       await signOut(); // Call the signOut function from useAuth
+       toast({
+         title: "Success",
+         description: "Signed out successfully",
        });
-
-       if (!response.ok) {
-         const errorData = await response.json();
-         error(loggingLevel, "Index: Failed to sign out:", errorData.error);
-         toast({
-           title: "Error",
-           description: "Failed to sign out",
-           variant: "destructive",
-         });
-       } else {
-         info(loggingLevel, "Index: Signed out successfully.");
-         // Clear local storage or any client-side session data
-         localStorage.removeItem('userId'); // Assuming userId is stored here
-         toast({
-           title: "Success",
-           description: "Signed out successfully",
-         });
-       }
      } catch (error) {
        error(loggingLevel, 'Index: Sign out error:', error);
+       toast({
+         title: "Error",
+         description: "Failed to sign out",
+         variant: "destructive",
+       });
      }
    };
  

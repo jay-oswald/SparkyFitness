@@ -89,9 +89,6 @@ const FoodDatabaseManager = () => {
   };
 
   const deleteFood = async (foodId: string) => {
-    if (!confirm('Are you sure you want to delete this food?')) {
-      return;
-    }
 
     try {
       // Pass activeUserId to the service function

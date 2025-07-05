@@ -25,8 +25,7 @@ const AppContent: React.FC = () => {
         <TooltipProvider>
           <Toaster />
           <Routes>
-            <Route path="/" element={user ? <Index /> : <Navigate to="/auth" />} />
-            <Route path="/auth" element={<Auth />} />
+            <Route path="/" element={user ? <Index /> : <Auth />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </TooltipProvider>

@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Plus, Trash2, Edit } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "@/hooks/use-toast";
+import { usePreferences } from "@/contexts/PreferencesContext"; // Import usePreferences
 import {
   addCategory,
   updateCategory,
@@ -25,6 +26,7 @@ interface CustomCategoryManagerProps {
 
 const CustomCategoryManager = ({ categories, onCategoriesChange }: CustomCategoryManagerProps) => {
   const { user } = useAuth();
+  const { loggingLevel } = usePreferences(); // Destructure loggingLevel
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<CustomCategory | null>(null);
@@ -38,7 +40,7 @@ const CustomCategoryManager = ({ categories, onCategoriesChange }: CustomCategor
     const fetchCategories = async () => {
       if (user) {
         try {
-          const fetchedCategories = await getCategories(user.id);
+          const fetchedCategories = await getCategories(user.id, loggingLevel); // Pass loggingLevel
           onCategoriesChange(fetchedCategories);
         } catch (error) {
           console.error("Error fetching custom categories:", error);
@@ -69,7 +71,7 @@ const CustomCategoryManager = ({ categories, onCategoriesChange }: CustomCategor
         name: newCategory.name.trim(),
         measurement_type: newCategory.measurement_type.trim(),
         frequency: newCategory.frequency
-      });
+      }, loggingLevel); // Pass loggingLevel
       onCategoriesChange([...categories, data]);
       setNewCategory({ name: '', measurement_type: '', frequency: 'Daily' });
       setIsAddDialogOpen(false);
@@ -103,7 +105,7 @@ const CustomCategoryManager = ({ categories, onCategoriesChange }: CustomCategor
         name: editingCategory.name.trim(),
         measurement_type: editingCategory.measurement_type.trim(),
         frequency: editingCategory.frequency
-      });
+      }, loggingLevel); // Pass loggingLevel
       onCategoriesChange(categories.map(cat => cat.id === editingCategory.id ? updatedData : cat));
       setEditingCategory(null);
       setIsEditDialogOpen(false);
@@ -145,7 +147,7 @@ const CustomCategoryManager = ({ categories, onCategoriesChange }: CustomCategor
     }
 
     try {
-      await deleteCategory(idToDelete, user.id);
+      await deleteCategory(idToDelete, user.id, loggingLevel); // Pass loggingLevel
       onCategoriesChange(categories.filter(cat => cat.id !== idToDelete));
       
       toast({

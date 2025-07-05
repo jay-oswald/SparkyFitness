@@ -4,6 +4,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { BarChart3, TrendingUp, Activity } from "lucide-react";
 import { usePreferences } from "@/contexts/PreferencesContext";
+import { useActiveUser } from "@/contexts/ActiveUserContext";
+import { useAuth } from "@/hooks/useAuth";
 import { toast } from "@/hooks/use-toast";
 import ZoomableChart from "./ZoomableChart";
 import ReportsControls from "./reports/ReportsControls";
@@ -17,7 +19,7 @@ import { calculateFoodEntryNutrition } from '@/utils/nutritionCalculations'; // 
 import {
   loadReportsData,
   NutritionData,
-  MeasurementData,
+  MeasurementData as ReportsMeasurementData, // Alias to avoid naming conflict if needed
   DailyFoodEntry,
   CustomCategory,
   CustomMeasurementData,
@@ -31,7 +33,7 @@ const Reports = () => {
   const { activeUserId } = useActiveUser();
   const { weightUnit, measurementUnit, convertWeight, convertMeasurement, formatDateInUserTimezone, parseDateInUserTimezone, loggingLevel, timezone } = usePreferences();
   const [nutritionData, setNutritionData] = useState<NutritionData[]>([]);
-  const [measurementData, setMeasurementData] = useState<MeasurementData[]>([]);
+  const [measurementData, setMeasurementData] = useState<ReportsMeasurementData[]>([]);
   const [tabularData, setTabularData] = useState<DailyFoodEntry[]>([]);
   const [customCategories, setCustomCategories] = useState<CustomCategory[]>([]);
   const [customMeasurementsData, setCustomMeasurementsData] = useState<Record<string, CustomMeasurementData[]>>({});
@@ -72,8 +74,10 @@ const Reports = () => {
       loggingLevel
     });
     
-    if (user && activeUserId) {
+    if (user && activeUserId && startDate && endDate) { // Only load reports if dates are set
       loadReports();
+    } else {
+      info(loggingLevel, 'Reports: Skipping initial report load because user, activeUserId, startDate, or endDate is not yet available.');
     }
 
     const handleRefresh = () => {
@@ -108,7 +112,7 @@ const Reports = () => {
       
       // Apply unit conversions to fetchedMeasurementData
       const measurementDataFormatted = fetchedMeasurementData.map(m => ({
-        date: m.date,
+        entry_date: m.entry_date,
         weight: m.weight ? convertWeight(m.weight, 'kg', showWeightInKg ? 'kg' : 'lbs') : undefined,
         neck: m.neck ? convertMeasurement(m.neck, 'cm', showMeasurementsInCm ? 'cm' : 'inches') : undefined,
         waist: m.waist ? convertMeasurement(m.waist, 'cm', showMeasurementsInCm ? 'cm' : 'inches') : undefined,
@@ -394,7 +398,7 @@ const Reports = () => {
         const formattedHour = `${hour.toString().padStart(2, '0')}:00`;
         
         return [
-          formatDateInUserTimezone(measurement.date, 'MMM dd, yyyy'), // Format date for display
+          formatDateInUserTimezone(measurement.entry_date, 'MMM dd, yyyy'), // Format date for display
           formattedHour,
           measurement.value.toString()
         ];
@@ -433,20 +437,20 @@ const Reports = () => {
     debug(loggingLevel, `Reports: Formatting custom chart data for category: ${category.name} (${category.frequency})`);
     if (category.frequency === 'Hourly' || category.frequency === 'All') {
       return data.map(d => ({
-        date: `${d.date} ${d.hour !== null ? String(d.hour).padStart(2, '0') + ':00' : ''}`,
+        date: `${d.entry_date} ${d.hour !== null ? String(d.hour).padStart(2, '0') + ':00' : ''}`,
         value: d.value
       }));
     } else {
       // For daily, group by date and take the latest value
       const grouped = data.reduce((acc, d) => {
-        if (!acc[d.date] || new Date(d.timestamp) > new Date(acc[d.date].timestamp)) {
-          acc[d.date] = d;
+        if (!acc[d.entry_date] || new Date(d.timestamp) > new Date(acc[d.entry_date].timestamp)) {
+          acc[d.entry_date] = d;
         }
         return acc;
       }, {} as Record<string, CustomMeasurementData>);
       
       return Object.values(grouped).map(d => ({
-        date: d.date,
+        date: d.entry_date,
         value: d.value
       }));
     }

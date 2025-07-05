@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { format, parseISO } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,6 +8,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
+import { Calendar as CalendarIcon } from "lucide-react"; // Import CalendarIcon
+import { Calendar } from "@/components/ui/calendar"; // Import Calendar component
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"; // Import Popover components
 import { Save, Upload, User, Settings as SettingsIcon, Lock, Camera, ClipboardCopy, Copy, Eye, EyeOff, KeyRound } from "lucide-react";
 import { apiCall } from '@/services/api'; // Assuming a common API utility
 import { useAuth } from "@/hooks/useAuth";
@@ -16,6 +20,7 @@ import AIServiceSettings from "./AIServiceSettings";
 import CustomCategoryManager from "./CustomCategoryManager";
 import FoodDataProviderSettings from "./FoodDataProviderSettings"; // Import FoodDataProviderSettings
 import { usePreferences } from "@/contexts/PreferencesContext"; // Import usePreferences
+import { parse } from "date-fns"; // Import parse for parsing user-entered date strings
 
 interface Profile {
   id: string;
@@ -50,7 +55,8 @@ const Settings = () => {
     loggingLevel, setLoggingLevel,
     timezone, setTimezone,
     loadPreferences: loadUserPreferencesFromContext, // Rename to avoid conflict
-    saveAllPreferences // Add saveAllPreferences from context
+    saveAllPreferences, // Add saveAllPreferences from context
+    formatDate // Destructure formatDate
   } = usePreferences();
   const [profile, setProfile] = useState<Profile | null>(null);
   // Remove local preferences state as it's now managed by PreferencesContext
@@ -186,7 +192,7 @@ const Settings = () => {
       setProfileForm({
         full_name: data.full_name || '',
         phone: data.phone_number || '', // Use phone_number from backend
-        date_of_birth: data.date_of_birth || '',
+        date_of_birth: data.date_of_birth ? formatDate(data.date_of_birth) : '', // Format for display
         bio: data.bio || ''
       });
     } catch (error: any) {
@@ -211,7 +217,7 @@ const Settings = () => {
         body: JSON.stringify({
           full_name: profileForm.full_name,
           phone_number: profileForm.phone, // Changed to phone_number
-          date_of_birth: profileForm.date_of_birth || null,
+          date_of_birth: profileForm.date_of_birth ? parse(profileForm.date_of_birth, dateFormat, new Date()).toISOString() : null, // Parse back to ISO string
           bio: profileForm.bio
         }),
       });
@@ -477,12 +483,34 @@ const Settings = () => {
             </div>
             <div>
               <Label htmlFor="date_of_birth">Date of Birth</Label>
-              <Input
-                id="date_of_birth"
-                type="date"
-                value={profileForm.date_of_birth}
-                onChange={(e) => setProfileForm(prev => ({ ...prev, date_of_birth: e.target.value }))}
-              />
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant={"outline"}
+                    className="w-full justify-start text-left font-normal"
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {profileForm.date_of_birth ? (
+                      <span>{profileForm.date_of_birth}</span>
+                    ) : (
+                      <span>Pick a date</span>
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0">
+                  <Calendar
+                    mode="single"
+                    selected={profileForm.date_of_birth ? parse(profileForm.date_of_birth, dateFormat, new Date()) : undefined}
+                    onSelect={(date) => {
+                      setProfileForm(prev => ({
+                        ...prev,
+                        date_of_birth: date ? formatDate(date) : ''
+                      }));
+                    }}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
             </div>
             <div className="md:col-span-2">
               <Label htmlFor="bio">Bio</Label>

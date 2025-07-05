@@ -3,11 +3,15 @@ import { Button } from "@/components/ui/button";
 import { MessageSquare } from 'lucide-react';
 import { useChatbotVisibility } from '@/contexts/ChatbotVisibilityContext';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { getAIServices } from '@/services/aiServiceSettingsService';
+import { useAuth } from '@/hooks/useAuth';
 
 const DraggableChatbotButton: React.FC = () => {
   const { toggleChat } = useChatbotVisibility();
+  const { user } = useAuth(); // Destructure user from useAuth
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
+  const [hasAiProvider, setHasAiProvider] = useState(false); // New state for AI provider check
   const hasDragged = useRef(false); // New ref to track if a drag occurred
   const dragOffset = useRef({ x: 0, y: 0 });
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -25,6 +29,21 @@ const DraggableChatbotButton: React.FC = () => {
     //   setPosition({ x: window.innerWidth - 100, y: window.innerHeight - 100 });
     // }
   }, []);
+
+  useEffect(() => {
+    const checkAiProviders = async () => {
+      if (user?.id) { // Use user.id instead of userId
+        try {
+          const services = await getAIServices(user.id);
+          setHasAiProvider(services && services.length > 0);
+        } catch (error) {
+          console.error("Failed to fetch AI services:", error);
+          setHasAiProvider(false);
+        }
+      }
+    };
+    checkAiProviders();
+  }, [user?.id]); // Depend on user.id
 
   const isMobile = useIsMobile();
 
@@ -133,6 +152,10 @@ const DraggableChatbotButton: React.FC = () => {
       }
     };
   }, [isDragging, position, isMobile, updatePosition, handleTouchStart, handleTouchMove, handleTouchEnd]); // Re-run effect if dragging state, position, or mobile state changes
+
+  if (!hasAiProvider) {
+    return null; // Do not render the button if no AI provider is set up
+  }
 
   return (
     <>

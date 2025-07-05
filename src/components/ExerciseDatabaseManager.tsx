@@ -10,6 +10,7 @@ import { Pagination, PaginationContent, PaginationItem, PaginationLink, Paginati
 import { Plus, Edit, Trash2, Share2, Lock, Settings } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { usePreferences } from "@/contexts/PreferencesContext";
+import { useAuth } from "@/hooks/useAuth";
 import { debug, info, warn, error } from '@/utils/logging';
 import {
   loadExercises,
@@ -24,7 +25,7 @@ import {
 const ExerciseDatabaseManager = () => {
   const { user } = useAuth();
   const [exercises, setExercises] = useState<Exercise[]>([]);
-  const [filteredExercises, setFilteredExercises] = useState<Exercise[]>([]);
+  const [totalExercisesCount, setTotalExercisesCount] = useState(0); // New state for total count
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [ownershipFilter, setOwnershipFilter] = useState("all");
@@ -43,21 +44,24 @@ const ExerciseDatabaseManager = () => {
   const [editExerciseDescription, setEditExerciseDescription] = useState("");
 
   useEffect(() => {
-    loadExercises();
-  }, []);
+    if (user?.id) {
+      loadExercisesData();
+    }
+  }, [user?.id]);
 
-  useEffect(() => {
-    applyFilters();
-  }, [exercises, searchTerm, categoryFilter, ownershipFilter]);
-
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchTerm, categoryFilter, ownershipFilter, itemsPerPage]);
-
-  const loadExercises = async () => {
+  const loadExercisesData = async () => {
+    if (!user?.id) return;
     try {
-      const data = await loadExercises();
-      setExercises(data || []);
+      const response = await loadExercises(
+        user.id,
+        searchTerm,
+        categoryFilter,
+        ownershipFilter,
+        currentPage,
+        itemsPerPage
+      );
+      setExercises(response.exercises);
+      setTotalExercisesCount(response.totalCount); // Set total count for pagination
     } catch (error) {
       console.error("Error loading exercises:", error);
       toast({
@@ -68,41 +72,20 @@ const ExerciseDatabaseManager = () => {
     }
   };
 
-  const applyFilters = () => {
-    let filtered = [...exercises];
+  useEffect(() => {
+    loadExercisesData();
+  }, [user?.id, searchTerm, categoryFilter, ownershipFilter, currentPage, itemsPerPage]);
 
-    // Apply search filter
-    if (searchTerm) {
-      filtered = filtered.filter(exercise =>
-        exercise.name.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-    }
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, categoryFilter, ownershipFilter, itemsPerPage]);
 
-    // Apply category filter
-    if (categoryFilter !== "all") {
-      filtered = filtered.filter(exercise => exercise.category === categoryFilter);
-    }
 
-    // Apply ownership filter
-    if (ownershipFilter === "own") {
-      filtered = filtered.filter(exercise => exercise.user_id === user?.id);
-    } else if (ownershipFilter === "public") {
-      filtered = filtered.filter(exercise => 
-        exercise.user_id === null || exercise.shared_with_public === true
-      );
-    } else if (ownershipFilter === "family") {
-      filtered = filtered.filter(exercise => 
-        exercise.user_id !== user?.id && exercise.is_custom === true
-      );
-    }
+  // Remove applyFilters as filtering is now handled by the backend
+  // const applyFilters = () => { ... };
 
-    setFilteredExercises(filtered);
-  };
-
-  const totalPages = Math.ceil(filteredExercises.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const currentExercises = filteredExercises.slice(startIndex, endIndex);
+  const totalPages = Math.ceil(totalExercisesCount / itemsPerPage); // Use totalExercisesCount
+  const currentExercises = exercises; // exercises state now holds the already filtered and paginated data
 
   const handleAddExercise = async () => {
     try {
@@ -119,7 +102,7 @@ const ExerciseDatabaseManager = () => {
         title: "Success",
         description: "Exercise added successfully",
       });
-      loadExercises();
+      loadExercisesData(); // Changed to loadExercisesData
       setIsAddDialogOpen(false);
       setNewExerciseName("");
       setNewExerciseCategory("general");
@@ -150,7 +133,7 @@ const ExerciseDatabaseManager = () => {
         title: "Success",
         description: "Exercise edited successfully",
       });
-      loadExercises();
+      loadExercisesData();
       setIsEditDialogOpen(false);
       setSelectedExercise(null);
     } catch (error) {
@@ -165,12 +148,12 @@ const ExerciseDatabaseManager = () => {
 
   const handleDeleteExercise = async (exerciseId: string) => {
     try {
-      await deleteExercise(exerciseId);
+      await deleteExercise(exerciseId, user.id);
       toast({
         title: "Success",
         description: "Exercise deleted successfully",
       });
-      loadExercises();
+      loadExercisesData();
     } catch (error) {
       console.error("Error deleting exercise:", error);
       toast({
@@ -188,7 +171,7 @@ const ExerciseDatabaseManager = () => {
         title: "Success",
         description: `Exercise ${share ? 'shared' : 'unshared'} successfully`,
       });
-      loadExercises();
+      loadExercisesData();
     } catch (error) {
       console.error("Error sharing exercise:", error);
       toast({
@@ -313,7 +296,7 @@ const ExerciseDatabaseManager = () => {
           </div>
           
           <div className="flex justify-between items-center mb-4">
-            <h3 className="text-lg font-semibold">All Exercises ({filteredExercises.length})</h3>
+            <h3 className="text-lg font-semibold">All Exercises ({totalExercisesCount})</h3>
             <div className="flex items-center space-x-2">
               <span className="text-sm text-muted-foreground">Items per page:</span>
               <Select value={itemsPerPage.toString()} onValueChange={(value) => setItemsPerPage(Number(value))}>

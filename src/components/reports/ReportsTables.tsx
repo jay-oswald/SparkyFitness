@@ -37,7 +37,7 @@ interface DailyFoodEntry {
 }
 
 interface MeasurementData {
-  date: string;
+  entry_date: string; // Changed from 'date' to 'entry_date'
   weight?: number;
   neck?: number;
   waist?: number;
@@ -54,7 +54,7 @@ interface CustomCategory {
 
 interface CustomMeasurementData {
   category_id: string;
-  date: string;
+  entry_date: string; // Changed from 'date' to 'entry_date'
   hour?: number;
   value: number;
   timestamp: string;
@@ -107,7 +107,7 @@ const ReportsTables = ({
       measurement.steps !== undefined
     )
     .sort((a, b) =>
-      new Date(b.date).getTime() - new Date(a.date).getTime()
+      new Date(b.entry_date).getTime() - new Date(a.entry_date).getTime()
     );
 
   // Group food entries by date and calculate daily totals
@@ -313,7 +313,7 @@ const ReportsTables = ({
               <TableBody>
                 {sortedMeasurementData.map((measurement, index) => (
                   <TableRow key={index}>
-                    <TableCell>{formatDateInUserTimezone(parseISO(measurement.date), dateFormat)}</TableCell>
+                    <TableCell>{formatDateInUserTimezone(parseISO(measurement.entry_date), dateFormat)}</TableCell>
                     <TableCell>{measurement.weight ? measurement.weight.toFixed(1) : '-'}</TableCell>
                     <TableCell>{measurement.neck ? measurement.neck.toFixed(1) : '-'}</TableCell>
                     <TableCell>{measurement.waist ? measurement.waist.toFixed(1) : '-'}</TableCell>
@@ -369,7 +369,7 @@ const ReportsTables = ({
                       
                       return (
                         <TableRow key={index}>
-                          <TableCell>{formatDateInUserTimezone(parseISO(measurement.date), dateFormat)}</TableCell>
+                          <TableCell>{formatDateInUserTimezone(parseISO(measurement.entry_date), dateFormat)}</TableCell>
                           <TableCell>{formattedHour}</TableCell>
                           <TableCell>{measurement.value}</TableCell>
                         </TableRow>

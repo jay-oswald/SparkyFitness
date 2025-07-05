@@ -23,8 +23,24 @@ interface ExercisePayload {
   shared_with_public?: boolean;
 }
 
-export const loadExercises = async (): Promise<Exercise[]> => {
-  return apiCall('/api/exercises', {
+export const loadExercises = async (
+  userId: string,
+  searchTerm: string = '',
+  categoryFilter: string = 'all',
+  ownershipFilter: string = 'all',
+  currentPage: number = 1,
+  itemsPerPage: number = 10
+): Promise<{ exercises: Exercise[]; totalCount: number }> => {
+  const queryParams = new URLSearchParams({
+    userId,
+    searchTerm,
+    categoryFilter,
+    ownershipFilter,
+    currentPage: currentPage.toString(),
+    itemsPerPage: itemsPerPage.toString(),
+  }).toString();
+
+  return apiCall(`/api/exercises?${queryParams}`, {
     method: 'GET',
   });
 };
@@ -43,8 +59,8 @@ export const updateExercise = async (id: string, payload: Partial<ExercisePayloa
   });
 };
 
-export const deleteExercise = async (id: string): Promise<void> => {
-  return apiCall(`/api/exercises/${id}`, {
+export const deleteExercise = async (id: string, userId: string): Promise<void> => {
+  return apiCall(`/api/exercises/${id}?userId=${userId}`, {
     method: 'DELETE',
   });
 };

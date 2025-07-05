@@ -93,7 +93,6 @@ const Auth = () => {
        description: "Logged in successfully!",
      });
      signIn(data.userId, email); // Call signIn from useAuth hook
-     navigate("/"); // Redirect to home page after successful login
    } catch (err: any) {
      error(loggingLevel, "Auth: Sign in failed:", err);
      toast({
