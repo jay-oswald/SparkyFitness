@@ -14,10 +14,11 @@ import { searchNutritionixFoods, getNutritionixNutrients, getNutritionixBrandedN
 import { searchFatSecretFoods, getFatSecretNutrients, FatSecretFoodItem } from "@/services/FatSecretService";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/hooks/useAuth";
+import { useActiveUser } from "@/contexts/ActiveUserContext";
 import { apiCall } from '@/services/api';
 
 interface Food {
-  id: string;
+  id?: string; // ID can be undefined for new foods not yet saved to DB
   name: string;
   brand?: string;
   calories: number;
@@ -25,17 +26,11 @@ interface Food {
   carbs: number;
   fat: number;
   saturated_fat?: number;
-  sodium?: number;
-  serving_size: number;
-  serving_unit: string;
-  is_custom: boolean;
-  provider_external_id?: string;
-  provider_type?: string;
-  // Additional nutrients for comprehensive data
   polyunsaturated_fat?: number;
   monounsaturated_fat?: number;
   trans_fat?: number;
   cholesterol?: number;
+  sodium?: number;
   potassium?: number;
   dietary_fiber?: number;
   sugars?: number;
@@ -43,6 +38,11 @@ interface Food {
   vitamin_c?: number;
   calcium?: number;
   iron?: number;
+  serving_size: number;
+  serving_unit: string;
+  is_custom: boolean;
+  provider_external_id?: string;
+  provider_type?: string;
 }
 
 interface OpenFoodFactsProduct {
@@ -67,6 +67,7 @@ interface EnhancedFoodSearchProps {
 
 const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
   const { user } = useAuth();
+  const { activeUserId } = useActiveUser();
   const { defaultFoodDataProviderId, setDefaultFoodDataProviderId } = usePreferences();
   const [searchTerm, setSearchTerm] = useState('');
   const [foods, setFoods] = useState<Food[]>([]);
@@ -84,8 +85,7 @@ const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
   // Load food data providers and set default
   useEffect(() => {
     const loadFoodDataProviders = async () => {
-      if (!user) return;
-      const data = await apiCall(`/api/food-data-providers?userId=${user.id}`);
+      const data = await apiCall(`/api/foods/food-data-providers`);
       const error = null; // apiCall handles errors internally with toast, so we can assume data is valid if no error is thrown
 
       if (error) {
@@ -113,7 +113,7 @@ const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
     if (!searchTerm.trim()) return;
     
     setLoading(true);
-    const data = await apiCall(`/api/foods?name=${encodeURIComponent(searchTerm)}&limit=20`);
+    const data = await apiCall(`/api/foods?name=${encodeURIComponent(searchTerm)}&broadMatch=true`);
     const error = null; // apiCall handles errors internally with toast, so we can assume data is valid if no error is thrown
 
     if (error) {
@@ -133,10 +133,7 @@ const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
     
     setLoading(true);
     try {
-      const data = await apiCall(
-        `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(searchTerm)}&search_simple=1&action=process&json=1&page_size=20`,
-        { method: 'GET', externalApi: true }
-      );
+      const data = await apiCall(`/api/foods/openfoodfacts/search?query=${encodeURIComponent(searchTerm)}`);
       
       if (data.products) {
         setOpenFoodFactsResults(data.products.filter((p: any) =>
@@ -156,7 +153,7 @@ const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
   const searchOpenFoodFactsByBarcode = async (barcode: string) => {
    setLoading(true);
    try {
-     const data = await apiCall(`https://world.openfoodfacts.org/api/v0/product/${barcode}.json`, { method: 'GET', externalApi: true });
+     const data = await apiCall(`/api/foods/openfoodfacts/barcode/${barcode}`);
 
      if (data.status === 1 && data.product) {
        setOpenFoodFactsResults([data.product]);
@@ -598,6 +595,9 @@ const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Food Details</DialogTitle>
+            <DialogDescription>
+              Adjust the food details before adding it to your custom database.
+            </DialogDescription>
           </DialogHeader>
           {editingProduct && (
             <EnhancedCustomFoodForm

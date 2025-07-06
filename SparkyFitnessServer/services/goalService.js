@@ -40,7 +40,7 @@ async function manageGoalTimeline(authenticatedUserId, goalData) {
   try {
 
     const {
-      userId, p_start_date, p_calories, p_protein, p_carbs, p_fat, p_water_goal,
+      p_start_date, p_calories, p_protein, p_carbs, p_fat, p_water_goal,
       p_saturated_fat, p_polyunsaturated_fat, p_monounsaturated_fat, p_trans_fat,
       p_cholesterol, p_sodium, p_potassium, p_dietary_fiber, p_sugars,
       p_vitamin_a, p_vitamin_c, p_calcium, p_iron
@@ -49,7 +49,7 @@ async function manageGoalTimeline(authenticatedUserId, goalData) {
     // If editing a past date (before today), only update that specific date
     if (new Date(p_start_date) < new Date(format(new Date(), 'yyyy-MM-dd'))) {
       await goalRepository.upsertGoal({
-        user_id: userId, goal_date: p_start_date, calories: p_calories, protein: p_protein, carbs: p_carbs, fat: p_fat, water_goal: p_water_goal,
+        user_id: authenticatedUserId, goal_date: p_start_date, calories: p_calories, protein: p_protein, carbs: p_carbs, fat: p_fat, water_goal: p_water_goal,
         saturated_fat: p_saturated_fat, polyunsaturated_fat: p_polyunsaturated_fat, monounsaturated_fat: p_monounsaturated_fat, trans_fat: p_trans_fat,
         cholesterol: p_cholesterol, sodium: p_sodium, potassium: p_potassium, dietary_fiber: p_dietary_fiber, sugars: p_sugars,
         vitamin_a: p_vitamin_a, vitamin_c: p_vitamin_c, calcium: p_calcium, iron: p_iron
@@ -62,12 +62,12 @@ async function manageGoalTimeline(authenticatedUserId, goalData) {
     const endDate = new Date(startDate);
     endDate.setMonth(endDate.getMonth() + 6);
 
-    await goalRepository.deleteGoalsInRange(userId, p_start_date, format(endDate, 'yyyy-MM-dd'));
+    await goalRepository.deleteGoalsInRange(authenticatedUserId, p_start_date, format(endDate, 'yyyy-MM-dd'));
 
     let currentDate = new Date(startDate);
     while (currentDate < endDate) {
       await goalRepository.upsertGoal({
-        user_id: userId, goal_date: format(currentDate, 'yyyy-MM-dd'), calories: p_calories, protein: p_protein, carbs: p_carbs, fat: p_fat, water_goal: p_water_goal,
+        user_id: authenticatedUserId, goal_date: format(currentDate, 'yyyy-MM-dd'), calories: p_calories, protein: p_protein, carbs: p_carbs, fat: p_fat, water_goal: p_water_goal,
         saturated_fat: p_saturated_fat, polyunsaturated_fat: p_polyunsaturated_fat, monounsaturated_fat: p_monounsaturated_fat, trans_fat: p_trans_fat,
         cholesterol: p_cholesterol, sodium: p_sodium, potassium: p_potassium, dietary_fiber: p_dietary_fiber, sugars: p_sugars,
         vitamin_a: p_vitamin_a, vitamin_c: p_vitamin_c, calcium: p_calcium, iron: p_iron
@@ -75,7 +75,7 @@ async function manageGoalTimeline(authenticatedUserId, goalData) {
       currentDate.setDate(currentDate.getDate() + 1);
     }
 
-    await goalRepository.deleteDefaultGoal(userId);
+    await goalRepository.deleteDefaultGoal(authenticatedUserId);
 
     return { message: 'Goal timeline managed successfully.' };
   } catch (error) {

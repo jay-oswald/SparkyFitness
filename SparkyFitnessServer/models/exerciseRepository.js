@@ -244,13 +244,13 @@ async function createExercise(exerciseData) {
   }
 }
 
-async function createExerciseEntry(entryData) {
+async function createExerciseEntry(userId, entryData) {
   const client = await pool.connect();
   try {
     const result = await client.query(
       `INSERT INTO exercise_entries (user_id, exercise_id, duration_minutes, calories_burned, entry_date, notes, created_at, updated_at)
        VALUES ($1, $2, $3, $4, $5, $6, now(), now()) RETURNING *`,
-      [entryData.user_id, entryData.exercise_id, entryData.duration_minutes, entryData.calories_burned, entryData.entry_date, entryData.notes]
+      [userId, entryData.exercise_id, entryData.duration_minutes, entryData.calories_burned, entryData.entry_date, entryData.notes]
     );
     return result.rows[0];
   } finally {
@@ -357,10 +357,38 @@ async function getExerciseEntriesByDate(userId, selectedDate) {
   const client = await pool.connect();
   try {
     const result = await client.query(
-      'SELECT * FROM exercise_entries WHERE user_id = $1 AND entry_date = $2',
+      `SELECT
+         ee.id,
+         ee.exercise_id,
+         ee.duration_minutes,
+         ee.calories_burned,
+         ee.entry_date,
+         ee.notes,
+         e.name AS exercise_name,
+         e.category AS exercise_category,
+         e.calories_per_hour AS exercise_calories_per_hour,
+         e.user_id AS exercise_user_id
+       FROM exercise_entries ee
+       JOIN exercises e ON ee.exercise_id = e.id
+       WHERE ee.user_id = $1 AND ee.entry_date = $2`,
       [userId, selectedDate]
     );
-    return result.rows;
+
+    return result.rows.map(row => ({
+      id: row.id,
+      exercise_id: row.exercise_id,
+      duration_minutes: row.duration_minutes,
+      calories_burned: row.calories_burned,
+      entry_date: row.entry_date,
+      notes: row.notes,
+      exercises: {
+        id: row.exercise_id,
+        name: row.exercise_name,
+        category: row.exercise_category,
+        calories_per_hour: row.exercise_calories_per_hour,
+        user_id: row.exercise_user_id,
+      },
+    }));
   } finally {
     client.release();
   }

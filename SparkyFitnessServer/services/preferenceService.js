@@ -43,10 +43,11 @@ async function getUserPreferences(authenticatedUserId, targetUserId) {
 
 async function upsertUserPreferences(authenticatedUserId, preferenceData) {
   try {
+    preferenceData.user_id = authenticatedUserId; // Ensure user_id is set from authenticated user
     const newPreferences = await preferenceRepository.upsertUserPreferences(preferenceData);
     return newPreferences;
   } catch (error) {
-    log('error', `Error upserting preferences for user ${preferenceData.user_id} by ${authenticatedUserId}:`, error);
+    log('error', `Error upserting preferences for user ${authenticatedUserId}:`, error);
     throw error;
   }
 }

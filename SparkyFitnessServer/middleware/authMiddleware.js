@@ -21,20 +21,89 @@ const authenticateToken = (req, res, next) => {
   });
 };
 
-const authorizeAccess = (permissionType) => {
+const authorizeAccess = (permissionType, getTargetUserIdFromRequest = null) => {
   return async (req, res, next) => {
     const authenticatedUserId = req.userId; // From authenticateToken middleware
-
-    // Determine targetUserId: prioritize from params, body, query, then default to authenticatedUserId
-    const targetUserId = req.params.userId || req.body.userId || req.query.userId || authenticatedUserId;
 
     if (!authenticatedUserId) {
       log('error', `Authorization: authenticatedUserId is missing.`);
       return res.status(401).json({ error: 'Authorization: Authentication required.' });
     }
 
+    let targetUserId;
+
+    if (getTargetUserIdFromRequest) {
+      // If a custom function is provided, use it to get the targetUserId
+      targetUserId = getTargetUserIdFromRequest(req);
+    } else { // No custom getTargetUserIdFromRequest function provided
+      const resourceId = req.params.id;
+
+      if (resourceId) {
+        // If there's a resource ID in params, try to determine owner from repository
+        let repository;
+        let getOwnerIdFunction;
+
+        switch (permissionType) {
+          case 'exercise_log':
+            repository = require('../models/exerciseRepository');
+            getOwnerIdFunction = repository.getExerciseEntryOwnerId;
+            break;
+          case 'food_log':
+            repository = require('../models/foodRepository');
+            getOwnerIdFunction = repository.getFoodEntryOwnerId;
+            break;
+          case 'checkin':
+            repository = require('../models/measurementRepository');
+            // Distinguish between custom categories and custom measurement entries
+            if (req.baseUrl.includes('/measurements') && req.path.includes('/custom-entries')) {
+              getOwnerIdFunction = repository.getCustomMeasurementOwnerId;
+            } else {
+              getOwnerIdFunction = repository.getCustomCategoryOwnerId;
+            }
+            break;
+          case 'goal':
+            repository = require('../models/goalRepository');
+            getOwnerIdFunction = repository.getGoalOwnerId;
+            break;
+          case 'preference':
+            repository = require('../models/preferenceRepository');
+            getOwnerIdFunction = repository.getPreferenceOwnerId;
+            break;
+          case 'report':
+            repository = require('../models/reportRepository');
+            getOwnerIdFunction = repository.getReportOwnerId;
+            break;
+          case 'chat':
+            repository = require('../models/chatRepository');
+            getOwnerIdFunction = repository.getChatOwnerId;
+            break;
+          default:
+            // If permissionType is known but no specific owner function, or unknown permissionType
+            log('warn', `Authorization: No specific owner ID function for permission type ${permissionType}. Defaulting to authenticated user.`);
+            targetUserId = authenticatedUserId;
+            break;
+        }
+
+        if (getOwnerIdFunction) {
+          try {
+            targetUserId = await getOwnerIdFunction(resourceId);
+            if (!targetUserId) {
+              log('warn', `Authorization: Owner ID not found for resource ${resourceId} with permission ${permissionType}.`);
+              return res.status(404).json({ error: 'Authorization: Resource not found or owner could not be determined.' });
+            }
+          } catch (err) {
+            log('error', `Authorization: Error getting owner ID for resource ${resourceId} with permission ${permissionType}:`, err);
+            return res.status(500).json({ error: 'Authorization: Internal server error during owner ID retrieval.' });
+          }
+        }
+      } else {
+        // If no resource ID in params, assume the operation is on the authenticated user's own data
+        targetUserId = authenticatedUserId;
+      }
+    }
+
     if (!targetUserId) {
-      log('error', `Authorization: targetUserId is missing. Target: ${targetUserId}, Auth: ${authenticatedUserId}`);
+      log('error', `Authorization: targetUserId could not be determined for permission ${permissionType}.`);
       return res.status(400).json({ error: 'Authorization: Target user ID is missing for access check.' });
     }
 

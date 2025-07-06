@@ -18,19 +18,15 @@ const SparkyChat = () => {
       setHasEnabledServices(false);
       return;
     }
-    if (!user?.id) {
-      setHasEnabledServices(false);
-      return;
-    }
     try {
-      const services = await getAIServices(user.id);
+      const services = await getAIServices();
       const enabled = services.some(service => service.is_active);
       setHasEnabledServices(enabled);
     } catch (error) {
       console.error('Error fetching AI services:', error);
       setHasEnabledServices(false);
     }
-  }, [user?.id, loading]); // Add loading to dependency array
+  }, [loading]); // Add loading to dependency array
 
   useEffect(() => {
     checkEnabledServices();
@@ -73,7 +69,7 @@ const SparkyChat = () => {
           </SheetHeader>
           
           <div className="flex-1 overflow-hidden">
-            <SparkyChatInterface userId={user?.id || ''} />
+            <SparkyChatInterface />
           </div>
         </div>
       </SheetContent>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -44,15 +44,51 @@ const ExerciseCard = ({ selectedDate, onExerciseChange }: ExerciseCardProps) => 
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [filterType, setFilterType] = useState<string>("all");
+  const addDialogRef = useRef<HTMLDivElement>(null);
 
   const currentUserId = activeUserId || user?.id;
   debug(loggingLevel, "Current user ID:", currentUserId);
+
+  const handleCloseAddDialog = useCallback(() => {
+    debug(loggingLevel, "Closing add exercise dialog.");
+    setIsAddDialogOpen(false);
+    setSelectedExerciseId(null);
+    setDuration(30);
+    setNotes("");
+    setSearchTerm("");
+    setExercises([]);
+    info(loggingLevel, "Add exercise dialog closed and state reset.");
+  }, [loggingLevel]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        handleCloseAddDialog();
+      }
+    };
+
+    const handleClickOutside = (event: MouseEvent) => {
+      if (addDialogRef.current && !addDialogRef.current.contains(event.target as Node)) {
+        handleCloseAddDialog();
+      }
+    };
+
+    if (isAddDialogOpen) {
+      document.addEventListener('keydown', handleKeyDown);
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isAddDialogOpen, handleCloseAddDialog]);
 
   const _fetchExerciseEntries = useCallback(async () => {
     debug(loggingLevel, "Fetching exercise entries for date:", selectedDate);
     setLoading(true);
     try {
-      const data = await fetchExerciseEntries(currentUserId, selectedDate); // Use imported fetchExerciseEntries
+      const data = await fetchExerciseEntries(selectedDate); // Use imported fetchExerciseEntries
       info(loggingLevel, "Exercise entries fetched successfully:", data);
       setExerciseEntries(data || []);
     } catch (err) {
@@ -66,7 +102,7 @@ const ExerciseCard = ({ selectedDate, onExerciseChange }: ExerciseCardProps) => 
     debug(loggingLevel, "Searching exercises with query:", query);
     setSearchLoading(true);
     try {
-      const data = await searchExercises(query, filterType, currentUserId); // Use imported searchExercises
+      const data = await searchExercises(query, filterType); // Use imported searchExercises
       info(loggingLevel, "Exercises search results:", data);
       setExercises(data || []);
     } catch (err) {
@@ -86,7 +122,7 @@ const ExerciseCard = ({ selectedDate, onExerciseChange }: ExerciseCardProps) => 
   useEffect(() => {
     debug(loggingLevel, "searchTerm, filterType, or isAddDialogOpen useEffect triggered.", { searchTerm, filterType, isAddDialogOpen });
     const timeoutId = setTimeout(() => {
-      if (searchTerm.trim() || isAddDialogOpen) {
+      if (isAddDialogOpen && searchTerm.trim()) {
         _searchExercises(searchTerm); // Call the memoized search function
       } else {
         setExercises([]);
@@ -104,17 +140,6 @@ const ExerciseCard = ({ selectedDate, onExerciseChange }: ExerciseCardProps) => 
     setIsAddDialogOpen(true);
     setSearchTerm("");
     setExercises([]);
-  };
-
-  const handleCloseAddDialog = () => {
-    debug(loggingLevel, "Closing add exercise dialog.");
-    setIsAddDialogOpen(false);
-    setSelectedExerciseId(null);
-    setDuration(30);
-    setNotes("");
-    setSearchTerm("");
-    setExercises([]);
-    info(loggingLevel, "Add exercise dialog closed and state reset.");
   };
 
   const handleExerciseSelect = (exerciseId: string) => {
@@ -151,7 +176,6 @@ const ExerciseCard = ({ selectedDate, onExerciseChange }: ExerciseCardProps) => 
 
     try {
       await addExerciseEntry({
-        user_id: currentUserId,
         exercise_id: selectedExerciseId,
         duration_minutes: duration,
         calories_burned: caloriesBurned,
@@ -306,9 +330,12 @@ const ExerciseCard = ({ selectedDate, onExerciseChange }: ExerciseCardProps) => 
         {/* Add Exercise Dialog */}
         {isAddDialogOpen && (
           <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-            <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+            <div ref={addDialogRef} className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
               <div className="mt-3 text-center">
                 <h3 className="text-lg leading-6 font-medium text-gray-900">Add Exercise</h3>
+                <DialogDescription>
+                  Add a new exercise entry for the selected date.
+                </DialogDescription>
                 <div className="mt-2">
                   <div className="mb-4">
                     <Input

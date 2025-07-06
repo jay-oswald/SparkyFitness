@@ -12,13 +12,13 @@ import { usePreferences } from "@/contexts/PreferencesContext"; // Import usePre
 import { debug, info, warn, error } from '@/utils/logging'; // Import logging utility
 
 interface FoodVariant {
-  id: string;
+  id?: string;
   serving_size: number;
   serving_unit: string;
-  calories?: number;
-  protein?: number;
-  carbs?: number;
-  fat?: number;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
   saturated_fat?: number;
   polyunsaturated_fat?: number;
   monounsaturated_fat?: number;
@@ -38,13 +38,9 @@ interface Food {
   id: string;
   name: string;
   brand?: string;
-  calories: number;
-  protein: number;
-  carbs: number;
-  fat: number;
-  serving_size: number;
-  serving_unit: string;
   user_id?: string;
+  is_custom?: boolean;
+  shared_with_public?: boolean;
 }
 
 interface FoodEntry {
@@ -55,7 +51,7 @@ interface FoodEntry {
   unit: string;
   variant_id?: string;
   foods: Food;
-  food_variants?: FoodVariant;
+  food_variants: FoodVariant;
 }
 
 interface Meal {

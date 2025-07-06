@@ -194,27 +194,46 @@ async function checkFoodDataProviderOwnership(providerId, userId) {
     client.release();
   }
 }
-
+ 
+async function deleteFoodDataProvider(id) {
+  const client = await pool.connect();
+  try {
+    const result = await client.query(
+      'DELETE FROM food_data_providers WHERE id = $1 RETURNING id',
+      [id]
+    );
+    return result.rowCount > 0;
+  } finally {
+    client.release();
+  }
+}
+ 
 async function searchFoods(name, userId, exactMatch, broadMatch, checkCustom) {
   const client = await pool.connect();
   try {
-    let query = 'SELECT id, name, serving_unit, serving_size, calories, protein, carbs, fat FROM foods WHERE ';
+    let query = `
+      SELECT
+        f.id, f.name, f.brand, f.is_custom, f.user_id, f.shared_with_public,
+        fv.serving_unit, fv.serving_size, fv.calories, fv.protein, fv.carbs, fv.fat
+      FROM foods f
+      JOIN food_variants fv ON f.default_variant_id = fv.id
+      WHERE `;
     const queryParams = [];
     let paramIndex = 1;
-
+ 
     if (exactMatch) {
-      query += `name ILIKE $${paramIndex++} AND user_id = $${paramIndex++}`;
+      query += `f.name ILIKE $${paramIndex++} AND f.user_id = $${paramIndex++}`;
       queryParams.push(name, userId);
     } else if (broadMatch) {
-      query += `name ILIKE $${paramIndex++} AND (user_id = $${paramIndex++} OR is_custom = FALSE)`;
+      query += `f.name ILIKE $${paramIndex++} AND (f.user_id = $${paramIndex++} OR f.is_custom = FALSE)`;
       queryParams.push(`%${name}%`, userId);
     } else if (checkCustom) {
-      query += `name = $${paramIndex++} AND user_id = $${paramIndex++}`;
+      query += `f.name = $${paramIndex++} AND f.user_id = $${paramIndex++}`;
       queryParams.push(name, userId);
     } else {
       throw new Error('Invalid search parameters.');
     }
-
+ 
     query += ' LIMIT 3';
     const result = await client.query(query, queryParams);
     return result.rows;
@@ -228,19 +247,13 @@ async function createFood(foodData) {
   try {
     const result = await client.query(
       `INSERT INTO foods (
-        name, calories, protein, carbs, fat, serving_size, serving_unit,
-        saturated_fat, polyunsaturated_fat, monounsaturated_fat, trans_fat,
-        cholesterol, sodium, potassium, dietary_fiber, sugars,
-        vitamin_a, vitamin_c, calcium, iron, is_custom, user_id, created_at, updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, now(), now()) RETURNING id`,
+        name, is_custom, user_id, brand, barcode, provider_external_id, shared_with_public, provider_type, default_variant_id, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, now(), now()) RETURNING *`,
       [
-        foodData.name, foodData.calories, foodData.protein, foodData.carbs, foodData.fat, foodData.serving_size, foodData.serving_unit,
-        foodData.saturated_fat, foodData.polyunsaturated_fat, foodData.monounsaturated_fat, foodData.trans_fat,
-        foodData.cholesterol, foodData.sodium, foodData.potassium, foodData.dietary_fiber, foodData.sugars,
-        foodData.vitamin_a, foodData.vitamin_c, foodData.calcium, foodData.iron, foodData.is_custom, foodData.user_id
+        foodData.name, foodData.is_custom, foodData.user_id, foodData.brand, foodData.barcode, foodData.provider_external_id, foodData.shared_with_public, foodData.provider_type, foodData.default_variant_id
       ]
     );
-    return result.rows[0];
+    return result.rows[0]; // Return the full row
   } finally {
     client.release();
   }
@@ -250,7 +263,15 @@ async function getFoodById(foodId) {
   const client = await pool.connect();
   try {
     const result = await client.query(
-      'SELECT * FROM foods WHERE id = $1',
+      `SELECT
+        f.id, f.name, f.brand, f.is_custom, f.user_id, f.shared_with_public,
+        fv.serving_size, fv.serving_unit, fv.calories, fv.protein, fv.carbs, fv.fat,
+        fv.saturated_fat, fv.polyunsaturated_fat, fv.monounsaturated_fat, fv.trans_fat,
+        fv.cholesterol, fv.sodium, fv.potassium, fv.dietary_fiber, fv.sugars,
+        fv.vitamin_a, fv.vitamin_c, fv.calcium, fv.iron
+      FROM foods f
+      JOIN food_variants fv ON f.default_variant_id = fv.id
+      WHERE f.id = $1`,
       [foodId]
     );
     return result.rows[0];
@@ -278,40 +299,19 @@ async function updateFood(id, userId, foodData) {
     const result = await client.query(
       `UPDATE foods SET
         name = COALESCE($1, name),
-        calories = COALESCE($2, calories),
-        protein = COALESCE($3, protein),
-        carbs = COALESCE($4, carbs),
-        fat = COALESCE($5, fat),
-        serving_size = COALESCE($6, serving_size),
-        serving_unit = COALESCE($7, serving_unit),
-        saturated_fat = COALESCE($8, saturated_fat),
-        polyunsaturated_fat = COALESCE($9, polyunsaturated_fat),
-        monounsaturated_fat = COALESCE($10, monounsaturated_fat),
-        trans_fat = COALESCE($11, trans_fat),
-        cholesterol = COALESCE($12, cholesterol),
-        sodium = COALESCE($13, sodium),
-        potassium = COALESCE($14, potassium),
-        dietary_fiber = COALESCE($15, dietary_fiber),
-        sugars = COALESCE($16, sugars),
-        vitamin_a = COALESCE($17, vitamin_a),
-        vitamin_c = COALESCE($18, vitamin_c),
-        calcium = COALESCE($19, calcium),
-        iron = COALESCE($20, iron),
-        is_custom = COALESCE($21, is_custom),
-        brand = COALESCE($22, brand),
-        barcode = COALESCE($23, barcode),
-        provider_external_id = COALESCE($24, provider_external_id),
-        shared_with_public = COALESCE($25, shared_with_public),
-        provider_type = COALESCE($26, provider_type),
+        is_custom = COALESCE($2, is_custom),
+        brand = COALESCE($3, brand),
+        barcode = COALESCE($4, barcode),
+        provider_external_id = COALESCE($5, provider_external_id),
+        shared_with_public = COALESCE($6, shared_with_public),
+        provider_type = COALESCE($7, provider_type),
+        default_variant_id = COALESCE($8, default_variant_id),
         updated_at = now()
-      WHERE id = $27 AND user_id = $28
+      WHERE id = $9 AND user_id = $10
       RETURNING *`,
       [
-        foodData.name, foodData.calories, foodData.protein, foodData.carbs, foodData.fat, foodData.serving_size, foodData.serving_unit,
-        foodData.saturated_fat, foodData.polyunsaturated_fat, foodData.monounsaturated_fat, foodData.trans_fat,
-        foodData.cholesterol, foodData.sodium, foodData.potassium, foodData.dietary_fiber, foodData.sugars,
-        foodData.vitamin_a, foodData.vitamin_c, foodData.calcium, foodData.iron, foodData.is_custom, foodData.brand, foodData.barcode,
-        foodData.provider_external_id, foodData.shared_with_public, foodData.provider_type, id, userId
+        foodData.name, foodData.is_custom, foodData.brand, foodData.barcode,
+        foodData.provider_external_id, foodData.shared_with_public, foodData.provider_type, foodData.default_variant_id, id, userId
       ]
     );
     return result.rows[0];
@@ -366,8 +366,11 @@ async function getFoodsWithPagination(searchTerm, foodFilter, authenticatedUserI
     }
 
     let query = `
-      SELECT id, name, brand, calories, protein, carbs, fat, serving_size, serving_unit, is_custom, user_id, shared_with_public
-      FROM foods
+      SELECT
+        f.id, f.name, f.brand, f.is_custom, f.user_id, f.shared_with_public,
+        fv.serving_size, fv.serving_unit, fv.calories, fv.protein, fv.carbs, fv.fat
+      FROM foods f
+      JOIN food_variants fv ON f.default_variant_id = fv.id
       WHERE ${whereClauses.join(' AND ')}
     `;
 
@@ -546,11 +549,37 @@ async function createFoodEntry(entryData) {
   const client = await pool.connect();
   try {
     const result = await client.query(
-      `INSERT INTO food_entries (user_id, food_id, meal_type, quantity, unit, entry_date, variant_id, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, now(), now()) RETURNING *`,
+      `INSERT INTO food_entries (user_id, food_id, meal_type, quantity, unit, entry_date, variant_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
       [entryData.user_id, entryData.food_id, entryData.meal_type, entryData.quantity, entryData.unit, entryData.entry_date, entryData.variant_id]
     );
     return result.rows[0];
+  } finally {
+    client.release();
+  }
+}
+ 
+async function getFoodEntryOwnerId(entryId) {
+  const client = await pool.connect();
+  try {
+    const result = await client.query(
+      'SELECT user_id FROM food_entries WHERE id = $1',
+      [entryId]
+    );
+    return result.rows[0]?.user_id;
+  } finally {
+    client.release();
+  }
+}
+
+async function deleteFoodEntry(entryId) {
+  const client = await pool.connect();
+  try {
+    const result = await client.query(
+      'DELETE FROM food_entries WHERE id = $1 RETURNING id',
+      [entryId]
+    );
+    return result.rowCount > 0;
   } finally {
     client.release();
   }
@@ -560,9 +589,41 @@ async function getFoodEntriesByDate(userId, selectedDate) {
   const client = await pool.connect();
   try {
     const result = await client.query(
-      `SELECT fe.*, f.name AS food_name, f.calories, f.protein, f.carbs, f.fat, f.serving_size, f.serving_unit
+      `SELECT
+        fe.id, fe.food_id, fe.meal_type, fe.quantity, fe.unit, fe.variant_id, fe.entry_date,
+        json_build_object(
+          'id', f.id,
+          'name', f.name,
+          'brand', f.brand,
+          'is_custom', f.is_custom,
+          'user_id', f.user_id,
+          'shared_with_public', f.shared_with_public
+        ) AS foods,
+        json_build_object(
+          'id', fv.id,
+          'serving_size', fv.serving_size,
+          'serving_unit', fv.serving_unit,
+          'calories', fv.calories,
+          'protein', fv.protein,
+          'carbs', fv.carbs,
+          'fat', fv.fat,
+          'saturated_fat', fv.saturated_fat,
+          'polyunsaturated_fat', fv.polyunsaturated_fat,
+          'monounsaturated_fat', fv.monounsaturated_fat,
+          'trans_fat', fv.trans_fat,
+          'cholesterol', fv.cholesterol,
+          'sodium', fv.sodium,
+          'potassium', fv.potassium,
+          'dietary_fiber', fv.dietary_fiber,
+          'sugars', fv.sugars,
+          'vitamin_a', fv.vitamin_a,
+          'vitamin_c', fv.vitamin_c,
+          'calcium', fv.calcium,
+          'iron', fv.iron
+        ) AS food_variants
        FROM food_entries fe
        JOIN foods f ON fe.food_id = f.id
+       JOIN food_variants fv ON fe.variant_id = fv.id
        WHERE fe.user_id = $1 AND fe.entry_date = $2`,
       [userId, selectedDate]
     );
@@ -576,9 +637,16 @@ async function getFoodEntriesByDateRange(userId, startDate, endDate) {
   const client = await pool.connect();
   try {
     const result = await client.query(
-      `SELECT fe.*, f.name AS food_name, f.calories, f.protein, f.carbs, f.fat, f.serving_size, f.serving_unit
+      `SELECT
+        fe.id, fe.food_id, fe.meal_type, fe.quantity, fe.unit, fe.variant_id, fe.entry_date,
+        f.name AS food_name, f.brand, f.is_custom, f.user_id, f.shared_with_public,
+        fv.serving_size, fv.serving_unit, fv.calories, fv.protein, fv.carbs, fv.fat,
+        fv.saturated_fat, fv.polyunsaturated_fat, fv.monounsaturated_fat, fv.trans_fat,
+        fv.cholesterol, fv.sodium, fv.potassium, fv.dietary_fiber, fv.sugars,
+        fv.vitamin_a, fv.vitamin_c, fv.calcium, fv.iron
        FROM food_entries fe
        JOIN foods f ON fe.food_id = f.id
+       JOIN food_variants fv ON fe.variant_id = fv.id
        WHERE fe.user_id = $1 AND fe.entry_date BETWEEN $2 AND $3
        ORDER BY fe.entry_date`,
       [userId, startDate, endDate]
@@ -593,10 +661,16 @@ async function findFoodByNameAndBrand(name, brand, userId) {
   const client = await pool.connect();
   try {
     const result = await client.query(
-      `SELECT id, name, brand, calories, protein, carbs, fat, serving_size, serving_unit, is_custom, user_id
-       FROM foods
-       WHERE name ILIKE $1 AND (brand IS NULL OR brand ILIKE $2)
-         AND (user_id = $3 OR is_custom = FALSE)`,
+      `SELECT
+        f.id, f.name, f.brand, f.is_custom, f.user_id, f.shared_with_public,
+        fv.serving_size, fv.serving_unit, fv.calories, fv.protein, fv.carbs, fv.fat,
+        fv.saturated_fat, fv.polyunsaturated_fat, fv.monounsaturated_fat, fv.trans_fat,
+        fv.cholesterol, fv.sodium, fv.potassium, fv.dietary_fiber, fv.sugars,
+        fv.vitamin_a, fv.vitamin_c, fv.vitamin_c, fv.calcium, fv.iron
+       FROM foods f
+       JOIN food_variants fv ON f.default_variant_id = fv.id
+       WHERE f.name ILIKE $1 AND (f.brand IS NULL OR f.brand ILIKE $2)
+         AND (f.user_id = $3 OR f.is_custom = FALSE)`,
       [name, brand || null, userId]
     );
     return result.rows[0];
@@ -652,8 +726,11 @@ module.exports = {
   updateFoodVariant,
   deleteFoodVariant,
   createFoodEntry,
+  getFoodEntryOwnerId, // Add this line
+  deleteFoodEntry,    // Add this line
   getFoodEntriesByDate,
   getFoodEntriesByDateRange,
   findFoodByNameAndBrand,
   bulkCreateFoodVariants,
+  deleteFoodDataProvider,
 };

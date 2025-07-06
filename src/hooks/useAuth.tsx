@@ -33,12 +33,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const signOut = async () => {
     try {
+      const token = localStorage.getItem('token');
       const response = await fetch('http://localhost:3010/api/auth/logout', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify({ userId: user?.id }),
+        body: JSON.stringify({}),
       });
 
       if (response.ok) {

@@ -3,9 +3,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { debug, info, warn, error } from '@/utils/logging';
 import { usePreferences } from "@/contexts/PreferencesContext";
-
-// Define the base URL for your backend API
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3010";
+import { apiCall } from '@/services/api';
 
 interface AccessibleUser {
   user_id: string;
@@ -76,13 +74,7 @@ export const ActiveUserProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     info(loggingLevel, "ActiveUserProvider: Loading accessible users for user:", user.id);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/auth/users/accessible-users?userId=${user.id}`);
-      if (!response.ok) {
-        const errorData = await response.json();
-        error(loggingLevel, 'ActiveUserProvider: Error fetching accessible users from backend:', errorData);
-        throw new Error(errorData.error || 'Failed to fetch accessible users.');
-      }
-      const data = await response.json();
+      const data = await apiCall(`/api/auth/users/accessible-users`);
 
       info(loggingLevel, 'ActiveUserProvider: Accessible users data received:', data);
       

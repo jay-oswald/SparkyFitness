@@ -14,8 +14,8 @@ export interface UserPreferences {
   logging_level: 'INFO' | 'DEBUG' | 'WARN' | 'ERROR';
 }
 
-export const loadUserPreferences = async (userId: string): Promise<UserPreferences> => {
-  const data = await apiCall(`/api/user-preferences/${userId}`, {
+export const loadUserPreferences = async (): Promise<UserPreferences> => {
+  const data = await apiCall(`/api/user-preferences`, {
     method: 'GET',
   });
   const preferences = data || { auto_clear_history: 'never', logging_level: 'WARN' };
@@ -23,11 +23,11 @@ export const loadUserPreferences = async (userId: string): Promise<UserPreferenc
   return preferences;
 };
 
-export const loadChatHistory = async (userId: string, autoClearHistory: string): Promise<Message[]> => {
+export const loadChatHistory = async (autoClearHistory: string): Promise<Message[]> => {
   const params = new URLSearchParams({
     autoClearHistory,
   });
-  const data = await apiCall(`/api/chat/sparky-chat-history/${userId}?${params.toString()}`, {
+  const data = await apiCall(`/api/chat/sparky-chat-history?${params.toString()}`, {
     method: 'GET',
   });
   return (data || []).map((item: any) => ({
@@ -40,26 +40,24 @@ export const loadChatHistory = async (userId: string, autoClearHistory: string):
 };
 
 export const saveMessageToHistory = async (
-  userId: string,
   content: string,
   messageType: 'user' | 'assistant',
   metadata?: any
 ): Promise<void> => {
   await apiCall(`/api/chat/save-history`, {
     method: 'POST',
-    body: { userId, content, messageType, metadata },
+    body: { content, messageType, metadata },
   });
 };
 
-export const clearChatHistory = async (userId: string, clearType: 'manual' | 'all'): Promise<void> => {
+export const clearChatHistory = async (clearType: 'manual' | 'all'): Promise<void> => {
   await apiCall(`/api/chat/${clearType === 'all' ? 'clear-all-history' : 'clear-old-history'}`, {
     method: 'POST',
-    body: { userId },
+    body: {}, // No body needed, user is identified by JWT
   });
 };
 
 export const processUserInput = async (
-  userId: string,
   input: string,
   image: File | null,
   transactionId: string,
@@ -67,7 +65,6 @@ export const processUserInput = async (
 ): Promise<any> => {
   const formData = new FormData();
   formData.append('input', input);
-  formData.append('userId', userId);
   formData.append('transactionId', transactionId);
   if (image) {
     formData.append('image', image);
@@ -85,9 +82,9 @@ export const processUserInput = async (
   });
 };
 
-export const getTodaysNutrition = async (userId: string, date: string): Promise<any> => {
+export const getTodaysNutrition = async (date: string): Promise<any> => {
   const params = new URLSearchParams({ date });
-  return apiCall(`/api/nutrition/today/${userId}?${params.toString()}`, {
+  return apiCall(`/api/nutrition/today?${params.toString()}`, {
     method: 'GET',
   });
 };

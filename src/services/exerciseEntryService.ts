@@ -1,4 +1,5 @@
 import { apiCall } from './api';
+import { getExerciseEntriesForDate as getDailyExerciseEntries } from './dailyProgressService';
 
 export interface ExerciseEntry {
   id: string;
@@ -13,7 +14,7 @@ export interface ExerciseEntry {
     user_id?: string;
     category: string;
     calories_per_hour: number;
-  } | null;
+  };
 }
 
 export interface Exercise {
@@ -25,17 +26,11 @@ export interface Exercise {
   user_id?: string;
 }
 
-export const fetchExerciseEntries = async (userId: string, selectedDate: string): Promise<ExerciseEntry[]> => {
-  const params = new URLSearchParams({ userId, selectedDate });
-  const data = await apiCall(`/api/exercise-entries?${params.toString()}`, {
-    method: 'GET',
-    suppress404Toast: true, // Suppress toast for 404
-  });
-  return data || []; // Return empty array if 404 (no exercise entries found)
+export const fetchExerciseEntries = async (selectedDate: string): Promise<ExerciseEntry[]> => {
+  return getDailyExerciseEntries(selectedDate);
 };
 
 export const addExerciseEntry = async (payload: {
-  user_id: string;
   exercise_id: string;
   duration_minutes: number;
   calories_burned: number;
@@ -54,9 +49,12 @@ export const deleteExerciseEntry = async (entryId: string): Promise<void> => {
   });
 };
 
-export const searchExercises = async (query: string, filterType: string, userId: string): Promise<Exercise[]> => {
-  const params = new URLSearchParams({ query, filterType, userId });
-  const data = await apiCall(`/api/exercises/search/${encodeURIComponent(query)}?filterType=${filterType}&userId=${userId}`, {
+export const searchExercises = async (query: string, filterType: string): Promise<Exercise[]> => {
+  if (!query.trim()) {
+    return [];
+  }
+  const params = new URLSearchParams({ query, filterType });
+  const data = await apiCall(`/api/exercises/search?${params.toString()}`, {
     method: 'GET',
     suppress404Toast: true, // Suppress toast for 404
   });

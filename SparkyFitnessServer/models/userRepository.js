@@ -86,27 +86,14 @@ async function generateApiKey(userId, newApiKey, description) {
   }
 }
 
-async function revokeApiKey(apiKeyId, userId) {
+async function deleteApiKey(apiKeyId, userId) {
   const client = await pool.connect();
   try {
     const result = await client.query(
-      'UPDATE user_api_keys SET is_active = FALSE, updated_at = now() WHERE id = $1 AND user_id = $2 RETURNING *',
+      'DELETE FROM user_api_keys WHERE id = $1 AND user_id = $2 RETURNING id',
       [apiKeyId, userId]
     );
     return result.rowCount > 0;
-  } finally {
-    client.release();
-  }
-}
-
-async function revokeAllApiKeys(userId) {
-  const client = await pool.connect();
-  try {
-    await client.query(
-      'UPDATE user_api_keys SET is_active = FALSE, updated_at = now() WHERE user_id = $1',
-      [userId]
-    );
-    return true;
   } finally {
     client.release();
   }
@@ -215,8 +202,7 @@ module.exports = {
   findUserById,
   findUserIdByEmail,
   generateApiKey,
-  revokeApiKey,
-  revokeAllApiKeys,
+  deleteApiKey,
   getAccessibleUsers,
   getUserProfile,
   updateUserProfile,

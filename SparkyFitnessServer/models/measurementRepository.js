@@ -261,11 +261,29 @@ async function deleteCustomCategory(id, userId) {
   }
 }
 
+async function getCustomCategoryOwnerId(id) {
+  const client = await pool.connect();
+  try {
+    const result = await client.query(
+      'SELECT user_id FROM custom_categories WHERE id = $1',
+      [id]
+    );
+    return result.rows[0]?.user_id;
+  } finally {
+    client.release();
+  }
+}
+
 async function getCustomMeasurementEntries(userId, limit, orderBy, filter) {
   const client = await pool.connect();
   try {
     let query = `
-      SELECT cm.*, cc.name AS category_name, cc.measurement_type, cc.frequency
+      SELECT cm.*,
+             json_build_object(
+               'name', cc.name,
+               'measurement_type', cc.measurement_type,
+               'frequency', cc.frequency
+             ) AS custom_categories
       FROM custom_measurements cm
       JOIN custom_categories cc ON cm.category_id = cc.id
       WHERE cm.user_id = $1
@@ -310,7 +328,12 @@ async function getCustomMeasurementEntriesByDate(userId, date) {
   const client = await pool.connect();
   try {
     const result = await client.query(
-      `SELECT cm.*, cc.name AS category_name, cc.measurement_type, cc.frequency
+      `SELECT cm.*,
+             json_build_object(
+               'name', cc.name,
+               'measurement_type', cc.measurement_type,
+               'frequency', cc.frequency
+             ) AS custom_categories
        FROM custom_measurements cm
        JOIN custom_categories cc ON cm.category_id = cc.id
        WHERE cm.user_id = $1 AND cm.entry_date = $2
@@ -349,6 +372,66 @@ async function getCustomMeasurementsByDateRange(userId, categoryId, startDate, e
   }
 }
 
+async function upsertCustomMeasurement(userId, categoryId, value, entryDate, entryHour, entryTimestamp) {
+  const client = await pool.connect();
+  try {
+    let query;
+    let values;
+
+    // Check if an entry already exists for the given user, category, date, and hour (if applicable)
+    let existingEntryQuery = `
+      SELECT id FROM custom_measurements
+      WHERE user_id = $1 AND category_id = $2 AND entry_date = $3
+    `;
+    let existingEntryValues = [userId, categoryId, entryDate];
+
+    if (entryHour !== null) {
+      existingEntryQuery += ` AND entry_hour = $4`;
+      existingEntryValues.push(entryHour);
+    }
+
+    const existingEntry = await client.query(existingEntryQuery, existingEntryValues);
+
+    if (existingEntry.rows.length > 0) {
+      // Update existing entry
+      const id = existingEntry.rows[0].id;
+      query = `
+        UPDATE custom_measurements
+        SET value = $1, entry_timestamp = $2, updated_at = now()
+        WHERE id = $3 AND user_id = $4
+        RETURNING *
+      `;
+      values = [value, entryTimestamp, id, userId];
+    } else {
+      // Insert new entry
+      query = `
+        INSERT INTO custom_measurements (user_id, category_id, value, entry_date, entry_hour, entry_timestamp, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6, now(), now())
+        RETURNING *
+      `;
+      values = [userId, categoryId, value, entryDate, entryHour, entryTimestamp];
+    }
+
+    const result = await client.query(query, values);
+    return result.rows[0];
+  } finally {
+    client.release();
+  }
+}
+
+async function deleteCustomMeasurement(id, userId) {
+  const client = await pool.connect();
+  try {
+    const result = await client.query(
+      'DELETE FROM custom_measurements WHERE id = $1 AND user_id = $2 RETURNING id',
+      [id, userId]
+    );
+    return result.rowCount > 0;
+  } finally {
+    client.release();
+  }
+}
+
 module.exports = {
   upsertStepData,
   upsertWaterData,
@@ -369,4 +452,21 @@ module.exports = {
   getCustomMeasurementEntriesByDate,
   getCheckInMeasurementsByDateRange,
   getCustomMeasurementsByDateRange,
+  getCustomCategoryOwnerId,
+  upsertCustomMeasurement,
+  deleteCustomMeasurement,
+  getCustomMeasurementOwnerId,
 };
+
+async function getCustomMeasurementOwnerId(id) {
+  const client = await pool.connect();
+  try {
+    const result = await client.query(
+      'SELECT user_id FROM custom_measurements WHERE id = $1',
+      [id]
+    );
+    return result.rows[0]?.user_id;
+  } finally {
+    client.release();
+  }
+}

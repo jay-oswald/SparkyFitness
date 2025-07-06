@@ -7,7 +7,7 @@ import SparkyAIService from '@/components/SparkyAIService'; // Import SparkyAISe
 
 const sparkyAIService = new SparkyAIService(); // Create an instance of SparkyAIService
 // Function to process food input
-export const processFoodInput = async (userId: string, data: {
+export const processFoodInput = async (data: {
   food_name: string;
   quantity: number;
   unit: string;
@@ -69,7 +69,7 @@ export const processFoodInput = async (userId: string, data: {
     debug(userLoggingLevel, 'Searching for exact food match:', food_name);
     let exactFoods = null;
     try {
-      exactFoods = await apiCall(`/api/foods/search?name=${encodeURIComponent(food_name)}&userId=${userId}&exactMatch=true`, {
+      exactFoods = await apiCall(`/api/foods/search?name=${encodeURIComponent(food_name)}&exactMatch=true`, {
         method: 'GET',
       });
     } catch (err: any) {
@@ -87,7 +87,7 @@ export const processFoodInput = async (userId: string, data: {
       debug(userLoggingLevel, 'No exact match found, searching broadly for:', food_name);
       let broadFoods = null;
       try {
-        broadFoods = await apiCall(`/api/foods/search?name=${encodeURIComponent(food_name)}&userId=${userId}&broadMatch=true`, {
+        broadFoods = await apiCall(`/api/foods/search?name=${encodeURIComponent(food_name)}&broadMatch=true`, {
           method: 'GET',
         });
       } catch (err: any) {
@@ -132,7 +132,6 @@ export const processFoodInput = async (userId: string, data: {
         await apiCall('/api/food-entries', {
           method: 'POST',
           body: {
-            user_id: userId,
             food_id: food.id,
             meal_type: meal_type,
             quantity: quantity,
@@ -184,7 +183,7 @@ export const processFoodInput = async (userId: string, data: {
 };
 
 // Function to add a selected food option to the diary
-export const addFoodOption = async (userId: string, optionIndex: number, originalMetadata: any, formatDateInUserTimezone: (date: string | Date, formatStr?: string) => string, userLoggingLevel: UserLoggingLevel, transactionId: string): Promise<CoachResponse> => {
+export const addFoodOption = async (optionIndex: number, originalMetadata: any, formatDateInUserTimezone: (date: string | Date, formatStr?: string) => string, userLoggingLevel: UserLoggingLevel, transactionId: string): Promise<CoachResponse> => {
   try {
     const { foodOptions, mealType, quantity, unit, entryDate } = originalMetadata;
     const selectedOption = foodOptions[optionIndex];
@@ -206,7 +205,7 @@ export const addFoodOption = async (userId: string, optionIndex: number, origina
     // 1. Check if the food name already exists in the 'foods' table for the user
     let existingFoods = null;
     try {
-      existingFoods = await apiCall(`/api/foods/search?name=${encodeURIComponent(selectedOption.name)}&userId=${userId}&exactMatch=true&checkCustom=true`, {
+      existingFoods = await apiCall(`/api/foods/search?name=${encodeURIComponent(selectedOption.name)}&exactMatch=true&checkCustom=true`, {
         method: 'GET',
       });
     } catch (err: any) {
@@ -313,7 +312,6 @@ export const addFoodOption = async (userId: string, optionIndex: number, origina
               calcium: selectedOption.calcium,
               iron: selectedOption.iron,
               is_custom: true,
-              user_id: userId
             }
           });
         } catch (err: any) {
@@ -343,7 +341,6 @@ export const addFoodOption = async (userId: string, optionIndex: number, origina
       await apiCall('/api/food-entries', {
         method: 'POST',
         body: {
-          user_id: userId,
           food_id: foodId,
           meal_type: mealType,
           quantity: quantity,

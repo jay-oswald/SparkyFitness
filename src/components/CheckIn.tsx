@@ -81,7 +81,7 @@ const CheckIn = () => {
     }
 
     try {
-      const data = await loadCustomCategoriesService(currentUserId);
+      const data = await loadCustomCategoriesService();
       info(loggingLevel, "Custom categories loaded successfully:", data);
       setCustomCategories(data || []);
     } catch (err) {
@@ -97,7 +97,7 @@ const CheckIn = () => {
 
 
     try {
-      const data = await fetchRecentMeasurementsService(currentUserId);
+      const data = await fetchRecentMeasurementsService();
       info(loggingLevel, "Recent measurements fetched successfully:", data);
       setRecentMeasurements(data || []);
     } catch (err) {
@@ -113,7 +113,7 @@ const CheckIn = () => {
     }
 
     try {
-      await handleDeleteMeasurement(measurementId, currentUserId);
+      await handleDeleteMeasurement(measurementId);
       info(loggingLevel, 'Measurement deleted successfully:', measurementId);
       sonnerToast.success('Measurement deleted successfully');
       fetchRecentMeasurements();
@@ -127,7 +127,7 @@ const CheckIn = () => {
   const loadExistingData = async () => {
     try {
       // Load check-in measurements
-      const data = await loadExistingCheckInMeasurements(currentUserId, selectedDate);
+      const data = await loadExistingCheckInMeasurements(selectedDate);
       if (data) {
         info(loggingLevel, "Existing check-in data loaded:", data);
         setWeight(data.weight?.toString() || "");
@@ -144,7 +144,7 @@ const CheckIn = () => {
         setSteps("");
       }
 
-      const customData = await loadExistingCustomMeasurements(currentUserId, selectedDate);
+      const customData = await loadExistingCustomMeasurements(selectedDate);
       info(loggingLevel, "Custom measurements loaded for date:", { selectedDate, customData });
       const newCustomValues: {[key: string]: string} = {};
       if (customData) {
@@ -254,7 +254,7 @@ const CheckIn = () => {
               entry_timestamp: entryTimestamp,
             };
 
-            await saveCustomMeasurement(customMeasurementData, category.frequency);
+            await saveCustomMeasurement(customMeasurementData);
             info(loggingLevel, `Custom measurement for category ${category.name} saved successfully.`);
           } else {
             warn(loggingLevel, `Custom category not found for ID: ${categoryId}`);

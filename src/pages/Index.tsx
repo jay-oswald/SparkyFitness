@@ -56,7 +56,7 @@ const Index = () => {
      const fetchDisplayName = async () => {
        if (!loading && user?.id) { // Only fetch if not loading and user is available
          try {
-           const profile = await apiCall(`/api/auth/profiles/${user.id}`, { suppress404Toast: true });
+           const profile = await apiCall(`/api/auth/profiles`, { suppress404Toast: true });
            setDisplayName(profile?.full_name || user.email || ''); // Handle null profile
          } catch (err) {
            // If it's a 404, it means no profile is found, which is a valid scenario.

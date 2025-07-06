@@ -49,31 +49,19 @@ const EditExerciseEntryDialog = ({ entry, open, onOpenChange, onSave }: EditExer
      const caloriesBurned = (caloriesPerHour / 60) * duration;
      debug(loggingLevel, "EditExerciseEntryDialog: Recalculated calories burned:", caloriesBurned);
 
-     const { error: supabaseError } = await supabase
-       .from('exercise_entries')
-       .update({
-         duration_minutes: duration,
-         calories_burned: caloriesBurned,
-         notes: notes,
-       })
-       .eq('id', entry.id);
+     await updateExerciseEntry(entry.id, {
+       duration_minutes: duration,
+       calories_burned: caloriesBurned,
+       notes: notes,
+     });
 
-     if (supabaseError) {
-       error(loggingLevel, "EditExerciseEntryDialog: Error updating exercise entry:", supabaseError);
-       toast({
-         title: "Error",
-         description: "Failed to update exercise entry.",
-         variant: "destructive",
-       });
-     } else {
-       info(loggingLevel, "EditExerciseEntryDialog: Exercise entry updated successfully:", entry.id);
-       toast({
-         title: "Success",
-         description: "Exercise entry updated successfully.",
-       });
-       onSave();
-       onOpenChange(false);
-     }
+     info(loggingLevel, "EditExerciseEntryDialog: Exercise entry updated successfully:", entry.id);
+     toast({
+       title: "Success",
+       description: "Exercise entry updated successfully.",
+     });
+     onSave();
+     onOpenChange(false);
    } catch (err) {
      error(loggingLevel, "EditExerciseEntryDialog: Error updating exercise entry:", err);
      toast({
@@ -95,6 +83,9 @@ const EditExerciseEntryDialog = ({ entry, open, onOpenChange, onSave }: EditExer
      <DialogContent>
        <DialogHeader>
          <DialogTitle>Edit Exercise Entry</DialogTitle>
+         <DialogDescription>
+           Make changes to your exercise entry here. Click save when you're done.
+         </DialogDescription>
        </DialogHeader>
        
        <div className="space-y-4">

@@ -39,7 +39,7 @@ const WaterIntake = ({ selectedDate }: WaterIntakeProps) => {
     try {
       
       // Load water goal for selected date
-      const goalData = await apiCall(`/api/goals/for-date?userId=${user?.id}&date=${selectedDate}`);
+      const goalData = await apiCall(`/api/goals/for-date?date=${selectedDate}`);
       if (goalData && goalData.water_goal) {
         setWaterGoal(goalData.water_goal);
       } else {
@@ -47,7 +47,7 @@ const WaterIntake = ({ selectedDate }: WaterIntakeProps) => {
       }
 
       // Load water intake for selected date - get all records and sum them
-      const waterData = await apiCall(`/api/water-intake/${user?.id}/${selectedDate}`);
+      const waterData = await apiCall(`/api/measurements/water-intake/${selectedDate}`);
       if (waterData && waterData.glasses_consumed !== undefined) {
         setWaterGlasses(waterData.glasses_consumed);
       } else {
@@ -75,7 +75,7 @@ const WaterIntake = ({ selectedDate }: WaterIntakeProps) => {
       setLoading(true);
 
       // Use upsert for atomic update/insert
-      await apiCall('/api/water-intake', {
+      await apiCall('/api/measurements/water-intake', {
         method: 'POST',
         body: {
           user_id: user.id,

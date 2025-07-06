@@ -11,14 +11,14 @@ import { processMeasurementInput } from '@/services/Chatbot/Chatbot_MeasurementH
 import { processWaterInput } from '@/services/Chatbot/Chatbot_WaterHandler';
 import { info, error, warn, debug, UserLoggingLevel } from '@/utils/logging';
 
-const SparkyNutritionCoach = forwardRef<any, { userId: string; userLoggingLevel: UserLoggingLevel; timezone: string; formatDateInUserTimezone: (date: string | Date, formatStr?: string) => string }>(({ userId, userLoggingLevel, timezone, formatDateInUserTimezone }, ref) => {
+const SparkyNutritionCoach = forwardRef<any, { userLoggingLevel: UserLoggingLevel; timezone: string; formatDateInUserTimezone: (date: string | Date, formatStr?: string) => string }>(({ userLoggingLevel, timezone, formatDateInUserTimezone }, ref) => {
 
   useImperativeHandle(ref, () => ({
     getTodaysNutrition,
     processUserInput: (input, imageFile, transactionId) => handleUserInput(input, imageFile, transactionId),
-    addFoodOption: (optionIndex, originalMetadata, transactionId) => addFoodOption(userId, optionIndex, originalMetadata, formatDateInUserTimezone, userLoggingLevel, transactionId),
-    saveMessageToHistory: (content: string, messageType: 'user' | 'assistant', metadata?: any) => saveMessageToHistory(userId, content, messageType, metadata), // Expose and bind userId
-    clearHistory: (autoClearPreference: string) => clearHistory(userId, autoClearPreference) // Expose and bind userId
+    addFoodOption: (optionIndex, originalMetadata, transactionId) => addFoodOption(optionIndex, originalMetadata, formatDateInUserTimezone, userLoggingLevel, transactionId),
+    saveMessageToHistory: (content: string, messageType: 'user' | 'assistant', metadata?: any) => saveMessageToHistory(content, messageType, metadata),
+    clearHistory: (autoClearPreference: string) => clearHistory(autoClearPreference)
   }));
 
 
@@ -29,7 +29,7 @@ const SparkyNutritionCoach = forwardRef<any, { userId: string; userLoggingLevel:
       let goalsData = null;
       let goalsError = null;
       try {
-        goalsData = await apiCall(`/api/goals/for-date?userId=${userId}&date=${date}`, { method: 'GET' });
+        goalsData = await apiCall(`/api/goals/for-date?date=${date}`, { method: 'GET' });
       } catch (err: any) {
         goalsError = err;
       }
@@ -44,7 +44,7 @@ const SparkyNutritionCoach = forwardRef<any, { userId: string; userLoggingLevel:
       let foodEntries = null;
       let foodError = null;
       try {
-        foodEntries = await apiCall(`/api/food-entries/${userId}/${date}`, { method: 'GET' });
+        foodEntries = await apiCall(`/api/food-entries/${date}`, { method: 'GET' });
       } catch (err: any) {
         foodError = err;
       }
@@ -75,7 +75,7 @@ const SparkyNutritionCoach = forwardRef<any, { userId: string; userLoggingLevel:
       // Get exercise entries
       let exerciseEntries = null;
       try {
-        exerciseEntries = await apiCall(`/api/exercise-entries/${userId}/${date}`, { method: 'GET' });
+        exerciseEntries = await apiCall(`/api/exercise-entries/${date}`, { method: 'GET' });
       } catch (err: any) {
         error(userLoggingLevel, '❌ [Nutrition Coach] Error loading exercise entries:', err);
       }
@@ -139,7 +139,7 @@ const SparkyNutritionCoach = forwardRef<any, { userId: string; userLoggingLevel:
       }
 
       // Use SparkyAIService to process the message
-      const aiResponse = await sparkyAIService.processMessage(input, userId); // Pass userId to processMessage
+      const aiResponse = await sparkyAIService.processMessage(input);
 
       let parsedResponse: { intent: string; data: any; response?: string; entryDate?: string };
       try {
@@ -166,7 +166,7 @@ const SparkyNutritionCoach = forwardRef<any, { userId: string; userLoggingLevel:
       // Map AI intent to CoachResponse action and call appropriate handlers
       switch (parsedResponse.intent) {
         case 'log_food':
-          const foodResponse = await processFoodInput(userId, parsedResponse.data, determinedEntryDate, formatDateInUserTimezone, userLoggingLevel, transactionId); // Get response from food handler, pass formatter
+          const foodResponse = await processFoodInput(parsedResponse.data, determinedEntryDate, formatDateInUserTimezone, userLoggingLevel, transactionId);
 
           // Check if the food was not found in the database (fallback)
           if (foodResponse.action === 'none' && foodResponse.metadata?.is_fallback) {
@@ -209,11 +209,11 @@ const SparkyNutritionCoach = forwardRef<any, { userId: string; userLoggingLevel:
           }
 
         case 'log_exercise':
-          return await processExerciseInput(userId, parsedResponse.data, determinedEntryDate, formatDateInUserTimezone, userLoggingLevel); // Pass determinedEntryDate, pass formatter
+          return await processExerciseInput(parsedResponse.data, determinedEntryDate, formatDateInUserTimezone, userLoggingLevel);
         case 'log_measurement':
-          return await processMeasurementInput(userId, parsedResponse.data, determinedEntryDate, formatDateInUserTimezone, userLoggingLevel); // Pass determinedEntryDate, pass formatter
+          return await processMeasurementInput(parsedResponse.data, determinedEntryDate, formatDateInUserTimezone, userLoggingLevel);
         case 'log_water':
-          return await processWaterInput(userId, parsedResponse.data, determinedEntryDate, formatDateInUserTimezone, userLoggingLevel); // Pass determinedEntryDate, pass formatter
+          return await processWaterInput(parsedResponse.data, determinedEntryDate, formatDateInUserTimezone, userLoggingLevel);
         case 'ask_question':
         case 'chat':
           // For chat/ask_question, the response is already in parsedResponse.response
@@ -244,7 +244,7 @@ const SparkyNutritionCoach = forwardRef<any, { userId: string; userLoggingLevel:
       const userMessageContent = `GENERATE_FOOD_OPTIONS:${foodName} in ${unit}`;
 
       // Use SparkyAIService to process the message for food options
-      const aiResponse = await sparkyAIService.processMessage(userMessageContent, userId);
+      const aiResponse = await sparkyAIService.processMessage(userMessageContent);
 
       if (!aiResponse || !aiResponse.content) {
         error(userLoggingLevel, '❌ [Nutrition Coach] No content received from AI for food options.');

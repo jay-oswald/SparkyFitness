@@ -14,8 +14,19 @@ interface CustomFood {
   protein: number;
   carbs: number;
   fat: number;
-  fiber?: number;
-  sugar?: number;
+  saturated_fat?: number;
+  polyunsaturated_fat?: number;
+  monounsaturated_fat?: number;
+  trans_fat?: number;
+  cholesterol?: number;
+  sodium?: number;
+  potassium?: number;
+  dietary_fiber?: number;
+  sugars?: number;
+  vitamin_a?: number;
+  vitamin_c?: number;
+  calcium?: number;
+  iron?: number;
   servingSize: number;
   servingUnit: string;
 }
@@ -34,8 +45,19 @@ const CustomFoodForm = ({ onSave }: CustomFoodFormProps) => {
    protein: 0,
    carbs: 0,
    fat: 0,
-   fiber: 0,
-   sugar: 0,
+   saturated_fat: 0,
+   polyunsaturated_fat: 0,
+   monounsaturated_fat: 0,
+   trans_fat: 0,
+   cholesterol: 0,
+   sodium: 0,
+   potassium: 0,
+   dietary_fiber: 0,
+   sugars: 0,
+   vitamin_a: 0,
+   vitamin_c: 0,
+   calcium: 0,
+   iron: 0,
    servingSize: 100,
    servingUnit: "g"
  });
@@ -57,8 +79,19 @@ const CustomFoodForm = ({ onSave }: CustomFoodFormProps) => {
      protein: 0,
      carbs: 0,
      fat: 0,
-     fiber: 0,
-     sugar: 0,
+     saturated_fat: 0,
+     polyunsaturated_fat: 0,
+     monounsaturated_fat: 0,
+     trans_fat: 0,
+     cholesterol: 0,
+     sodium: 0,
+     potassium: 0,
+     dietary_fiber: 0,
+     sugars: 0,
+     vitamin_a: 0,
+     vitamin_c: 0,
+     calcium: 0,
+     iron: 0,
      servingSize: 100,
      servingUnit: "g"
    });
@@ -174,26 +207,155 @@ const CustomFoodForm = ({ onSave }: CustomFoodFormProps) => {
            </div>
          </div>
 
-         <div className="grid grid-cols-2 gap-4">
+         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
            <div className="space-y-2">
-             <Label htmlFor="fiber">Fiber (g)</Label>
+             <Label htmlFor="saturated_fat">Saturated Fat (g)</Label>
              <Input
-               id="fiber"
+               id="saturated_fat"
                type="number"
-               value={formData.fiber}
-               onChange={(e) => handleInputChange("fiber", Number(e.target.value))}
+               value={formData.saturated_fat}
+               onChange={(e) => handleInputChange("saturated_fat", Number(e.target.value))}
                min="0"
                step="0.1"
              />
            </div>
-           
            <div className="space-y-2">
-             <Label htmlFor="sugar">Sugar (g)</Label>
+             <Label htmlFor="polyunsaturated_fat">Polyunsaturated Fat (g)</Label>
              <Input
-               id="sugar"
+               id="polyunsaturated_fat"
                type="number"
-               value={formData.sugar}
-               onChange={(e) => handleInputChange("sugar", Number(e.target.value))}
+               value={formData.polyunsaturated_fat}
+               onChange={(e) => handleInputChange("polyunsaturated_fat", Number(e.target.value))}
+               min="0"
+               step="0.1"
+             />
+           </div>
+           <div className="space-y-2">
+             <Label htmlFor="monounsaturated_fat">Monounsaturated Fat (g)</Label>
+             <Input
+               id="monounsaturated_fat"
+               type="number"
+               value={formData.monounsaturated_fat}
+               onChange={(e) => handleInputChange("monounsaturated_fat", Number(e.target.value))}
+               min="0"
+               step="0.1"
+             />
+           </div>
+           <div className="space-y-2">
+             <Label htmlFor="trans_fat">Trans Fat (g)</Label>
+             <Input
+               id="trans_fat"
+               type="number"
+               value={formData.trans_fat}
+               onChange={(e) => handleInputChange("trans_fat", Number(e.target.value))}
+               min="0"
+               step="0.1"
+             />
+           </div>
+         </div>
+
+         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+           <div className="space-y-2">
+             <Label htmlFor="cholesterol">Cholesterol (mg)</Label>
+             <Input
+               id="cholesterol"
+               type="number"
+               value={formData.cholesterol}
+               onChange={(e) => handleInputChange("cholesterol", Number(e.target.value))}
+               min="0"
+               step="0.1"
+             />
+           </div>
+           <div className="space-y-2">
+             <Label htmlFor="sodium">Sodium (mg)</Label>
+             <Input
+               id="sodium"
+               type="number"
+               value={formData.sodium}
+               onChange={(e) => handleInputChange("sodium", Number(e.target.value))}
+               min="0"
+               step="0.1"
+             />
+           </div>
+           <div className="space-y-2">
+             <Label htmlFor="potassium">Potassium (mg)</Label>
+             <Input
+               id="potassium"
+               type="number"
+               value={formData.potassium}
+               onChange={(e) => handleInputChange("potassium", Number(e.target.value))}
+               min="0"
+               step="0.1"
+             />
+           </div>
+           <div className="space-y-2">
+             <Label htmlFor="dietary_fiber">Dietary Fiber (g)</Label>
+             <Input
+               id="dietary_fiber"
+               type="number"
+               value={formData.dietary_fiber}
+               onChange={(e) => handleInputChange("dietary_fiber", Number(e.target.value))}
+               min="0"
+               step="0.1"
+             />
+           </div>
+         </div>
+
+         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+           <div className="space-y-2">
+             <Label htmlFor="sugars">Sugars (g)</Label>
+             <Input
+               id="sugars"
+               type="number"
+               value={formData.sugars}
+               onChange={(e) => handleInputChange("sugars", Number(e.target.value))}
+               min="0"
+               step="0.1"
+             />
+           </div>
+           <div className="space-y-2">
+             <Label htmlFor="vitamin_a">Vitamin A (mcg)</Label>
+             <Input
+               id="vitamin_a"
+               type="number"
+               value={formData.vitamin_a}
+               onChange={(e) => handleInputChange("vitamin_a", Number(e.target.value))}
+               min="0"
+               step="0.1"
+             />
+           </div>
+           <div className="space-y-2">
+             <Label htmlFor="vitamin_c">Vitamin C (mg)</Label>
+             <Input
+               id="vitamin_c"
+               type="number"
+               value={formData.vitamin_c}
+               onChange={(e) => handleInputChange("vitamin_c", Number(e.target.value))}
+               min="0"
+               step="0.1"
+             />
+           </div>
+           <div className="space-y-2">
+             <Label htmlFor="calcium">Calcium (mg)</Label>
+             <Input
+               id="calcium"
+               type="number"
+               value={formData.calcium}
+               onChange={(e) => handleInputChange("calcium", Number(e.target.value))}
+               min="0"
+               step="0.1"
+             />
+           </div>
+         </div>
+
+         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+           <div className="space-y-2">
+             <Label htmlFor="iron">Iron (mg)</Label>
+             <Input
+               id="iron"
+               type="number"
+               value={formData.iron}
+               onChange={(e) => handleInputChange("iron", Number(e.target.value))}
                min="0"
                step="0.1"
              />

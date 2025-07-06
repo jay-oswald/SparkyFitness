@@ -52,15 +52,9 @@ router.post('/register', registerValidation, async (req, res, next) => {
   }
 });
 
-router.get('/user', async (req, res, next) => {
-  const { userId } = req.query;
-
-  if (!userId) {
-    return res.status(400).json({ error: 'User ID is required.' });
-  }
-
+router.get('/user', authenticateToken, async (req, res, next) => {
   try {
-    const user = await authService.getUser(userId);
+    const user = await authService.getUser(req.userId);
     res.status(200).json(user);
   } catch (error) {
     if (error.message === 'User not found.') {
@@ -70,7 +64,7 @@ router.get('/user', async (req, res, next) => {
   }
 });
 
-router.get('/users/find-by-email', async (req, res, next) => {
+router.get('/users/find-by-email', authenticateToken, authorizeAccess('admin'), async (req, res, next) => {
   const { email } = req.query;
 
   if (!email) {
@@ -81,6 +75,9 @@ router.get('/users/find-by-email', async (req, res, next) => {
     const userId = await authService.findUserIdByEmail(email);
     res.status(200).json({ userId });
   } catch (error) {
+    if (error.message.startsWith('Forbidden')) {
+      return res.status(403).json({ error: error.message });
+    }
     if (error.message === 'User not found.') {
       return res.status(404).json({ error: error.message });
     }
@@ -89,15 +86,10 @@ router.get('/users/find-by-email', async (req, res, next) => {
 });
 
 router.post('/user/generate-api-key', authenticateToken, authorizeAccess('api_keys'), async (req, res, next) => {
-  const authenticatedUserId = req.userId;
-  const { userId: targetUserId, description } = req.body;
-
-  if (!targetUserId) {
-    return res.status(400).json({ error: 'Target User ID is required.' });
-  }
-
+  const { description } = req.body;
+ 
   try {
-    const apiKey = await authService.generateUserApiKey(authenticatedUserId, targetUserId, description);
+    const apiKey = await authService.generateUserApiKey(req.userId, req.userId, description); // targetUserId is authenticatedUserId
     res.status(201).json({ message: 'API key generated successfully', apiKey });
   } catch (error) {
     if (error.message.startsWith('Forbidden')) {
@@ -107,72 +99,35 @@ router.post('/user/generate-api-key', authenticateToken, authorizeAccess('api_ke
   }
 });
 
-router.post('/user/revoke-api-key', authenticateToken, authorizeAccess('api_keys'), async (req, res, next) => {
-  const authenticatedUserId = req.userId;
-  const { userId: targetUserId, apiKeyId } = req.body;
-
-  if (!targetUserId || !apiKeyId) {
-    return res.status(400).json({ error: 'Target User ID and API Key ID are required.' });
-  }
-
+router.delete('/user/api-key/:apiKeyId', authenticateToken, authorizeAccess('api_keys'), async (req, res, next) => {
+  const { apiKeyId } = req.params;
+ 
   try {
-    await authService.revokeUserApiKey(authenticatedUserId, targetUserId, apiKeyId);
-    res.status(200).json({ message: 'API key revoked successfully.' });
+    await authService.deleteUserApiKey(req.userId, req.userId, apiKeyId); // targetUserId is authenticatedUserId
+    res.status(200).json({ message: 'API key deleted successfully.' });
   } catch (error) {
     if (error.message.startsWith('Forbidden')) {
       return res.status(403).json({ error: error.message });
     }
-    if (error.message === 'API Key not found or already inactive for this user.') {
+    if (error.message === 'API Key not found or not authorized for deletion.') {
       return res.status(404).json({ error: error.message });
     }
     next(error);
   }
 });
 
-router.post('/user/revoke-all-api-keys', authenticateToken, authorizeAccess('api_keys'), async (req, res, next) => {
-  const authenticatedUserId = req.userId;
-  const { userId: targetUserId } = req.body;
-
-  if (!targetUserId) {
-    return res.status(400).json({ error: 'Target User ID is required.' });
-  }
-
+router.get('/users/accessible-users', authenticateToken, async (req, res, next) => {
   try {
-    await authService.revokeAllUserApiKeys(authenticatedUserId, targetUserId);
-    res.status(200).json({ message: 'All API keys revoked successfully for the user.' });
-  } catch (error) {
-    if (error.message.startsWith('Forbidden')) {
-      return res.status(403).json({ error: error.message });
-    }
-    next(error);
-  }
-});
-
-router.get('/users/accessible-users', async (req, res, next) => {
-  const { userId } = req.query;
-
-  if (!userId) {
-    return res.status(400).json({ error: 'User ID is required.' });
-  }
-
-  try {
-    const accessibleUsers = await authService.getAccessibleUsers(userId);
+    const accessibleUsers = await authService.getAccessibleUsers(req.userId);
     res.status(200).json(accessibleUsers);
   } catch (error) {
     next(error);
   }
 });
 
-router.get('/profiles/:targetUserId', authenticateToken, authorizeAccess('profile'), async (req, res, next) => {
-  const authenticatedUserId = req.userId;
-  const { targetUserId } = req.params;
-
-  if (!targetUserId) {
-    return res.status(400).json({ error: 'Target User ID is required.' });
-  }
-
+router.get('/profiles', authenticateToken, authorizeAccess('profile', (req) => req.userId), async (req, res, next) => {
   try {
-    const profile = await authService.getUserProfile(authenticatedUserId, targetUserId);
+    const profile = await authService.getUserProfile(req.userId, req.userId); // authenticatedUserId is targetUserId
     if (!profile) {
       return res.status(200).json({});
     }
@@ -185,17 +140,11 @@ router.get('/profiles/:targetUserId', authenticateToken, authorizeAccess('profil
   }
 });
 
-router.put('/profiles/:targetUserId', authenticateToken, authorizeAccess('profile'), async (req, res, next) => {
-  const authenticatedUserId = req.userId;
-  const { targetUserId } = req.params;
+router.put('/profiles', authenticateToken, authorizeAccess('profile', (req) => req.userId), async (req, res, next) => {
   const profileData = req.body;
-
-  if (!targetUserId) {
-    return res.status(400).json({ error: 'Target User ID is required.' });
-  }
-
+ 
   try {
-    const updatedProfile = await authService.updateUserProfile(authenticatedUserId, targetUserId, profileData);
+    const updatedProfile = await authService.updateUserProfile(req.userId, req.userId, profileData); // authenticatedUserId is targetUserId
     res.status(200).json({ message: 'Profile updated successfully.', profile: updatedProfile });
   } catch (error) {
     if (error.message.startsWith('Forbidden')) {
@@ -208,16 +157,9 @@ router.put('/profiles/:targetUserId', authenticateToken, authorizeAccess('profil
   }
 });
 
-router.get('/user-api-keys/:targetUserId', authenticateToken, authorizeAccess('api_keys'), async (req, res, next) => {
-  const authenticatedUserId = req.userId;
-  const { targetUserId } = req.params;
-
-  if (!targetUserId) {
-    return res.status(400).json({ error: 'Target User ID is required.' });
-  }
-
+router.get('/user-api-keys', authenticateToken, authorizeAccess('api_keys'), async (req, res, next) => {
   try {
-    const apiKeys = await authService.getUserApiKeys(authenticatedUserId, targetUserId);
+    const apiKeys = await authService.getUserApiKeys(req.userId, req.userId); // authenticatedUserId is targetUserId
     res.status(200).json(apiKeys);
   } catch (error) {
     if (error.message.startsWith('Forbidden')) {
@@ -227,15 +169,15 @@ router.get('/user-api-keys/:targetUserId', authenticateToken, authorizeAccess('a
   }
 });
 
-router.post('/update-password', async (req, res, next) => {
-  const { userId, newPassword } = req.body;
-
-  if (!userId || !newPassword) {
-    return res.status(400).json({ error: 'User ID and new password are required.' });
+router.post('/update-password', authenticateToken, async (req, res, next) => {
+  const { newPassword } = req.body;
+ 
+  if (!newPassword) {
+    return res.status(400).json({ error: 'New password is required.' });
   }
-
+ 
   try {
-    await authService.updateUserPassword(userId, newPassword);
+    await authService.updateUserPassword(req.userId, newPassword);
     res.status(200).json({ message: 'Password updated successfully.' });
   } catch (error) {
     if (error.message === 'User not found.') {
@@ -245,15 +187,15 @@ router.post('/update-password', async (req, res, next) => {
   }
 });
 
-router.post('/update-email', async (req, res, next) => {
-  const { userId, newEmail } = req.body;
-
-  if (!userId || !newEmail) {
-    return res.status(400).json({ error: 'User ID and new email are required.' });
+router.post('/update-email', authenticateToken, async (req, res, next) => {
+  const { newEmail } = req.body;
+ 
+  if (!newEmail) {
+    return res.status(400).json({ error: 'New email is required.' });
   }
-
+ 
   try {
-    await authService.updateUserEmail(userId, newEmail);
+    await authService.updateUserEmail(req.userId, newEmail);
     res.status(200).json({ message: 'Email update initiated. User will need to verify new email.' });
   } catch (error) {
     if (error.message === 'Email already in use by another account.') {
@@ -266,46 +208,45 @@ router.post('/update-email', async (req, res, next) => {
   }
 });
 
-router.get('/access/can-access-user-data', async (req, res, next) => {
-  const { targetUserId, permissionType, currentUserId } = req.query;
-
-  if (!targetUserId || !permissionType || !currentUserId) {
-    return res.status(400).json({ error: 'targetUserId, permissionType, and currentUserId are required.' });
+router.get('/access/can-access-user-data', authenticateToken, async (req, res, next) => {
+  const { targetUserId, permissionType } = req.query;
+ 
+  if (!targetUserId || !permissionType) {
+    return res.status(400).json({ error: 'targetUserId and permissionType are required.' });
   }
-
+ 
   try {
-    const canAccess = await authService.canAccessUserData(targetUserId, permissionType, currentUserId);
+    const canAccess = await authService.canAccessUserData(targetUserId, permissionType, req.userId);
     res.status(200).json({ canAccess });
   } catch (error) {
     next(error);
   }
 });
 
-router.get('/access/check-family-access', async (req, res, next) => {
-  const { familyUserId, ownerUserId, permission } = req.query;
-
-  if (!familyUserId || !ownerUserId || !permission) {
-    return res.status(400).json({ error: 'familyUserId, ownerUserId, and permission are required.' });
+router.get('/access/check-family-access', authenticateToken, async (req, res, next) => {
+  const { ownerUserId, permission } = req.query;
+ 
+  if (!ownerUserId || !permission) {
+    return res.status(400).json({ error: 'ownerUserId and permission are required.' });
   }
-
+ 
   try {
-    const hasAccess = await authService.checkFamilyAccess(familyUserId, ownerUserId, permission);
+    const hasAccess = await authService.checkFamilyAccess(req.userId, ownerUserId, permission);
     res.status(200).json({ hasAccess });
   } catch (error) {
     next(error);
   }
 });
 
-router.get('/family-access', authenticateToken, authorizeAccess('family_access'), async (req, res, next) => {
-  const authenticatedUserId = req.userId;
+router.get('/family-access', authenticateToken, authorizeAccess('family_access', (req) => req.query.owner_user_id), async (req, res, next) => {
   const { owner_user_id: targetUserId } = req.query;
-
+ 
   if (!targetUserId) {
     return res.status(400).json({ error: 'Target User ID is required.' });
   }
-
+ 
   try {
-    const entries = await authService.getFamilyAccessEntries(authenticatedUserId, targetUserId);
+    const entries = await authService.getFamilyAccessEntries(req.userId, targetUserId);
     res.status(200).json(entries);
   } catch (error) {
     if (error.message.startsWith('Forbidden')) {
@@ -315,16 +256,15 @@ router.get('/family-access', authenticateToken, authorizeAccess('family_access')
   }
 });
 
-router.get('/family-access/:userId', authenticateToken, authorizeAccess('family_access'), async (req, res, next) => {
-  const authenticatedUserId = req.userId;
-  const { userId: targetUserId } = req.params;
-
+router.get('/family-access/:targetUserId', authenticateToken, authorizeAccess('family_access', (req) => req.params.targetUserId), async (req, res, next) => {
+  const { targetUserId } = req.params;
+ 
   if (!targetUserId) {
     return res.status(400).json({ error: 'Target User ID is required.' });
   }
-
+ 
   try {
-    const entries = await authService.getFamilyAccessEntries(authenticatedUserId, targetUserId);
+    const entries = await authService.getFamilyAccessEntries(req.userId, targetUserId);
     res.status(200).json(entries);
   } catch (error) {
     if (error.message.startsWith('Forbidden')) {
@@ -334,16 +274,15 @@ router.get('/family-access/:userId', authenticateToken, authorizeAccess('family_
   }
 });
 
-router.post('/family-access', authenticateToken, authorizeAccess('family_access'), async (req, res, next) => {
-  const authenticatedUserId = req.userId;
+router.post('/family-access', authenticateToken, authorizeAccess('family_access', (req) => req.body.owner_user_id), async (req, res, next) => {
   const entryData = req.body;
-
-  if (!entryData.owner_user_id || !entryData.family_user_id || !entryData.family_email || !entryData.access_permissions) {
-    return res.status(400).json({ error: 'Owner User ID, Family User ID, Family Email, and Access Permissions are required.' });
+ 
+  if (!entryData.family_user_id || !entryData.family_email || !entryData.access_permissions) {
+    return res.status(400).json({ error: 'Family User ID, Family Email, and Access Permissions are required.' });
   }
-
+ 
   try {
-    const newEntry = await authService.createFamilyAccessEntry(authenticatedUserId, entryData);
+    const newEntry = await authService.createFamilyAccessEntry(req.userId, entryData);
     res.status(201).json(newEntry);
   } catch (error) {
     if (error.message.startsWith('Forbidden')) {
@@ -353,17 +292,16 @@ router.post('/family-access', authenticateToken, authorizeAccess('family_access'
   }
 });
 
-router.put('/family-access/:id', authenticateToken, authorizeAccess('family_access'), async (req, res, next) => {
-  const authenticatedUserId = req.userId;
+router.put('/family-access/:id', authenticateToken, authorizeAccess('family_access', (req) => req.body.owner_user_id), async (req, res, next) => {
   const { id } = req.params;
-  const { owner_user_id: targetOwnerUserId, ...updateData } = req.body;
-
-  if (!id || !targetOwnerUserId) {
-    return res.status(400).json({ error: 'Family Access ID and Owner User ID are required.' });
+  const updateData = req.body;
+ 
+  if (!id) {
+    return res.status(400).json({ error: 'Family Access ID is required.' });
   }
-
+ 
   try {
-    const updatedEntry = await authService.updateFamilyAccessEntry(authenticatedUserId, id, targetOwnerUserId, updateData);
+    const updatedEntry = await authService.updateFamilyAccessEntry(req.userId, id, updateData);
     res.status(200).json(updatedEntry);
   } catch (error) {
     if (error.message.startsWith('Forbidden')) {
@@ -376,17 +314,15 @@ router.put('/family-access/:id', authenticateToken, authorizeAccess('family_acce
   }
 });
 
-router.delete('/family-access/:id', authenticateToken, authorizeAccess('family_access'), async (req, res, next) => {
-  const authenticatedUserId = req.userId;
+router.delete('/family-access/:id', authenticateToken, authorizeAccess('family_access', (req) => req.body.owner_user_id), async (req, res, next) => {
   const { id } = req.params;
-  const { ownerUserId: targetOwnerUserId } = req.body;
-
-  if (!id || !targetOwnerUserId) {
-    return res.status(400).json({ error: 'Family Access ID and Target Owner User ID are required.' });
+ 
+  if (!id) {
+    return res.status(400).json({ error: 'Family Access ID is required.' });
   }
-
+ 
   try {
-    await authService.deleteFamilyAccessEntry(authenticatedUserId, id, targetOwnerUserId);
+    await authService.deleteFamilyAccessEntry(req.userId, id);
     res.status(200).json({ message: 'Family access entry deleted successfully.' });
   } catch (error) {
     if (error.message.startsWith('Forbidden')) {

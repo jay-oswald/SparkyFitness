@@ -4,6 +4,8 @@ const { authenticateToken, authorizeAccess } = require('../middleware/authMiddle
 const foodService = require('../services/foodService');
 const { log } = require('../config/logging');
 const { getFatSecretAccessToken, foodNutrientCache, CACHE_DURATION_MS, FATSECRET_API_BASE_URL } = require('../integrations/fatsecret/fatsecretService');
+const { searchOpenFoodFacts, searchOpenFoodFactsByBarcode } = require('../integrations/openfoodfacts/openFoodFactsService');
+const { searchNutritionixFoods, getNutritionixNutrients, getNutritionixBrandedNutrients } = require('../integrations/nutritionix/nutritionixService');
 
 router.use(express.json());
 
@@ -40,7 +42,7 @@ router.get('/food-data-providers', authenticateToken, async (req, res, next) => 
   }
 });
 
-router.get('/food-data-providers/user/:targetUserId', authenticateToken, authorizeAccess('food_list'), async (req, res, next) => {
+router.get('/food-data-providers/user/:targetUserId', authenticateToken, authorizeAccess('food_list', (req) => req.params.targetUserId), async (req, res, next) => {
   const { targetUserId } = req.params;
   if (!targetUserId) {
     return res.status(400).json({ error: "Missing target user ID" });
@@ -83,7 +85,26 @@ router.put('/food-data-providers/:id', authenticateToken, async (req, res, next)
     next(error);
   }
 });
-
+ 
+router.delete('/food-data-providers/:id', authenticateToken, async (req, res, next) => {
+  const { id } = req.params;
+  if (!id) {
+    return res.status(400).json({ error: 'Provider ID is required.' });
+  }
+  try {
+    await foodService.deleteFoodDataProvider(req.userId, id);
+    res.status(200).json({ message: 'Food data provider deleted successfully.' });
+  } catch (error) {
+    if (error.message.startsWith('Forbidden')) {
+      return res.status(403).json({ error: error.message });
+    }
+    if (error.message === 'Food data provider not found or not authorized to delete.') {
+      return res.status(404).json({ error: error.message });
+    }
+    next(error);
+  }
+});
+ 
 router.get('/food-data-providers/:id', authenticateToken, async (req, res, next) => {
   const { id } = req.params;
   if (!id) {
@@ -132,15 +153,80 @@ router.get('/fatsecret/nutrients', async (req, res, next) => {
   }
 });
 
-router.get('/', authenticateToken, authorizeAccess('food_list'), async (req, res, next) => {
-  const { name, userId: targetUserId, exactMatch, broadMatch, checkCustom } = req.query;
+router.get('/openfoodfacts/search', authenticateToken, async (req, res, next) => {
+  const { query } = req.query;
+  if (!query) {
+    return res.status(400).json({ error: "Missing search query" });
+  }
+  try {
+    const data = await searchOpenFoodFacts(query);
+    res.json(data);
+  } catch (error) {
+    next(error);
+  }
+});
 
+router.get('/openfoodfacts/barcode/:barcode', authenticateToken, async (req, res, next) => {
+  const { barcode } = req.params;
+  if (!barcode) {
+    return res.status(400).json({ error: "Missing barcode" });
+  }
+  try {
+    const data = await searchOpenFoodFactsByBarcode(barcode);
+    res.json(data);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/nutritionix/search', authenticateToken, async (req, res, next) => {
+  const { query, providerId } = req.query;
+  if (!query || !providerId) {
+    return res.status(400).json({ error: "Missing search query or providerId" });
+  }
+  try {
+    const data = await searchNutritionixFoods(query, providerId);
+    res.json(data);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/nutritionix/nutrients', authenticateToken, async (req, res, next) => {
+  const { query, providerId } = req.query;
+  if (!query || !providerId) {
+    return res.status(400).json({ error: "Missing search query or providerId" });
+  }
+  try {
+    const data = await getNutritionixNutrients(query, providerId);
+    res.json(data);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/nutritionix/item', authenticateToken, async (req, res, next) => {
+  const { nix_item_id, providerId } = req.query;
+  if (!nix_item_id || !providerId) {
+    return res.status(400).json({ error: "Missing nix_item_id or providerId" });
+  }
+  try {
+    const data = await getNutritionixBrandedNutrients(nix_item_id, providerId);
+    res.json(data);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/', authenticateToken, authorizeAccess('food_list', (req) => req.userId), async (req, res, next) => {
+  const { name, exactMatch, broadMatch, checkCustom } = req.query;
+ 
   if (!name) {
     return res.status(400).json({ error: 'Food name is required.' });
   }
-
+ 
   try {
-    const foods = await foodService.searchFoods(req.userId, name, targetUserId, exactMatch === 'true', broadMatch === 'true', checkCustom === 'true');
+    const foods = await foodService.searchFoods(req.userId, name, req.userId, exactMatch === 'true', broadMatch === 'true', checkCustom === 'true');
     res.status(200).json(foods);
   } catch (error) {
     if (error.message.startsWith('Forbidden')) {
@@ -155,12 +241,100 @@ router.get('/', authenticateToken, authorizeAccess('food_list'), async (req, res
 
 router.post('/', authenticateToken, authorizeAccess('food_list'), async (req, res, next) => {
   try {
-    const newFood = await foodService.createFood(req.userId, req.body);
+    const foodData = { ...req.body, user_id: req.userId }; // Ensure user_id is set for the food
+    const newFood = await foodService.createFood(req.userId, foodData);
     res.status(201).json(newFood);
   } catch (error) {
     if (error.message.startsWith('Forbidden')) {
       return res.status(403).json({ error: error.message });
     }
+    next(error);
+  }
+});
+router.post('/food-entries', authenticateToken, authorizeAccess('food_log'), async (req, res, next) => {
+  try {
+    const newEntry = await foodService.createFoodEntry(req.userId, req.body);
+    res.status(201).json(newEntry);
+  } catch (error) {
+    if (error.message.startsWith('Forbidden')) {
+      return res.status(403).json({ error: error.message });
+    }
+    next(error);
+  }
+});
+
+router.delete('/food-entries/:id', authenticateToken, authorizeAccess('food_log'), async (req, res, next) => {
+  const { id } = req.params;
+  if (!id) {
+    return res.status(400).json({ error: 'Food entry ID is required.' });
+  }
+  try {
+    await foodService.deleteFoodEntry(req.userId, id);
+    res.status(200).json({ message: 'Food entry deleted successfully.' });
+  } catch (error) {
+    if (error.message.startsWith('Forbidden')) {
+      return res.status(403).json({ error: error.message });
+    }
+    if (error.message === 'Food entry not found or not authorized to delete.') {
+      return res.status(404).json({ error: error.message });
+    }
+    next(error);
+  }
+});
+
+router.get('/food-entries', authenticateToken, authorizeAccess('food_log', (req) => req.userId), async (req, res, next) => {
+  const { selectedDate } = req.query;
+  if (!selectedDate) {
+    return res.status(400).json({ error: 'Selected date is required.' });
+  }
+  try {
+    const entries = await foodService.getFoodEntriesByDate(req.userId, req.userId, selectedDate);
+    res.status(200).json(entries);
+  } catch (error) {
+    if (error.message.startsWith('Forbidden')) {
+      return res.status(403).json({ error: error.message });
+    }
+    next(error);
+  }
+});
+
+router.get('/food-entries/:date', authenticateToken, authorizeAccess('food_log', (req) => req.userId), async (req, res, next) => {
+  const { date } = req.params;
+  if (!date) {
+    return res.status(400).json({ error: 'Date is required.' });
+  }
+  try {
+    const entries = await foodService.getFoodEntriesByDate(req.userId, req.userId, date);
+    res.status(200).json(entries);
+  } catch (error) {
+    if (error.message.startsWith('Forbidden')) {
+      return res.status(403).json({ error: error.message });
+    }
+    next(error);
+  }
+});
+
+router.get('/food-entries-range/:startDate/:endDate', authenticateToken, authorizeAccess('food_log', (req) => req.userId), async (req, res, next) => {
+  const { startDate, endDate } = req.params;
+  if (!startDate || !endDate) {
+    return res.status(400).json({ error: 'Start date and end date are required.' });
+  }
+  try {
+    const entries = await foodService.getFoodEntriesByDateRange(req.userId, req.userId, startDate, endDate);
+    res.status(200).json(entries);
+  } catch (error) {
+    if (error.message.startsWith('Forbidden')) {
+      return res.status(403).json({ error: error.message });
+    }
+    next(error);
+  }
+});
+router.get('/foods-paginated', authenticateToken, async (req, res, next) => {
+  const { searchTerm, foodFilter, currentPage, itemsPerPage, sortBy } = req.query;
+  try {
+    const { foods, totalCount } = await foodService.getFoodsWithPagination(req.userId, searchTerm, foodFilter, currentPage, itemsPerPage, sortBy);
+    res.status(200).json({ foods, totalCount });
+  } catch (error) {
     next(error);
   }
 });
@@ -186,9 +360,8 @@ router.get('/:foodId', authenticateToken, authorizeAccess('food_list'), async (r
 
 router.put('/:id', authenticateToken, authorizeAccess('food_list'), async (req, res, next) => {
   const { id } = req.params;
-  const { user_id } = req.body; // user_id is needed for authorization in service layer
-  if (!id || !user_id) {
-    return res.status(400).json({ error: 'Food ID and User ID are required.' });
+  if (!id) {
+    return res.status(400).json({ error: 'Food ID is required.' });
   }
   try {
     const updatedFood = await foodService.updateFood(req.userId, id, req.body);
@@ -223,15 +396,6 @@ router.delete('/:id', authenticateToken, authorizeAccess('food_list'), async (re
   }
 });
 
-router.get('/foods-paginated', authenticateToken, async (req, res, next) => {
-  const { searchTerm, foodFilter, currentPage, itemsPerPage, sortBy } = req.query;
-  try {
-    const { foods, totalCount } = await foodService.getFoodsWithPagination(req.userId, searchTerm, foodFilter, currentPage, itemsPerPage, sortBy);
-    res.status(200).json({ foods, totalCount });
-  } catch (error) {
-    next(error);
-  }
-});
 
 router.post('/food-variants', authenticateToken, authorizeAccess('food_list'), async (req, res, next) => {
   try {
@@ -325,69 +489,10 @@ router.get('/food-variants', authenticateToken, authorizeAccess('food_list'), as
   }
 });
 
-router.post('/food-entries', authenticateToken, authorizeAccess('food_log'), async (req, res, next) => {
-  try {
-    const newEntry = await foodService.createFoodEntry(req.userId, req.body);
-    res.status(201).json(newEntry);
-  } catch (error) {
-    if (error.message.startsWith('Forbidden')) {
-      return res.status(403).json({ error: error.message });
-    }
-    next(error);
-  }
-});
-
-router.get('/food-entries', authenticateToken, authorizeAccess('food_log'), async (req, res, next) => {
-  const { userId: targetUserId, selectedDate } = req.query;
-  if (!targetUserId || !selectedDate) {
-    return res.status(400).json({ error: 'Target User ID and selectedDate are required.' });
-  }
-  try {
-    const entries = await foodService.getFoodEntriesByDate(req.userId, targetUserId, selectedDate);
-    res.status(200).json(entries);
-  } catch (error) {
-    if (error.message.startsWith('Forbidden')) {
-      return res.status(403).json({ error: error.message });
-    }
-    next(error);
-  }
-});
-
-router.get('/food-entries/:userId/:date', authenticateToken, authorizeAccess('food_log'), async (req, res, next) => {
-  const { userId: targetUserId, date } = req.params;
-  if (!targetUserId || !date) {
-    return res.status(400).json({ error: 'Target User ID and date are required.' });
-  }
-  try {
-    const entries = await foodService.getFoodEntriesByDate(req.userId, targetUserId, date);
-    res.status(200).json(entries);
-  } catch (error) {
-    if (error.message.startsWith('Forbidden')) {
-      return res.status(403).json({ error: error.message });
-    }
-    next(error);
-  }
-});
-
-router.get('/food-entries-range/:userId/:startDate/:endDate', authenticateToken, authorizeAccess('food_log'), async (req, res, next) => {
-  const { userId: targetUserId, startDate, endDate } = req.params;
-  if (!targetUserId || !startDate || !endDate) {
-    return res.status(400).json({ error: 'Target User ID, start date, and end date are required.' });
-  }
-  try {
-    const entries = await foodService.getFoodEntriesByDateRange(req.userId, targetUserId, startDate, endDate);
-    res.status(200).json(entries);
-  } catch (error) {
-    if (error.message.startsWith('Forbidden')) {
-      return res.status(403).json({ error: error.message });
-    }
-    next(error);
-  }
-});
 
 router.post('/create-or-get', authenticateToken, authorizeAccess('food_list'), async (req, res, next) => {
   try {
-    const { foodSuggestion, activeUserId } = req.body;
+    const { foodSuggestion } = req.body;
     const food = await foodService.createOrGetFood(req.userId, foodSuggestion);
     res.status(200).json({ foodId: food.id });
   } catch (error) {

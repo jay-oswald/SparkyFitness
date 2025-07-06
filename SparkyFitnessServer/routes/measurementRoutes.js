@@ -84,13 +84,13 @@ router.post('/health-data', express.text({ type: '*/*' }), async (req, res, next
 });
 
 // Endpoint to fetch water intake for a specific user and date
-router.get('/water-intake/:targetUserId/:date', authenticateToken, authorizeAccess('checkin'), async (req, res, next) => {
-  const { targetUserId, date } = req.params;
-  if (!targetUserId || !date) {
-    return res.status(400).json({ error: 'Target User ID and date are required.' });
+router.get('/water-intake/:date', authenticateToken, authorizeAccess('checkin', (req) => req.userId), async (req, res, next) => {
+  const { date } = req.params;
+  if (!date) {
+    return res.status(400).json({ error: 'Date is required.' });
   }
   try {
-    const waterData = await measurementService.getWaterIntake(req.userId, targetUserId, date);
+    const waterData = await measurementService.getWaterIntake(req.userId, req.userId, date);
     res.status(200).json(waterData);
   } catch (error) {
     if (error.message.startsWith('Forbidden')) {
@@ -102,12 +102,12 @@ router.get('/water-intake/:targetUserId/:date', authenticateToken, authorizeAcce
 
 // Endpoint to upsert water intake
 router.post('/water-intake', authenticateToken, authorizeAccess('checkin'), async (req, res, next) => {
-  const { user_id, entry_date, glasses_consumed } = req.body;
-  if (!user_id || !entry_date || glasses_consumed === undefined) {
-    return res.status(400).json({ error: 'User ID, entry date, and glasses consumed are required.' });
+  const { entry_date, glasses_consumed } = req.body;
+  if (!entry_date || glasses_consumed === undefined) {
+    return res.status(400).json({ error: 'Entry date and glasses consumed are required.' });
   }
   try {
-    const result = await measurementService.upsertWaterIntake(req.userId, user_id, entry_date, glasses_consumed);
+    const result = await measurementService.upsertWaterIntake(req.userId, entry_date, glasses_consumed);
     res.status(200).json(result);
   } catch (error) {
     if (error.message.startsWith('Forbidden')) {
@@ -140,12 +140,12 @@ router.get('/water-intake/entry/:id', authenticateToken, async (req, res, next) 
 // Endpoint to update water intake
 router.put('/water-intake/:id', authenticateToken, authorizeAccess('checkin'), async (req, res, next) => {
   const { id } = req.params;
-  const { user_id, ...updateData } = req.body;
-  if (!id || !user_id) {
-    return res.status(400).json({ error: 'Water Intake Entry ID and User ID are required.' });
+  const updateData = req.body;
+  if (!id) {
+    return res.status(400).json({ error: 'Water Intake Entry ID is required.' });
   }
   try {
-    const updatedEntry = await measurementService.updateWaterIntake(req.userId, id, user_id, updateData);
+    const updatedEntry = await measurementService.updateWaterIntake(req.userId, id, updateData);
     res.status(200).json(updatedEntry);
   } catch (error) {
     if (error.message.startsWith('Forbidden')) {
@@ -161,12 +161,11 @@ router.put('/water-intake/:id', authenticateToken, authorizeAccess('checkin'), a
 // Endpoint to delete water intake
 router.delete('/water-intake/:id', authenticateToken, authorizeAccess('checkin'), async (req, res, next) => {
   const { id } = req.params;
-  const { userId: targetUserId } = req.body;
-  if (!id || !targetUserId) {
-    return res.status(400).json({ error: 'Water Intake Entry ID and User ID are required.' });
+  if (!id) {
+    return res.status(400).json({ error: 'Water Intake Entry ID is required.' });
   }
   try {
-    const result = await measurementService.deleteWaterIntake(req.userId, id, targetUserId);
+    const result = await measurementService.deleteWaterIntake(req.userId, id);
     res.status(200).json(result);
   } catch (error) {
     if (error.message.startsWith('Forbidden')) {
@@ -181,12 +180,12 @@ router.delete('/water-intake/:id', authenticateToken, authorizeAccess('checkin')
 
 // Endpoint to upsert check-in measurements
 router.post('/check-in', authenticateToken, authorizeAccess('checkin'), async (req, res, next) => {
-  const { user_id, entry_date, ...measurements } = req.body;
-  if (!user_id || !entry_date) {
-    return res.status(400).json({ error: 'User ID and entry date are required.' });
+  const { entry_date, ...measurements } = req.body;
+  if (!entry_date) {
+    return res.status(400).json({ error: 'Entry date is required.' });
   }
   try {
-    const result = await measurementService.upsertCheckInMeasurements(req.userId, user_id, entry_date, measurements);
+    const result = await measurementService.upsertCheckInMeasurements(req.userId, entry_date, measurements);
     res.status(200).json(result);
   } catch (error) {
     if (error.message.startsWith('Forbidden')) {
@@ -197,13 +196,13 @@ router.post('/check-in', authenticateToken, authorizeAccess('checkin'), async (r
 });
 
 // Endpoint to fetch check-in measurements for a specific user and date
-router.get('/check-in/:targetUserId/:date', authenticateToken, authorizeAccess('checkin'), async (req, res, next) => {
-  const { targetUserId, date } = req.params;
-  if (!targetUserId || !date) {
-    return res.status(400).json({ error: 'Target User ID and date are required.' });
+router.get('/check-in/:date', authenticateToken, authorizeAccess('checkin', (req) => req.userId), async (req, res, next) => {
+  const { date } = req.params;
+  if (!date) {
+    return res.status(400).json({ error: 'Date is required.' });
   }
   try {
-    const measurement = await measurementService.getCheckInMeasurements(req.userId, targetUserId, date);
+    const measurement = await measurementService.getCheckInMeasurements(req.userId, req.userId, date);
     res.status(200).json(measurement);
   } catch (error) {
     if (error.message.startsWith('Forbidden')) {
@@ -216,12 +215,12 @@ router.get('/check-in/:targetUserId/:date', authenticateToken, authorizeAccess('
 // Endpoint to update check-in measurements
 router.put('/check-in/:id', authenticateToken, authorizeAccess('checkin'), async (req, res, next) => {
   const { id } = req.params;
-  const { user_id, entry_date, ...updateData } = req.body;
-  if (!id || !user_id || !entry_date) {
-    return res.status(400).json({ error: 'ID, User ID, and entry date are required.' });
+  const { entry_date, ...updateData } = req.body;
+  if (!id || !entry_date) {
+    return res.status(400).json({ error: 'ID and entry date are required.' });
   }
   try {
-    const updatedMeasurement = await measurementService.updateCheckInMeasurements(req.userId, id, user_id, entry_date, updateData);
+    const updatedMeasurement = await measurementService.updateCheckInMeasurements(req.userId, id, entry_date, updateData);
     res.status(200).json(updatedMeasurement);
   } catch (error) {
     if (error.message.startsWith('Forbidden')) {
@@ -237,12 +236,11 @@ router.put('/check-in/:id', authenticateToken, authorizeAccess('checkin'), async
 // Endpoint to delete check-in measurements
 router.delete('/check-in/:id', authenticateToken, authorizeAccess('checkin'), async (req, res, next) => {
   const { id } = req.params;
-  const { userId: targetUserId } = req.body;
-  if (!id || !targetUserId) {
-    return res.status(400).json({ error: 'Check-in Measurement ID and User ID are required.' });
+  if (!id) {
+    return res.status(400).json({ error: 'Check-in Measurement ID is required.' });
   }
   try {
-    const result = await measurementService.deleteCheckInMeasurements(req.userId, id, targetUserId);
+    const result = await measurementService.deleteCheckInMeasurements(req.userId, id);
     res.status(200).json(result);
   } catch (error) {
     if (error.message.startsWith('Forbidden')) {
@@ -256,10 +254,9 @@ router.delete('/check-in/:id', authenticateToken, authorizeAccess('checkin'), as
 });
 
 // Endpoint to fetch custom categories for a user
-router.get('/custom-categories', authenticateToken, authorizeAccess('checkin'), async (req, res, next) => {
-  const { userId: targetUserId } = req.query;
+router.get('/custom-categories', authenticateToken, authorizeAccess('checkin', (req) => req.userId), async (req, res, next) => {
   try {
-    const categories = await measurementService.getCustomCategories(req.userId, targetUserId);
+    const categories = await measurementService.getCustomCategories(req.userId, req.userId);
     res.status(200).json(categories);
   } catch (error) {
     if (error.message.startsWith('Forbidden')) {
@@ -272,7 +269,7 @@ router.get('/custom-categories', authenticateToken, authorizeAccess('checkin'), 
 // Endpoint to create a new custom category
 router.post('/custom-categories', authenticateToken, authorizeAccess('checkin'), async (req, res, next) => {
   try {
-    const newCategory = await measurementService.createCustomCategory(req.userId, req.body);
+    const newCategory = await measurementService.createCustomCategory(req.userId, { ...req.body, user_id: req.userId });
     res.status(201).json(newCategory);
   } catch (error) {
     if (error.message.startsWith('Forbidden')) {
@@ -282,15 +279,48 @@ router.post('/custom-categories', authenticateToken, authorizeAccess('checkin'),
   }
 });
 
+// Endpoint to upsert a custom measurement entry
+router.post('/custom-entries', authenticateToken, authorizeAccess('checkin'), async (req, res, next) => {
+  try {
+    const newEntry = await measurementService.upsertCustomMeasurementEntry(req.userId, req.body);
+    res.status(201).json(newEntry);
+  } catch (error) {
+    if (error.message.startsWith('Forbidden')) {
+      return res.status(403).json({ error: error.message });
+    }
+    next(error);
+  }
+});
+
+// Endpoint to delete a custom measurement entry
+router.delete('/custom-entries/:id', authenticateToken, authorizeAccess('checkin'), async (req, res, next) => {
+  const { id } = req.params;
+  if (!id) {
+    return res.status(400).json({ error: 'Custom Measurement Entry ID is required.' });
+  }
+  try {
+    const result = await measurementService.deleteCustomMeasurementEntry(req.userId, id);
+    res.status(200).json(result);
+  } catch (error) {
+    if (error.message.startsWith('Forbidden')) {
+      return res.status(403).json({ error: error.message });
+    }
+    if (error.message === 'Custom measurement entry not found or not authorized to delete.') {
+      return res.status(404).json({ error: error.message });
+    }
+    next(error);
+  }
+});
+
 // Endpoint to update a custom category
 router.put('/custom-categories/:id', authenticateToken, authorizeAccess('checkin'), async (req, res, next) => {
   const { id } = req.params;
-  const { user_id, ...updateData } = req.body;
-  if (!id || !user_id) {
-    return res.status(400).json({ error: 'Category ID and User ID are required.' });
+  const updateData = req.body;
+  if (!id) {
+    return res.status(400).json({ error: 'Category ID is required.' });
   }
   try {
-    const updatedCategory = await measurementService.updateCustomCategory(req.userId, id, user_id, updateData);
+    const updatedCategory = await measurementService.updateCustomCategory(req.userId, id, updateData);
     res.status(200).json(updatedCategory);
   } catch (error) {
     if (error.message.startsWith('Forbidden')) {
@@ -306,12 +336,11 @@ router.put('/custom-categories/:id', authenticateToken, authorizeAccess('checkin
 // Endpoint to delete a custom category
 router.delete('/custom-categories/:id', authenticateToken, authorizeAccess('checkin'), async (req, res, next) => {
   const { id } = req.params;
-  const { userId: targetUserId } = req.body;
-  if (!id || !targetUserId) {
-    return res.status(400).json({ error: 'Category ID and User ID are required.' });
+  if (!id) {
+    return res.status(400).json({ error: 'Category ID is required.' });
   }
   try {
-    const result = await measurementService.deleteCustomCategory(req.userId, id, targetUserId);
+    const result = await measurementService.deleteCustomCategory(req.userId, id);
     res.status(200).json(result);
   } catch (error) {
     if (error.message.startsWith('Forbidden')) {
@@ -325,13 +354,10 @@ router.delete('/custom-categories/:id', authenticateToken, authorizeAccess('chec
 });
 
 // Endpoint to fetch custom measurement entries
-router.get('/custom-entries', authenticateToken, authorizeAccess('checkin'), async (req, res, next) => {
-  const { userId: targetUserId, limit, orderBy, filter } = req.query;
-  if (!targetUserId) {
-    return res.status(400).json({ error: 'Target User ID is required.' });
-  }
+router.get('/custom-entries', authenticateToken, authorizeAccess('checkin', (req) => req.userId), async (req, res, next) => {
+  const { limit, orderBy, filter } = req.query;
   try {
-    const entries = await measurementService.getCustomMeasurementEntries(req.userId, targetUserId, limit, orderBy, filter);
+    const entries = await measurementService.getCustomMeasurementEntries(req.userId, req.userId, limit, orderBy, filter);
     res.status(200).json(entries);
   } catch (error) {
     if (error.message.startsWith('Forbidden')) {
@@ -342,13 +368,13 @@ router.get('/custom-entries', authenticateToken, authorizeAccess('checkin'), asy
 });
 
 // Endpoint to fetch custom measurement entries for a specific user and date
-router.get('/custom-entries/:userId/:date', authenticateToken, authorizeAccess('checkin'), async (req, res, next) => {
-  const { userId: targetUserId, date } = req.params;
-  if (!targetUserId || !date) {
-    return res.status(400).json({ error: 'Target User ID and date are required.' });
+router.get('/custom-entries/:date', authenticateToken, authorizeAccess('checkin', (req) => req.userId), async (req, res, next) => {
+  const { date } = req.params;
+  if (!date) {
+    return res.status(400).json({ error: 'Date is required.' });
   }
   try {
-    const entries = await measurementService.getCustomMeasurementEntriesByDate(req.userId, targetUserId, date);
+    const entries = await measurementService.getCustomMeasurementEntriesByDate(req.userId, req.userId, date);
     res.status(200).json(entries);
   } catch (error) {
     if (error.message.startsWith('Forbidden')) {
@@ -359,13 +385,13 @@ router.get('/custom-entries/:userId/:date', authenticateToken, authorizeAccess('
 });
 
 // Endpoint to fetch check-in measurements for a specific user and date range
-router.get('/check-in-measurements-range/:userId/:startDate/:endDate', authenticateToken, authorizeAccess('checkin'), async (req, res, next) => {
-  const { userId: targetUserId, startDate, endDate } = req.params;
-  if (!targetUserId || !startDate || !endDate) {
-    return res.status(400).json({ error: 'User ID, start date, and end date are required.' });
+router.get('/check-in-measurements-range/:startDate/:endDate', authenticateToken, authorizeAccess('checkin', (req) => req.userId), async (req, res, next) => {
+  const { startDate, endDate } = req.params;
+  if (!startDate || !endDate) {
+    return res.status(400).json({ error: 'Start date and end date are required.' });
   }
   try {
-    const measurements = await measurementService.getCheckInMeasurementsByDateRange(req.userId, targetUserId, startDate, endDate);
+    const measurements = await measurementService.getCheckInMeasurementsByDateRange(req.userId, req.userId, startDate, endDate);
     res.status(200).json(measurements);
   } catch (error) {
     if (error.message.startsWith('Forbidden')) {
@@ -376,13 +402,13 @@ router.get('/check-in-measurements-range/:userId/:startDate/:endDate', authentic
 });
 
 // Endpoint to fetch custom measurements for a specific user, category, and date range
-router.get('/custom-measurements-range/:userId/:categoryId/:startDate/:endDate', authenticateToken, authorizeAccess('checkin'), async (req, res, next) => {
-  const { userId: targetUserId, categoryId, startDate, endDate } = req.params;
-  if (!targetUserId || !categoryId || !startDate || !endDate) {
-    return res.status(400).json({ error: 'Target User ID, category ID, start date, and end date are required.' });
+router.get('/custom-measurements-range/:categoryId/:startDate/:endDate', authenticateToken, authorizeAccess('checkin', (req) => req.userId), async (req, res, next) => {
+  const { categoryId, startDate, endDate } = req.params;
+  if (!categoryId || !startDate || !endDate) {
+    return res.status(400).json({ error: 'Category ID, start date, and end date are required.' });
   }
   try {
-    const measurements = await measurementService.getCustomMeasurementsByDateRange(req.userId, targetUserId, categoryId, startDate, endDate);
+    const measurements = await measurementService.getCustomMeasurementsByDateRange(req.userId, req.userId, categoryId, startDate, endDate);
     res.status(200).json(measurements);
   } catch (error) {
     if (error.message.startsWith('Forbidden')) {

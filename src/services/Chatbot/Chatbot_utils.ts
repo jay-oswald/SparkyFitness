@@ -12,12 +12,12 @@ export const fileToBase64 = (file: File): Promise<string> => {
 };
 
 // Function to save a message to the database
-export const saveMessageToHistory = async (userId: string, content: string, messageType: 'user' | 'assistant', metadata?: any) => {
+export const saveMessageToHistory = async (content: string, messageType: 'user' | 'assistant', metadata?: any) => {
   try {
-    debug(null, 'Attempting to save message to history:', { userId, content, messageType, metadata }); // Added logging
+    debug(null, 'Attempting to save message to history:', { content, messageType, metadata }); // Added logging
     await apiCall('/api/chat/save-history', {
       method: 'POST',
-      body: { userId, content, messageType, metadata },
+      body: { content, messageType, metadata },
     });
     info(null, '✅ Message saved to history.'); // Added logging
   } catch (err) {
@@ -26,22 +26,22 @@ export const saveMessageToHistory = async (userId: string, content: string, mess
 };
 
 // Function to clear chat history based on preference
-export const clearHistory = async (userId: string, autoClearPreference: string) => {
+export const clearHistory = async (autoClearPreference: string) => {
   try {
-    info(null, `Attempting to clear history for user: ${userId} with preference: ${autoClearPreference}`);
+    info(null, `Attempting to clear history with preference: ${autoClearPreference}`);
     if (autoClearPreference === 'session' || autoClearPreference === 'all' || autoClearPreference === 'manual') {
-      info(null, `Clearing all chat history for user: ${userId}`);
+      info(null, `Clearing all chat history.`);
       try {
         await apiCall('/api/chat/clear-all-history', {
           method: 'POST',
-          body: { userId },
+          body: {}, // No body needed, user is identified by JWT
         });
         info(null, '✅ All chat history cleared via backend.');
       } catch (fetchError) {
         error(null, '❌ [Nutrition Coach] Network error calling clear_all_chat_history backend:', fetchError);
       }
     } else if (autoClearPreference === '7days') {
-      info(null, `Calling backend to clear old chat history for user: ${userId}`);
+      info(null, `Calling backend to clear old chat history.`);
       try {
         await apiCall('/api/chat/clear-old-history', {
           method: 'POST',

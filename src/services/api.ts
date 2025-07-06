@@ -8,7 +8,7 @@ interface ApiCallOptions extends RequestInit {
   externalApi?: boolean;
 }
 
-const API_BASE_URL = `http://localhost:${import.meta.env.VITE_SPARKY_FITNESS_SERVER_PORT || 3010}`;
+export const API_BASE_URL = `http://localhost:${import.meta.env.VITE_SPARKY_FITNESS_SERVER_PORT || 3010}`;
 
 export async function apiCall(endpoint: string, options?: ApiCallOptions): Promise<any> {
   const userLoggingLevel = getUserLoggingLevel();
@@ -58,6 +58,10 @@ export async function apiCall(endpoint: string, options?: ApiCallOptions): Promi
         description: errorMessage,
         variant: "destructive",
       });
+      if (errorMessage.includes('Authentication: Invalid or expired token.')) {
+        localStorage.removeItem('token');
+        window.location.reload();
+      }
       throw new Error(errorMessage);
     }
 

@@ -4,23 +4,32 @@ export interface Food {
   id: string;
   name: string;
   brand?: string;
-  calories: number;
-  protein: number;
-  carbs: number;
-  fat: number;
-  serving_size: number;
-  serving_unit: string;
   user_id?: string;
+  is_custom?: boolean;
+  shared_with_public?: boolean;
 }
 
 export interface FoodVariant {
   id: string;
   serving_size: number;
   serving_unit: string;
-  calories?: number;
-  protein?: number;
-  carbs?: number;
-  fat?: number;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  saturated_fat?: number;
+  polyunsaturated_fat?: number;
+  monounsaturated_fat?: number;
+  trans_fat?: number;
+  cholesterol?: number;
+  sodium?: number;
+  potassium?: number;
+  dietary_fiber?: number;
+  sugars?: number;
+  vitamin_a?: number;
+  vitamin_c?: number;
+  calcium?: number;
+  iron?: number;
 }
 
 export interface FoodEntry {
@@ -47,7 +56,7 @@ export const loadFoodEntries = async (userId: string, selectedDate: string): Pro
     userId,
     selectedDate,
   });
-  const data = await apiCall(`/api/food-entries?${params.toString()}`, {
+  const data = await apiCall(`/api/foods/food-entries?${params.toString()}`, {
     method: 'GET',
     suppress404Toast: true, // Suppress toast for 404
   });
@@ -75,14 +84,14 @@ export const addFoodEntry = async (payload: {
   variant_id?: string;
   entry_date: string;
 }): Promise<FoodEntry> => {
-  return apiCall('/api/food-entries', {
+  return apiCall('/api/foods/food-entries', {
     method: 'POST',
     body: payload,
   });
 };
 
 export const removeFoodEntry = async (entryId: string): Promise<void> => {
-  return apiCall(`/api/food-entries/${entryId}`, {
+  return apiCall(`/api/foods/food-entries/${entryId}`, {
     method: 'DELETE',
   });
 };

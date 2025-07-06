@@ -80,7 +80,7 @@ const DailyProgress = ({ selectedDate, refreshTrigger }: { selectedDate: string;
      
      // Use the database function to get goals for the selected date
      debug(loggingLevel, "DailyProgress: Fetching goals...");
-     const goalsData = await getGoalsForDate(currentUserId, selectedDate);
+     const goalsData = await getGoalsForDate(selectedDate);
      info(loggingLevel, 'DailyProgress: Goals loaded successfully:', goalsData);
      setDailyGoals({
        calories: goalsData.calories || 2000,
@@ -92,7 +92,7 @@ const DailyProgress = ({ selectedDate, refreshTrigger }: { selectedDate: string;
      // Load daily intake from food entries
      debug(loggingLevel, "DailyProgress: Fetching food entries for intake calculation...");
      try {
-       const entriesData = await getFoodEntriesForDate(currentUserId, selectedDate);
+       const entriesData = await getFoodEntriesForDate(selectedDate);
        info(loggingLevel, `DailyProgress: Fetched ${entriesData.length} food entries for intake.`);
        const totals = entriesData.reduce((acc, entry) => {
          const nutrition = calculateFoodEntryNutrition(entry);
@@ -117,7 +117,7 @@ const DailyProgress = ({ selectedDate, refreshTrigger }: { selectedDate: string;
      // Load exercise calories burned
      debug(loggingLevel, "DailyProgress: Fetching exercise entries...");
      try {
-       const exerciseData = await getExerciseEntriesForDate(currentUserId, selectedDate);
+       const exerciseData = await getExerciseEntriesForDate(selectedDate);
        info(loggingLevel, `DailyProgress: Fetched ${exerciseData.length} exercise entries.`);
        const totalExerciseCalories = exerciseData.reduce((sum, entry) => sum + entry.calories_burned, 0);
        info(loggingLevel, "DailyProgress: Total exercise calories burned:", totalExerciseCalories);
@@ -130,7 +130,7 @@ const DailyProgress = ({ selectedDate, refreshTrigger }: { selectedDate: string;
      // Load daily steps from body measurements
      debug(loggingLevel, "DailyProgress: Fetching daily steps...");
      try {
-       const stepsData = await getCheckInMeasurementsForDate(currentUserId, selectedDate);
+       const stepsData = await getCheckInMeasurementsForDate(selectedDate);
        if (stepsData && stepsData.steps) {
          info(loggingLevel, "DailyProgress: Daily steps loaded:", stepsData.steps);
          setDailySteps(stepsData.steps);

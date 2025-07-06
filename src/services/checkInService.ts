@@ -21,32 +21,32 @@ export interface CustomMeasurement {
   };
 }
 
-export const loadCustomCategories = async (userId: string): Promise<CustomCategory[]> => {
-  return apiCall(`/api/measurements/custom-categories?userId=${userId}`, {
+export const loadCustomCategories = async (): Promise<CustomCategory[]> => {
+  return apiCall(`/api/measurements/custom-categories`, {
     method: 'GET',
   });
 };
 
-export const fetchRecentMeasurements = async (userId: string): Promise<CustomMeasurement[]> => {
-  return apiCall(`/api/measurements/custom-entries?userId=${userId}&limit=20&orderBy=entry_timestamp.desc&filter=value.gt.0`, {
+export const fetchRecentMeasurements = async (): Promise<CustomMeasurement[]> => {
+  return apiCall(`/api/measurements/custom-entries?limit=20&orderBy=entry_timestamp.desc&filter=value.gt.0`, {
     method: 'GET',
   });
 };
 
-export const handleDeleteMeasurement = async (measurementId: string, userId: string): Promise<void> => {
-  await apiCall(`/api/measurements/custom-entries/${measurementId}?userId=${userId}`, {
+export const handleDeleteMeasurement = async (measurementId: string): Promise<void> => {
+  await apiCall(`/api/measurements/custom-entries/${measurementId}`, {
     method: 'DELETE',
   });
 };
 
-export const loadExistingCheckInMeasurements = async (userId: string, selectedDate: string): Promise<any> => {
-  return apiCall(`/api/measurements/check-in/${userId}/${selectedDate}`, {
+export const loadExistingCheckInMeasurements = async (selectedDate: string): Promise<any> => {
+  return apiCall(`/api/measurements/check-in/${selectedDate}`, {
     method: 'GET',
   });
 };
 
-export const loadExistingCustomMeasurements = async (userId: string, selectedDate: string): Promise<CustomMeasurement[]> => {
-  return apiCall(`/api/measurements/custom-entries/${userId}/${selectedDate}`, {
+export const loadExistingCustomMeasurements = async (selectedDate: string): Promise<CustomMeasurement[]> => {
+  return apiCall(`/api/measurements/custom-entries/${selectedDate}`, {
     method: 'GET',
   });
 };
@@ -58,16 +58,9 @@ export const saveCheckInMeasurements = async (payload: any): Promise<void> => {
   });
 };
 
-export const saveCustomMeasurement = async (payload: any, frequency: string): Promise<void> => {
-  if (frequency === 'All') {
-    await apiCall('/api/measurements/custom-entries', {
-      method: 'POST',
-      body: payload,
-    });
-  } else {
-    await apiCall('/api/measurements/custom-entries', {
-      method: 'PUT', // Assuming PUT for upsert
-      body: payload,
-    });
-  }
+export const saveCustomMeasurement = async (payload: any): Promise<void> => {
+  await apiCall('/api/measurements/custom-entries', {
+    method: 'POST',
+    body: payload,
+  });
 };

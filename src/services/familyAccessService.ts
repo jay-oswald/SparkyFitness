@@ -32,7 +32,7 @@ interface FamilyAccessPayload {
 }
 
 export const loadFamilyAccess = async (ownerUserId: string): Promise<FamilyAccess[]> => {
-  const data = await apiCall(`/api/family-access?owner_user_id=${ownerUserId}`, {
+  const data = await apiCall(`/api/auth/family-access?owner_user_id=${ownerUserId}`, {
     method: 'GET',
     suppress404Toast: true,
   });
@@ -69,14 +69,14 @@ export const findUserByEmail = async (email: string): Promise<string | null> => 
 };
 
 export const createFamilyAccess = async (payload: FamilyAccessPayload): Promise<FamilyAccess> => {
-  return apiCall('/api/family-access', {
+  return apiCall('/api/auth/family-access', {
     method: 'POST',
     body: payload,
   });
 };
 
 export const updateFamilyAccess = async (id: string, payload: Partial<FamilyAccessPayload>): Promise<FamilyAccess> => {
-  return apiCall(`/api/family-access/${id}`, {
+  return apiCall(`/api/auth/family-access/${id}`, {
     method: 'PUT',
     body: payload,
   });
@@ -90,7 +90,7 @@ export const toggleFamilyAccessActiveStatus = async (id: string, isActive: boole
 };
 
 export const deleteFamilyAccess = async (id: string): Promise<void> => {
-  return apiCall(`/api/family-access/${id}`, {
+  return apiCall(`/api/auth/family-access/${id}`, {
     method: 'DELETE',
   });
 };

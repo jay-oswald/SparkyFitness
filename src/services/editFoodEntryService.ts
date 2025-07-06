@@ -30,30 +30,15 @@ export interface FoodEntry {
   quantity: number;
   unit: string;
   variant_id?: string;
-  foods: {
+  foods: { // This will contain basic food info from the 'foods' table
     id: string;
     name: string;
     brand?: string;
-    calories: number;
-    protein: number;
-    carbs: number;
-    fat: number;
-    saturated_fat?: number;
-    polyunsaturated_fat?: number;
-    monounsaturated_fat?: number;
-    trans_fat?: number;
-    cholesterol?: number;
-    sodium?: number;
-    potassium?: number;
-    dietary_fiber?: number;
-    sugars?: number;
-    vitamin_a?: number;
-    vitamin_c?: number;
-    calcium?: number;
-    iron?: number;
-    serving_size: number;
-    serving_unit: string;
+    is_custom?: boolean;
+    user_id?: string;
+    shared_with_public?: boolean;
   };
+  food_variants: FoodVariant; // This will contain the nutrient details of the selected variant
 }
 
 export const loadFoodVariants = async (foodId: string): Promise<FoodVariant[]> => {

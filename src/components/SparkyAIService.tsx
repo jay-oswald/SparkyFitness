@@ -104,19 +104,12 @@ class SparkyAIService {
       // For now, we'll use a placeholder or assume it's handled by a higher-level component
       // that calls this service.
       // In a real app, you'd likely pass the user ID or get it from a global state/context.
-      const userId = localStorage.getItem('userId'); // Temporary: get from localStorage
-
-      if (!userId) {
-        console.error('No user ID available to fetch AI service config.');
-        return null;
-      }
-
-      const data = await apiCall(`/api/ai-service-settings/${userId}`, {
+      const data = await apiCall(`/api/ai-service-settings`, {
         method: 'GET',
       });
 
       if (!data) {
-        console.error('No active AI service found for user:', userId);
+        console.error('No active AI service found for user.');
         return null;
       }
 
@@ -239,13 +232,8 @@ class SparkyAIService {
     return measurements;
   }
 
-  private async saveMeasurements(measurements: MeasurementSuggestion[], userId: string): Promise<boolean> {
+  private async saveMeasurements(measurements: MeasurementSuggestion[]): Promise<boolean> {
     try {
-      if (!userId) {
-        console.error('No user ID provided to save measurements.');
-        return false;
-      }
-
       for (const measurement of measurements) {
         if (measurement.type === 'weight' || measurement.type === 'waist' || measurement.type === 'hips' || measurement.type === 'neck' || measurement.type === 'steps') {
           // Convert to metric for storage
@@ -257,7 +245,6 @@ class SparkyAIService {
           }
 
           const dataToSave: any = {
-            user_id: userId,
             entry_date: measurement.date,
           };
 
@@ -872,13 +859,8 @@ class SparkyAIService {
     return measurements;
   }
 
-  private async saveCustomMeasurements(measurements: MeasurementSuggestion[], userId: string): Promise<boolean> {
+  private async saveCustomMeasurements(measurements: MeasurementSuggestion[]): Promise<boolean> {
     try {
-      if (!userId) {
-        console.error('No user ID provided to save custom measurements.');
-        return false;
-      }
-
       // Mapping of measurement types to category names and units
       const categoryMapping: {[key: string]: {name: string, unit: string}} = {
         'blood_sugar': { name: 'Blood Sugar', unit: 'mg/dL' },
@@ -896,7 +878,7 @@ class SparkyAIService {
           // Check if category exists
           let category: { id: string } | null = null;
           try {
-            category = await apiCall(`/api/measurements/custom-categories/${userId}/${encodeURIComponent(categoryInfo.name)}`, {
+            category = await apiCall(`/api/measurements/custom-categories/${encodeURIComponent(categoryInfo.name)}`, {
               method: 'GET',
             });
           } catch (e: any) {
@@ -915,7 +897,6 @@ class SparkyAIService {
               const newCategory = await apiCall('/api/measurements/custom-categories', {
                 method: 'POST',
                 body: {
-                  user_id: userId,
                   name: categoryInfo.name,
                   measurement_type: categoryInfo.unit,
                   frequency: 'All'
@@ -933,7 +914,6 @@ class SparkyAIService {
             await apiCall('/api/measurements/custom-entries', {
               method: 'POST',
               body: {
-                user_id: userId,
                 category_id: category.id,
                 value: measurement.value,
                 entry_date: measurement.date,
@@ -954,7 +934,7 @@ class SparkyAIService {
     }
   }
 
-  public async processMessage(message: string, userId: string): Promise<AIResponse> {
+  public async processMessage(message: string): Promise<AIResponse> {
     try {
       // First, try to extract and save measurements
       const measurements = this.extractMeasurementsFromMessage(message);
@@ -962,10 +942,10 @@ class SparkyAIService {
 
       let measurementSaveSuccess = true;
       if (measurements.length > 0) {
-        measurementSaveSuccess = await this.saveMeasurements(measurements, userId);
+        measurementSaveSuccess = await this.saveMeasurements(measurements);
       }
       if (customMeasurements.length > 0) {
-        const customSaveSuccess = await this.saveCustomMeasurements(customMeasurements, userId);
+        const customSaveSuccess = await this.saveCustomMeasurements(customMeasurements);
         if (!customSaveSuccess) measurementSaveSuccess = false;
       }
 

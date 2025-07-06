@@ -50,28 +50,28 @@ const EditFoodEntryDialog = ({ entry, open, onOpenChange, onSave }: EditFoodEntr
     try {
       const data = await loadFoodVariants(entry.food_id);
 
-      // Always include the primary food unit as the first option
+      // The primary unit is now the food_variants object directly from the entry
       const primaryUnit: FoodVariant = {
-        id: entry.foods.id, // Use food.id as the variant ID for the primary unit
-        serving_size: entry.foods.serving_size || 100,
-        serving_unit: entry.foods.serving_unit || 'g',
-        calories: entry.foods.calories,
-        protein: entry.foods.protein,
-        carbs: entry.foods.carbs,
-        fat: entry.foods.fat,
-        saturated_fat: entry.foods.saturated_fat,
-        polyunsaturated_fat: entry.foods.polyunsaturated_fat,
-        monounsaturated_fat: entry.foods.monounsaturated_fat,
-        trans_fat: entry.foods.trans_fat,
-        cholesterol: entry.foods.cholesterol,
-        sodium: entry.foods.sodium,
-        potassium: entry.foods.potassium,
-        dietary_fiber: entry.foods.dietary_fiber,
-        sugars: entry.foods.sugars,
-        vitamin_a: entry.foods.vitamin_a,
-        vitamin_c: entry.foods.vitamin_c,
-        calcium: entry.foods.calcium,
-        iron: entry.foods.iron
+        id: entry.food_variants.id,
+        serving_size: entry.food_variants.serving_size || 100,
+        serving_unit: entry.food_variants.serving_unit || 'g',
+        calories: entry.food_variants.calories,
+        protein: entry.food_variants.protein,
+        carbs: entry.food_variants.carbs,
+        fat: entry.food_variants.fat,
+        saturated_fat: entry.food_variants.saturated_fat,
+        polyunsaturated_fat: entry.food_variants.polyunsaturated_fat,
+        monounsaturated_fat: entry.food_variants.monounsaturated_fat,
+        trans_fat: entry.food_variants.trans_fat,
+        cholesterol: entry.food_variants.cholesterol,
+        sodium: entry.food_variants.sodium,
+        potassium: entry.food_variants.potassium,
+        dietary_fiber: entry.food_variants.dietary_fiber,
+        sugars: entry.food_variants.sugars,
+        vitamin_a: entry.food_variants.vitamin_a,
+        vitamin_c: entry.food_variants.vitamin_c,
+        calcium: entry.food_variants.calcium,
+        iron: entry.food_variants.iron
       };
 
       let combinedVariants: FoodVariant[] = [primaryUnit];
@@ -113,10 +113,10 @@ const EditFoodEntryDialog = ({ entry, open, onOpenChange, onSave }: EditFoodEntr
       
       setVariants(combinedVariants);
 
-      // Set selected variant based on entry.variant_id or entry.unit, or default to primaryUnit
+      // Set selected variant based on entry.variant_id or default to primaryUnit
       const initialSelectedVariant = combinedVariants.find(v =>
         (entry.variant_id && v.id === entry.variant_id) ||
-        (!entry.variant_id && v.serving_unit === entry.unit && v.serving_size === entry.foods.serving_size)
+        (!entry.variant_id && v.id === primaryUnit.id) // If no variant_id, use the default variant
       ) || primaryUnit;
       setSelectedVariant(initialSelectedVariant);
       debug(loggingLevel, "Selected variant:", initialSelectedVariant);

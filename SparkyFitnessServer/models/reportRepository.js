@@ -6,25 +6,25 @@ async function getNutritionData(userId, startDate, endDate) {
     const result = await client.query(
       `SELECT
          fe.entry_date AS date,
-         SUM(f.calories * fe.quantity / f.serving_size) AS calories,
-         SUM(f.protein * fe.quantity / f.serving_size) AS protein,
-         SUM(f.carbs * fe.quantity / f.serving_size) AS carbs,
-         SUM(f.fat * fe.quantity / f.serving_size) AS fat,
-         SUM(COALESCE(f.saturated_fat, 0) * fe.quantity / f.serving_size) AS saturated_fat,
-         SUM(COALESCE(f.polyunsaturated_fat, 0) * fe.quantity / f.serving_size) AS polyunsaturated_fat,
-         SUM(COALESCE(f.monounsaturated_fat, 0) * fe.quantity / f.serving_size) AS monounsaturated_fat,
-         SUM(COALESCE(f.trans_fat, 0) * fe.quantity / f.serving_size) AS trans_fat,
-         SUM(COALESCE(f.cholesterol, 0) * fe.quantity / f.serving_size) AS cholesterol,
-         SUM(COALESCE(f.sodium, 0) * fe.quantity / f.serving_size) AS sodium,
-         SUM(COALESCE(f.potassium, 0) * fe.quantity / f.serving_size) AS potassium,
-         SUM(COALESCE(f.dietary_fiber, 0) * fe.quantity / f.serving_size) AS dietary_fiber,
-         SUM(COALESCE(f.sugars, 0) * fe.quantity / f.serving_size) AS sugars,
-         SUM(COALESCE(f.vitamin_a, 0) * fe.quantity / f.serving_size) AS vitamin_a,
-         SUM(COALESCE(f.vitamin_c, 0) * fe.quantity / f.serving_size) AS vitamin_c,
-         SUM(COALESCE(f.calcium, 0) * fe.quantity / f.serving_size) AS calcium,
-         SUM(COALESCE(f.iron, 0) * fe.quantity / f.serving_size) AS iron
+         SUM(fv.calories * fe.quantity / fv.serving_size) AS calories,
+         SUM(fv.protein * fe.quantity / fv.serving_size) AS protein,
+         SUM(fv.carbs * fe.quantity / fv.serving_size) AS carbs,
+         SUM(fv.fat * fe.quantity / fv.serving_size) AS fat,
+         SUM(COALESCE(fv.saturated_fat, 0) * fe.quantity / fv.serving_size) AS saturated_fat,
+         SUM(COALESCE(fv.polyunsaturated_fat, 0) * fe.quantity / fv.serving_size) AS polyunsaturated_fat,
+         SUM(COALESCE(fv.monounsaturated_fat, 0) * fe.quantity / fv.serving_size) AS monounsaturated_fat,
+         SUM(COALESCE(fv.trans_fat, 0) * fe.quantity / fv.serving_size) AS trans_fat,
+         SUM(COALESCE(fv.cholesterol, 0) * fe.quantity / fv.serving_size) AS cholesterol,
+         SUM(COALESCE(fv.sodium, 0) * fe.quantity / fv.serving_size) AS sodium,
+         SUM(COALESCE(fv.potassium, 0) * fe.quantity / fv.serving_size) AS potassium,
+         SUM(COALESCE(fv.dietary_fiber, 0) * fe.quantity / fv.serving_size) AS dietary_fiber,
+         SUM(COALESCE(fv.sugars, 0) * fe.quantity / fv.serving_size) AS sugars,
+         SUM(COALESCE(fv.vitamin_a, 0) * fe.quantity / fv.serving_size) AS vitamin_a,
+         SUM(COALESCE(fv.vitamin_c, 0) * fe.quantity / fv.serving_size) AS vitamin_c,
+         SUM(COALESCE(fv.calcium, 0) * fe.quantity / fv.serving_size) AS calcium,
+         SUM(COALESCE(fv.iron, 0) * fe.quantity / fv.serving_size) AS iron
        FROM food_entries fe
-       JOIN foods f ON fe.food_id = f.id
+       JOIN food_variants fv ON fe.variant_id = fv.id
        WHERE fe.user_id = $1 AND fe.entry_date BETWEEN $2 AND $3
        GROUP BY fe.entry_date
        ORDER BY fe.entry_date`,
@@ -40,12 +40,14 @@ async function getTabularFoodData(userId, startDate, endDate) {
   const client = await pool.connect();
   try {
     const result = await client.query(
-      `SELECT fe.*, f.name AS food_name, f.brand, f.calories, f.protein, f.carbs, f.fat,
-              f.saturated_fat, f.polyunsaturated_fat, f.monounsaturated_fat, f.trans_fat,
-              f.cholesterol, f.sodium, f.potassium, f.dietary_fiber, f.sugars,
-              f.vitamin_a, f.vitamin_c, f.calcium, f.iron, f.serving_size
+      `SELECT fe.*, f.name AS food_name, f.brand,
+              fv.calories, fv.protein, fv.carbs, fv.fat,
+              fv.saturated_fat, fv.polyunsaturated_fat, fv.monounsaturated_fat, fv.trans_fat,
+              fv.cholesterol, fv.sodium, fv.potassium, fv.dietary_fiber, fv.sugars,
+              fv.vitamin_a, fv.vitamin_c, fv.calcium, fv.iron, fv.serving_size, fv.serving_unit
        FROM food_entries fe
        JOIN foods f ON fe.food_id = f.id
+       JOIN food_variants fv ON fe.variant_id = fv.id
        WHERE fe.user_id = $1 AND fe.entry_date BETWEEN $2 AND $3
        ORDER BY fe.entry_date, fe.meal_type`,
       [userId, startDate, endDate]
@@ -88,12 +90,12 @@ async function getMiniNutritionTrends(userId, startDate, endDate) {
     const result = await client.query(
       `SELECT
          fe.entry_date,
-         SUM(f.calories * fe.quantity / f.serving_size) AS total_calories,
-         SUM(f.protein * fe.quantity / f.serving_size) AS total_protein,
-         SUM(f.carbs * fe.quantity / f.serving_size) AS total_carbs,
-         SUM(f.fat * fe.quantity / f.serving_size) AS total_fat
+         SUM(fv.calories * fe.quantity / fv.serving_size) AS total_calories,
+         SUM(fv.protein * fe.quantity / fv.serving_size) AS total_protein,
+         SUM(fv.carbs * fe.quantity / fv.serving_size) AS total_carbs,
+         SUM(fv.fat * fe.quantity / fv.serving_size) AS total_fat
        FROM food_entries fe
-       JOIN foods f ON fe.food_id = f.id
+       JOIN food_variants fv ON fe.variant_id = fv.id
        WHERE fe.user_id = $1 AND fe.entry_date BETWEEN $2 AND $3
        GROUP BY fe.entry_date
        ORDER BY fe.entry_date`,

@@ -93,12 +93,12 @@ async function getWaterIntake(authenticatedUserId, targetUserId, date) {
   }
 }
 
-async function upsertWaterIntake(authenticatedUserId, userId, entryDate, glassesConsumed) {
+async function upsertWaterIntake(authenticatedUserId, entryDate, glassesConsumed) {
   try {
-    const result = await measurementRepository.upsertWaterData(userId, glassesConsumed, entryDate);
+    const result = await measurementRepository.upsertWaterData(authenticatedUserId, glassesConsumed, entryDate);
     return result;
   } catch (error) {
-    log('error', `Error upserting water intake for user ${userId} by ${authenticatedUserId}:`, error);
+    log('error', `Error upserting water intake for user ${authenticatedUserId}:`, error);
     throw error;
   }
 }
@@ -117,38 +117,52 @@ async function getWaterIntakeEntryById(authenticatedUserId, id) {
   }
 }
 
-async function updateWaterIntake(authenticatedUserId, id, userId, updateData) {
+async function updateWaterIntake(authenticatedUserId, id, updateData) {
   try {
-    const updatedEntry = await measurementRepository.updateWaterIntake(id, userId, updateData);
+    const entryOwnerId = await measurementRepository.getWaterIntakeEntryOwnerId(id);
+    if (!entryOwnerId) {
+      throw new Error('Water intake entry not found.');
+    }
+    if (entryOwnerId !== authenticatedUserId) {
+      throw new Error('Forbidden: You do not have permission to update this water intake entry.');
+    }
+    const updatedEntry = await measurementRepository.updateWaterIntake(id, authenticatedUserId, updateData);
     if (!updatedEntry) {
       throw new Error('Water intake entry not found or not authorized to update.');
     }
     return updatedEntry;
   } catch (error) {
-    log('error', `Error updating water intake entry ${id} for user ${userId} by ${authenticatedUserId}:`, error);
+    log('error', `Error updating water intake entry ${id} by ${authenticatedUserId}:`, error);
     throw error;
   }
 }
 
-async function deleteWaterIntake(authenticatedUserId, id, userId) {
+async function deleteWaterIntake(authenticatedUserId, id) {
   try {
-    const success = await measurementRepository.deleteWaterIntake(id, userId);
+    const entryOwnerId = await measurementRepository.getWaterIntakeEntryOwnerId(id);
+    if (!entryOwnerId) {
+      throw new Error('Water intake entry not found.');
+    }
+    if (entryOwnerId !== authenticatedUserId) {
+      throw new Error('Forbidden: You do not have permission to delete this water intake entry.');
+    }
+    const success = await measurementRepository.deleteWaterIntake(id, authenticatedUserId);
     if (!success) {
-      throw new Error('Water intake entry not found or not authorized to delete.');
+      throw new Error('Water intake entry not found.');
     }
     return { message: 'Water intake entry deleted successfully.' };
   } catch (error) {
-    log('error', `Error deleting water intake entry ${id} for user ${userId} by ${authenticatedUserId}:`, error);
+    log('error', `Error deleting water intake entry ${id} by ${authenticatedUserId}:`, error);
     throw error;
   }
 }
 
-async function upsertCheckInMeasurements(authenticatedUserId, userId, entryDate, measurements) {
+async function upsertCheckInMeasurements(authenticatedUserId, entryDate, measurements) {
   try {
-    const result = await measurementRepository.upsertCheckInMeasurements(userId, entryDate, measurements);
+    const result = await measurementRepository.upsertCheckInMeasurements(authenticatedUserId, entryDate, measurements);
     return result;
   } catch (error) {
-    log('error', `Error upserting check-in measurements for user ${userId} by ${authenticatedUserId}:`, error);
+    log('error', `Error upserting check-in measurements for user ${authenticatedUserId}:`, error);
     throw error;
   }
 }
@@ -163,28 +177,42 @@ async function getCheckInMeasurements(authenticatedUserId, targetUserId, date) {
   }
 }
 
-async function updateCheckInMeasurements(authenticatedUserId, id, userId, entryDate, updateData) {
+async function updateCheckInMeasurements(authenticatedUserId, id, entryDate, updateData) {
   try {
-    const updatedMeasurement = await measurementRepository.updateCheckInMeasurements(id, userId, entryDate, updateData);
+    const entryOwnerId = await measurementRepository.getCheckInMeasurementOwnerId(id);
+    if (!entryOwnerId) {
+      throw new Error('Check-in measurement not found.');
+    }
+    if (entryOwnerId !== authenticatedUserId) {
+      throw new Error('Forbidden: You do not have permission to update this check-in measurement.');
+    }
+    const updatedMeasurement = await measurementRepository.updateCheckInMeasurements(id, authenticatedUserId, entryDate, updateData);
     if (!updatedMeasurement) {
       throw new Error('Check-in measurement not found or not authorized to update.');
     }
     return updatedMeasurement;
   } catch (error) {
-    log('error', `Error updating check-in measurements ${id} for user ${userId} by ${authenticatedUserId}:`, error);
+    log('error', `Error updating check-in measurements ${id} by ${authenticatedUserId}:`, error);
     throw error;
   }
 }
 
-async function deleteCheckInMeasurements(authenticatedUserId, id, userId) {
+async function deleteCheckInMeasurements(authenticatedUserId, id) {
   try {
-    const success = await measurementRepository.deleteCheckInMeasurements(id, userId);
+    const entryOwnerId = await measurementRepository.getCheckInMeasurementOwnerId(id);
+    if (!entryOwnerId) {
+      throw new Error('Check-in measurement not found.');
+    }
+    if (entryOwnerId !== authenticatedUserId) {
+      throw new Error('Forbidden: You do not have permission to delete this check-in measurement.');
+    }
+    const success = await measurementRepository.deleteCheckInMeasurements(id, authenticatedUserId);
     if (!success) {
-      throw new Error('Check-in measurement not found or not authorized to delete.');
+      throw new Error('Check-in measurement not found.');
     }
     return { message: 'Check-in measurement deleted successfully.' };
   } catch (error) {
-    log('error', `Error deleting check-in measurements ${id} for user ${userId} by ${authenticatedUserId}:`, error);
+    log('error', `Error deleting check-in measurements ${id} by ${authenticatedUserId}:`, error);
     throw error;
   }
 }
@@ -205,36 +233,51 @@ async function getCustomCategories(authenticatedUserId, targetUserId) {
 
 async function createCustomCategory(authenticatedUserId, categoryData) {
   try {
+    categoryData.user_id = authenticatedUserId; // Ensure user_id is set from authenticated user
     const newCategory = await measurementRepository.createCustomCategory(categoryData);
     return newCategory;
   } catch (error) {
-    log('error', `Error creating custom category for user ${categoryData.user_id} by ${authenticatedUserId}:`, error);
+    log('error', `Error creating custom category for user ${authenticatedUserId}:`, error);
     throw error;
   }
 }
 
-async function updateCustomCategory(authenticatedUserId, id, userId, updateData) {
+async function updateCustomCategory(authenticatedUserId, id, updateData) {
   try {
-    const updatedCategory = await measurementRepository.updateCustomCategory(id, userId, updateData);
+    const categoryOwnerId = await measurementRepository.getCustomCategoryOwnerId(id);
+    if (!categoryOwnerId) {
+      throw new Error('Custom category not found.');
+    }
+    if (categoryOwnerId !== authenticatedUserId) {
+      throw new Error('Forbidden: You do not have permission to update this custom category.');
+    }
+    const updatedCategory = await measurementRepository.updateCustomCategory(id, authenticatedUserId, updateData);
     if (!updatedCategory) {
       throw new Error('Custom category not found or not authorized to update.');
     }
     return updatedCategory;
   } catch (error) {
-    log('error', `Error updating custom category ${id} for user ${userId} by ${authenticatedUserId}:`, error);
+    log('error', `Error updating custom category ${id} by ${authenticatedUserId}:`, error);
     throw error;
   }
 }
 
-async function deleteCustomCategory(authenticatedUserId, id, userId) {
+async function deleteCustomCategory(authenticatedUserId, id) {
   try {
-    const success = await measurementRepository.deleteCustomCategory(id, userId);
+    const categoryOwnerId = await measurementRepository.getCustomCategoryOwnerId(id);
+    if (!categoryOwnerId) {
+      throw new Error('Custom category not found.');
+    }
+    if (categoryOwnerId !== authenticatedUserId) {
+      throw new Error('Forbidden: You do not have permission to delete this custom category.');
+    }
+    const success = await measurementRepository.deleteCustomCategory(id, authenticatedUserId);
     if (!success) {
-      throw new Error('Custom category not found or not authorized to delete.');
+      throw new Error('Custom category not found.');
     }
     return { message: 'Custom category deleted successfully.' };
   } catch (error) {
-    log('error', `Error deleting custom category ${id} for user ${userId} by ${authenticatedUserId}:`, error);
+    log('error', `Error deleting custom category ${id} by ${authenticatedUserId}:`, error);
     throw error;
   }
 }
@@ -298,4 +341,37 @@ module.exports = {
   getCustomMeasurementEntriesByDate,
   getCheckInMeasurementsByDateRange,
   getCustomMeasurementsByDateRange,
+  upsertCustomMeasurementEntry,
+  deleteCustomMeasurementEntry,
 };
+
+async function upsertCustomMeasurementEntry(authenticatedUserId, payload) {
+  try {
+    const { category_id, value, entry_date, entry_hour, entry_timestamp } = payload;
+    const result = await measurementRepository.upsertCustomMeasurement(
+      authenticatedUserId,
+      category_id,
+      value,
+      entry_date,
+      entry_hour,
+      entry_timestamp
+    );
+    return result;
+  } catch (error) {
+    log('error', `Error upserting custom measurement entry for user ${authenticatedUserId}:`, error);
+    throw error;
+  }
+}
+
+async function deleteCustomMeasurementEntry(authenticatedUserId, id) {
+  try {
+    const success = await measurementRepository.deleteCustomMeasurement(id, authenticatedUserId);
+    if (!success) {
+      throw new Error('Custom measurement entry not found or not authorized to delete.');
+    }
+    return { message: 'Custom measurement entry deleted successfully.' };
+  } catch (error) {
+    log('error', `Error deleting custom measurement entry ${id} by ${authenticatedUserId}:`, error);
+    throw error;
+  }
+}

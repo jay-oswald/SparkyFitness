@@ -4,16 +4,11 @@ const { authenticateToken, authorizeAccess } = require('../middleware/authMiddle
 const preferenceService = require('../services/preferenceService');
 
 // Endpoint to update user preferences
-router.put('/:targetUserId', authenticateToken, authorizeAccess('preferences'), async (req, res, next) => {
-  const { targetUserId } = req.params;
+router.put('/', authenticateToken, authorizeAccess('preferences', (req) => req.userId), async (req, res, next) => {
   const preferenceData = req.body;
-
-  if (!targetUserId) {
-    return res.status(400).json({ error: 'Target User ID is required.' });
-  }
-
+ 
   try {
-    const updatedPreferences = await preferenceService.updateUserPreferences(req.userId, targetUserId, preferenceData);
+    const updatedPreferences = await preferenceService.updateUserPreferences(req.userId, req.userId, preferenceData);
     res.status(200).json(updatedPreferences);
   } catch (error) {
     if (error.message.startsWith('Forbidden')) {
@@ -27,15 +22,9 @@ router.put('/:targetUserId', authenticateToken, authorizeAccess('preferences'), 
 });
 
 // Endpoint to delete user preferences
-router.delete('/:targetUserId', authenticateToken, authorizeAccess('preferences'), async (req, res, next) => {
-  const { targetUserId } = req.params;
-
-  if (!targetUserId) {
-    return res.status(400).json({ error: 'Target User ID is required.' });
-  }
-
+router.delete('/', authenticateToken, authorizeAccess('preferences', (req) => req.userId), async (req, res, next) => {
   try {
-    const result = await preferenceService.deleteUserPreferences(req.userId, targetUserId);
+    const result = await preferenceService.deleteUserPreferences(req.userId, req.userId);
     res.status(200).json(result);
   } catch (error) {
     if (error.message.startsWith('Forbidden')) {
@@ -49,15 +38,9 @@ router.delete('/:targetUserId', authenticateToken, authorizeAccess('preferences'
 });
 
 // Endpoint to fetch user preferences
-router.get('/:targetUserId', authenticateToken, authorizeAccess('preferences'), async (req, res, next) => {
-  const { targetUserId } = req.params;
-
-  if (!targetUserId) {
-    return res.status(400).json({ error: 'Target User ID is required.' });
-  }
-
+router.get('/', authenticateToken, authorizeAccess('preferences', (req) => req.userId), async (req, res, next) => {
   try {
-    const preferences = await preferenceService.getUserPreferences(req.userId, targetUserId);
+    const preferences = await preferenceService.getUserPreferences(req.userId, req.userId);
     res.status(200).json(preferences);
   } catch (error) {
     if (error.message.startsWith('Forbidden')) {
@@ -73,10 +56,6 @@ router.get('/:targetUserId', authenticateToken, authorizeAccess('preferences'), 
 // Endpoint to upsert user preferences
 router.post('/', authenticateToken, authorizeAccess('preferences'), async (req, res, next) => {
   const preferenceData = req.body;
-
-  if (!preferenceData.user_id) {
-    return res.status(400).json({ error: 'User ID is required.' });
-  }
 
   try {
     const newPreferences = await preferenceService.upsertUserPreferences(req.userId, preferenceData);

@@ -42,13 +42,9 @@ router.post('/clear-old-history', authenticateToken, async (req, res, next) => {
   }
 });
 
-router.get('/ai-service-settings/:userId', authenticateToken, authorizeAccess('ai_service_settings'), async (req, res, next) => {
-  const { userId: targetUserId } = req.params;
-  if (!targetUserId) {
-    return res.status(400).json({ error: 'Target User ID is required.' });
-  }
+router.get('/ai-service-settings', authenticateToken, authorizeAccess('ai_service_settings', (req) => req.userId), async (req, res, next) => {
   try {
-    const settings = await chatService.getAiServiceSettings(req.userId, targetUserId);
+    const settings = await chatService.getAiServiceSettings(req.userId, req.userId);
     res.status(200).json(settings);
   } catch (error) {
     if (error.message.startsWith('Forbidden')) {
@@ -58,13 +54,9 @@ router.get('/ai-service-settings/:userId', authenticateToken, authorizeAccess('a
   }
 });
 
-router.get('/ai-service-settings/active/:userId', authenticateToken, authorizeAccess('ai_service_settings'), async (req, res, next) => {
-  const { userId: targetUserId } = req.params;
-  if (!targetUserId) {
-    return res.status(400).json({ error: 'Target User ID is required.' });
-  }
+router.get('/ai-service-settings/active', authenticateToken, authorizeAccess('ai_service_settings', (req) => req.userId), async (req, res, next) => {
   try {
-    const setting = await chatService.getActiveAiServiceSetting(req.userId, targetUserId);
+    const setting = await chatService.getActiveAiServiceSetting(req.userId, req.userId);
     res.status(200).json(setting);
   } catch (error) {
     if (error.message.startsWith('Forbidden')) {
@@ -79,12 +71,11 @@ router.get('/ai-service-settings/active/:userId', authenticateToken, authorizeAc
 
 router.delete('/ai-service-settings/:id', authenticateToken, authorizeAccess('ai_service_settings'), async (req, res, next) => {
   const { id } = req.params;
-  const { userId: targetUserId } = req.body;
-  if (!id || !targetUserId) {
-    return res.status(400).json({ error: 'AI Service ID and Target User ID are required.' });
+  if (!id) {
+    return res.status(400).json({ error: 'AI Service ID is required.' });
   }
   try {
-    const result = await chatService.deleteAiServiceSetting(req.userId, id, targetUserId);
+    const result = await chatService.deleteAiServiceSetting(req.userId, id);
     res.status(200).json(result);
   } catch (error) {
     if (error.message.startsWith('Forbidden')) {
@@ -97,13 +88,9 @@ router.delete('/ai-service-settings/:id', authenticateToken, authorizeAccess('ai
   }
 });
 
-router.get('/sparky-chat-history/:userId', authenticateToken, authorizeAccess('chat_history'), async (req, res, next) => {
-  const { userId: targetUserId } = req.params;
-  if (!targetUserId) {
-    return res.status(400).json({ error: 'Target User ID is required.' });
-  }
+router.get('/sparky-chat-history', authenticateToken, authorizeAccess('chat_history', (req) => req.userId), async (req, res, next) => {
   try {
-    const history = await chatService.getSparkyChatHistory(req.userId, targetUserId);
+    const history = await chatService.getSparkyChatHistory(req.userId, req.userId);
     res.status(200).json(history);
   } catch (error) {
     if (error.message.startsWith('Forbidden')) {
@@ -134,12 +121,12 @@ router.get('/sparky-chat-history/entry/:id', authenticateToken, authorizeAccess(
 
 router.put('/sparky-chat-history/:id', authenticateToken, authorizeAccess('chat_history'), async (req, res, next) => {
   const { id } = req.params;
-  const { userId: targetUserId, ...updateData } = req.body;
-  if (!id || !targetUserId) {
-    return res.status(400).json({ error: 'Chat History Entry ID and Target User ID are required.' });
+  const updateData = req.body;
+  if (!id) {
+    return res.status(400).json({ error: 'Chat History Entry ID is required.' });
   }
   try {
-    const updatedEntry = await chatService.updateSparkyChatHistoryEntry(req.userId, id, targetUserId, updateData);
+    const updatedEntry = await chatService.updateSparkyChatHistoryEntry(req.userId, id, updateData);
     res.status(200).json(updatedEntry);
   } catch (error) {
     if (error.message.startsWith('Forbidden')) {
@@ -154,12 +141,11 @@ router.put('/sparky-chat-history/:id', authenticateToken, authorizeAccess('chat_
 
 router.delete('/sparky-chat-history/:id', authenticateToken, authorizeAccess('chat_history'), async (req, res, next) => {
   const { id } = req.params;
-  const { userId: targetUserId } = req.body;
-  if (!id || !targetUserId) {
-    return res.status(400).json({ error: 'Chat History Entry ID and Target User ID are required.' });
+  if (!id) {
+    return res.status(400).json({ error: 'Chat History Entry ID is required.' });
   }
   try {
-    const result = await chatService.deleteSparkyChatHistoryEntry(req.userId, id, targetUserId);
+    const result = await chatService.deleteSparkyChatHistoryEntry(req.userId, id);
     res.status(200).json(result);
   } catch (error) {
     if (error.message.startsWith('Forbidden')) {
@@ -173,12 +159,8 @@ router.delete('/sparky-chat-history/:id', authenticateToken, authorizeAccess('ch
 });
 
 router.post('/clear-all-history', authenticateToken, authorizeAccess('chat_history'), async (req, res, next) => {
-  const { userId: targetUserId } = req.body;
-  if (!targetUserId) {
-    return res.status(400).json({ error: 'Target User ID is required.' });
-  }
   try {
-    const result = await chatService.clearAllSparkyChatHistory(req.userId, targetUserId);
+    const result = await chatService.clearAllSparkyChatHistory(req.userId);
     res.status(200).json(result);
   } catch (error) {
     if (error.message.startsWith('Forbidden')) {
@@ -189,12 +171,12 @@ router.post('/clear-all-history', authenticateToken, authorizeAccess('chat_histo
 });
 
 router.post('/save-history', authenticateToken, authorizeAccess('chat_history'), async (req, res, next) => {
-  const { userId: targetUserId, content, messageType, metadata } = req.body;
-  if (!targetUserId || !content || !messageType) {
-    return res.status(400).json({ error: 'Target User ID, content, and message type are required.' });
+  const { content, messageType, metadata } = req.body;
+  if (!content || !messageType) {
+    return res.status(400).json({ error: 'Content and message type are required.' });
   }
   try {
-    const result = await chatService.saveSparkyChatHistory(req.userId, { user_id: targetUserId, content, messageType, metadata });
+    const result = await chatService.saveSparkyChatHistory(req.userId, { user_id: req.userId, content, messageType, metadata });
     res.status(201).json(result);
   } catch (error) {
     if (error.message.startsWith('Forbidden')) {

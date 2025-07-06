@@ -67,7 +67,7 @@ const GoalsSettings = () => {
       
       const today = new Date().toISOString().split('T')[0];
       
-      const data = await apiCall(`${API_BASE_URL}/api/goals/for-date?userId=${user?.id}&date=${today}`, {
+      const data = await apiCall(`${API_BASE_URL}/api/goals/for-date?date=${today}`, {
         method: 'GET',
       });
 

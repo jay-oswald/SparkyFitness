@@ -49,7 +49,7 @@ const FoodDataProviderSettings = () => {
 
     setLoading(true);
     try {
-      const data = await apiCall(`/api/food-data-providers/user/${user.id}`, {
+      const data = await apiCall(`/api/foods/food-data-providers/user/${user.id}`, {
         method: 'GET',
         suppress404Toast: true,
       });
@@ -90,7 +90,7 @@ const FoodDataProviderSettings = () => {
 
     setLoading(true);
     try {
-      const data = await apiCall('/api/food-data-providers', {
+      const data = await apiCall('/api/foods/food-data-providers', {
         method: 'POST',
         body: JSON.stringify({
           user_id: user.id,
@@ -141,7 +141,7 @@ const FoodDataProviderSettings = () => {
     };
 
     try {
-      const data = await apiCall(`/api/food-data-providers/${providerId}`, {
+      const data = await apiCall(`/api/foods/food-data-providers/${providerId}`, {
         method: 'PUT',
         body: JSON.stringify(providerUpdateData),
       });
@@ -175,7 +175,7 @@ const FoodDataProviderSettings = () => {
 
     setLoading(true);
     try {
-      await apiCall(`/api/food-data-providers/${providerId}`, {
+      await apiCall(`/api/foods/food-data-providers/${providerId}`, {
         method: 'DELETE',
       });
 
@@ -202,7 +202,7 @@ const FoodDataProviderSettings = () => {
   const handleToggleActive = async (providerId: string, isActive: boolean) => {
     setLoading(true);
     try {
-      const data = await apiCall(`/api/food-data-providers/${providerId}`, {
+      const data = await apiCall(`/api/foods/food-data-providers/${providerId}`, {
         method: 'PUT',
         body: JSON.stringify({ is_active: isActive }),
       });

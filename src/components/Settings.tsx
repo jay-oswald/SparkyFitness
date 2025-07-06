@@ -11,7 +11,7 @@ import { Separator } from "@/components/ui/separator";
 import { Calendar as CalendarIcon } from "lucide-react"; // Import CalendarIcon
 import { Calendar } from "@/components/ui/calendar"; // Import Calendar component
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"; // Import Popover components
-import { Save, Upload, User, Settings as SettingsIcon, Lock, Camera, ClipboardCopy, Copy, Eye, EyeOff, KeyRound } from "lucide-react";
+import { Save, Upload, User, Settings as SettingsIcon, Lock, Camera, ClipboardCopy, Copy, Eye, EyeOff, KeyRound, Trash2 } from "lucide-react";
 import { apiCall } from '@/services/api'; // Assuming a common API utility
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "@/hooks/use-toast";
@@ -97,7 +97,7 @@ const Settings = () => {
 
     try {
       
-      const data = await apiCall(`/api/custom-categories/${user.id}`, {
+      const data = await apiCall(`/api/measurements/custom-categories`, {
         method: 'GET',
       });
       setCustomCategories(data || []);
@@ -114,7 +114,7 @@ const Settings = () => {
   const loadApiKeys = async () => {
     if (!user) return;
     try {
-      const data = await apiCall(`/api/user-api-keys/${user.id}`, {
+      const data = await apiCall(`/api/auth/user-api-keys`, {
         method: 'GET',
       });
       setApiKeys(data || []);
@@ -132,9 +132,9 @@ const Settings = () => {
     if (!user) return;
     setGeneratingApiKey(true);
     try {
-      const data = await apiCall('/api/user/generate-api-key', {
+      const data = await apiCall('/api/auth/user/generate-api-key', {
         method: 'POST',
-        body: JSON.stringify({ userId: user.id, description: newApiKeyDescription || null }),
+        body: JSON.stringify({ description: newApiKeyDescription || null }),
       });
 
       toast({
@@ -155,25 +155,28 @@ const Settings = () => {
     }
   };
 
-  const handleRevokeApiKey = async (apiKeyId: string) => {
+  const handleDeleteApiKey = async (apiKeyId: string) => {
     if (!user) return;
+    if (!confirm('Are you sure you want to delete this API key? This action cannot be undone.')) {
+      return;
+    }
     setLoading(true); // Use general loading for this
     try {
-      await apiCall('/api/user/revoke-api-key', {
-        method: 'POST',
-        body: JSON.stringify({ userId: user.id, apiKeyId: apiKeyId }),
+      await apiCall(`/api/auth/user/api-key/${apiKeyId}`, {
+        method: 'DELETE',
+        body: JSON.stringify({}), // Send userId in body for DELETE
       });
-
+ 
       toast({
         title: "Success",
-        description: "API key revoked successfully!",
+        description: "API key deleted successfully!",
       });
       loadApiKeys(); // Reload keys
     } catch (error: any) {
-      console.error('Error revoking API key:', error);
+      console.error('Error deleting API key:', error);
       toast({
         title: "Error",
-        description: `Failed to revoke API key: ${error.message}`,
+        description: `Failed to delete API key: ${error.message}`,
         variant: "destructive",
       });
     } finally {
@@ -185,7 +188,7 @@ const Settings = () => {
     if (!user) return;
 
     try {
-      const data = await apiCall(`/api/auth/profiles/${user.id}`, {
+      const data = await apiCall(`/api/auth/profiles`, {
         method: 'GET',
       });
       setProfile(data);
@@ -212,7 +215,7 @@ const Settings = () => {
 
     setLoading(true);
     try {
-      await apiCall(`/api/auth/profiles/${user.id}`, {
+      await apiCall(`/api/auth/profiles`, {
         method: 'PUT', // Or PATCH, depending on backend implementation
         body: JSON.stringify({
           full_name: profileForm.full_name,
@@ -285,7 +288,6 @@ const Settings = () => {
       await apiCall('/api/auth/update-password', {
         method: 'POST',
         body: JSON.stringify({
-          userId: user?.id, // Assuming userId is available from useAuth
           currentPassword: passwordForm.current_password, // If needed for verification
           newPassword: passwordForm.new_password,
         }),
@@ -327,7 +329,6 @@ const Settings = () => {
       await apiCall('/api/auth/update-email', {
         method: 'POST',
         body: JSON.stringify({
-          userId: user?.id, // Assuming userId is available from useAuth
           newEmail: newEmail,
         }),
       });
@@ -387,7 +388,7 @@ const Settings = () => {
       const publicUrl = `http://localhost:3010/uploads/${fileName}`; // Dummy URL
 
       // Update profile with new avatar URL
-      await apiCall(`/api/auth/profiles/${user.id}`, {
+      await apiCall(`/api/auth/profiles`, {
         method: 'PUT',
         body: JSON.stringify({ avatar_url: publicUrl }),
       });
@@ -705,16 +706,16 @@ const Settings = () => {
                     <p className="text-xs text-muted-foreground">
                       Created: {new Date(key.created_at).toLocaleDateString()}
                       {key.last_used_at && ` | Last Used: ${new Date(key.last_used_at).toLocaleDateString()}`}
-                      {!key.is_active && ' | (Inactive)'}
+                      {/* Removed Inactive status as per user request */}
                     </p>
                   </div>
                   <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => handleRevokeApiKey(key.id)}
-                    disabled={!key.is_active || loading}
+                    variant="outline"
+                    size="icon"
+                    onClick={() => handleDeleteApiKey(key.id)}
+                    disabled={loading}
                   >
-                    Revoke
+                    <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
               ))

@@ -74,7 +74,7 @@ export const loadFoods = async (
   params.append('itemsPerPage', itemsPerPage.toString());
   params.append('userId', userId);
   params.append('sortBy', sortBy); // Add sortBy parameter
-  const response = await apiCall(`/api/foods?${params.toString()}`, {
+  const response = await apiCall(`/api/foods/foods-paginated?${params.toString()}`, {
     method: 'GET',
   });
   return response;

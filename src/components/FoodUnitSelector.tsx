@@ -7,14 +7,14 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { usePreferences } from "@/contexts/PreferencesContext"; // Import usePreferences
 import { debug, info, warn, error } from '@/utils/logging'; // Import logging utility
-import { loadFoodVariants, FoodVariant } from '@/services/foodUnitService';
+import { loadFoodVariants, FoodVariant, Food } from '@/services/foodUnitService';
 
 
 interface FoodUnitSelectorProps {
-  food: any;
+  food: Food;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSelect: (food: any, quantity: number, unit: string, variantId?: string) => void;
+  onSelect: (food: Food, quantity: number, unit: string, variantId?: string) => void;
 }
 
 const FoodUnitSelector = ({ food, open, onOpenChange, onSelect }: FoodUnitSelectorProps) => {
@@ -28,33 +28,41 @@ const FoodUnitSelector = ({ food, open, onOpenChange, onSelect }: FoodUnitSelect
   useEffect(() => {
     debug(loggingLevel, "FoodUnitSelector open/food useEffect triggered.", { open, food });
     if (open && food) {
-      loadVariants();
+      loadVariantsData();
       // Set quantity to the serving_size of the initially selected variant (primary unit)
-      if (food) {
-        setQuantity(food.serving_size || 1);
-      } else {
-        setQuantity(1); // Fallback if food is not available
-      }
+      // The food object passed here already contains the default variant's data
+      setQuantity(food.serving_size || 1);
     }
   }, [open, food]);
 
-  const loadVariants = async () => {
+  const loadVariantsData = async () => {
     debug(loggingLevel, "Loading food variants for food ID:", food?.id);
     setLoading(true);
     try {
-
       const data = await loadFoodVariants(food.id);
 
-
-      // Always include the primary food unit as the first option
+      // The food object passed to this component already contains the default variant's data
       const primaryUnit: FoodVariant = {
-        id: food.id, // Use food.id as the variant ID for the primary unit
+        id: food.id, // This is the food ID, not the variant ID. We need the default_variant_id.
         serving_size: food.serving_size || 100,
         serving_unit: food.serving_unit || 'g',
         calories: food.calories || 0,
         protein: food.protein || 0,
         carbs: food.carbs || 0,
-        fat: food.fat || 0
+        fat: food.fat || 0,
+        saturated_fat: food.saturated_fat || 0,
+        polyunsaturated_fat: food.polyunsaturated_fat || 0,
+        monounsaturated_fat: food.monounsaturated_fat || 0,
+        trans_fat: food.trans_fat || 0,
+        cholesterol: food.cholesterol || 0,
+        sodium: food.sodium || 0,
+        potassium: food.potassium || 0,
+        dietary_fiber: food.dietary_fiber || 0,
+        sugars: food.sugars || 0,
+        vitamin_a: food.vitamin_a || 0,
+        vitamin_c: food.vitamin_c || 0,
+        calcium: food.calcium || 0,
+        iron: food.iron || 0,
       };
 
       let combinedVariants: FoodVariant[] = [primaryUnit];
@@ -68,7 +76,20 @@ const FoodUnitSelector = ({ food, open, onOpenChange, onSelect }: FoodUnitSelect
           calories: variant.calories || 0,
           protein: variant.protein || 0,
           carbs: variant.carbs || 0,
-          fat: variant.fat || 0
+          fat: variant.fat || 0,
+          saturated_fat: variant.saturated_fat || 0,
+          polyunsaturated_fat: variant.polyunsaturated_fat || 0,
+          monounsaturated_fat: variant.monounsaturated_fat || 0,
+          trans_fat: variant.trans_fat || 0,
+          cholesterol: variant.cholesterol || 0,
+          sodium: variant.sodium || 0,
+          potassium: variant.potassium || 0,
+          dietary_fiber: variant.dietary_fiber || 0,
+          sugars: variant.sugars || 0,
+          vitamin_a: variant.vitamin_a || 0,
+          vitamin_c: variant.vitamin_c || 0,
+          calcium: variant.calcium || 0,
+          iron: variant.iron || 0,
         }));
 
         // Filter out any variants from DB that are identical to the primary unit
@@ -83,22 +104,33 @@ const FoodUnitSelector = ({ food, open, onOpenChange, onSelect }: FoodUnitSelect
       
       setVariants(combinedVariants);
       setSelectedVariant(combinedVariants[0]); // Select the primary unit by default
-      // Do NOT pre-populate quantity with serving_size. Quantity should default to 1.
     } catch (err) {
       error(loggingLevel, 'Error loading variants:', err);
       // Fallback to primary food unit on error
       const primaryUnit: FoodVariant = {
-        id: food.id, // Use food.id as the variant ID for the primary unit
+        id: food.id, // This is the food ID, not the variant ID. We need the default_variant_id.
         serving_size: food.serving_size || 100,
         serving_unit: food.serving_unit || 'g',
         calories: food.calories || 0,
         protein: food.protein || 0,
         carbs: food.carbs || 0,
-        fat: food.fat || 0
+        fat: food.fat || 0,
+        saturated_fat: food.saturated_fat || 0,
+        polyunsaturated_fat: food.polyunsaturated_fat || 0,
+        monounsaturated_fat: food.monounsaturated_fat || 0,
+        trans_fat: food.trans_fat || 0,
+        cholesterol: food.cholesterol || 0,
+        sodium: food.sodium || 0,
+        potassium: food.potassium || 0,
+        dietary_fiber: food.dietary_fiber || 0,
+        sugars: food.sugars || 0,
+        vitamin_a: food.vitamin_a || 0,
+        vitamin_c: food.vitamin_c || 0,
+        calcium: food.calcium || 0,
+        iron: food.iron || 0,
       };
       setVariants([primaryUnit]);
       setSelectedVariant(primaryUnit);
-      // Do NOT pre-populate quantity with serving_size. Quantity should default to 1.
     } finally {
       setLoading(false);
     }
@@ -140,41 +172,25 @@ const FoodUnitSelector = ({ food, open, onOpenChange, onSelect }: FoodUnitSelect
     });
 
     let nutrientValuesPerReferenceSize = {
-      calories: food.calories || 0,
-      protein: food.protein || 0,
-      carbs: food.carbs || 0,
-      fat: food.fat || 0,
+      calories: selectedVariant.calories || 0,
+      protein: selectedVariant.protein || 0,
+      carbs: selectedVariant.carbs || 0,
+      fat: selectedVariant.fat || 0,
+      saturated_fat: selectedVariant.saturated_fat || 0,
+      polyunsaturated_fat: selectedVariant.polyunsaturated_fat || 0,
+      monounsaturated_fat: selectedVariant.monounsaturated_fat || 0,
+      trans_fat: selectedVariant.trans_fat || 0,
+      cholesterol: selectedVariant.cholesterol || 0,
+      sodium: selectedVariant.sodium || 0,
+      potassium: selectedVariant.potassium || 0,
+      dietary_fiber: selectedVariant.dietary_fiber || 0,
+      sugars: selectedVariant.sugars || 0,
+      vitamin_a: selectedVariant.vitamin_a || 0,
+      vitamin_c: selectedVariant.vitamin_c || 0,
+      calcium: selectedVariant.calcium || 0,
+      iron: selectedVariant.iron || 0,
     };
-    let effectiveReferenceSize = food.serving_size || 100;
-
-    if (selectedVariant) {
-      if (selectedVariant.calories !== null && selectedVariant.calories !== undefined &&
-          selectedVariant.protein !== null && selectedVariant.protein !== undefined &&
-          selectedVariant.carbs !== null && selectedVariant.carbs !== undefined &&
-          selectedVariant.fat !== null && selectedVariant.fat !== undefined) {
-        // Use variant's explicit nutrient values per its serving_size
-        nutrientValuesPerReferenceSize = {
-          calories: selectedVariant.calories,
-          protein: selectedVariant.protein,
-          carbs: selectedVariant.carbs,
-          fat: selectedVariant.fat,
-        };
-        effectiveReferenceSize = selectedVariant.serving_size;
-      } else {
-        // If variant doesn't have explicit nutrients, scale base food nutrients to the variant's serving size
-        const variantServingSize = selectedVariant.serving_size;
-        const baseFoodServingSize = food.serving_size || 100;
-        const ratio = variantServingSize / baseFoodServingSize;
-
-        nutrientValuesPerReferenceSize = {
-          calories: (food.calories || 0) * ratio,
-          protein: (food.protein || 0) * ratio,
-          carbs: (food.carbs || 0) * ratio,
-          fat: (food.fat || 0) * ratio,
-        };
-        effectiveReferenceSize = variantServingSize;
-      }
-    }
+    let effectiveReferenceSize = selectedVariant.serving_size || 100;
 
     // Calculate total nutrition: (nutrient_value_per_reference_size / effective_reference_size) * quantity_consumed
     const result = {

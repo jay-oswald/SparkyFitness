@@ -65,7 +65,24 @@ async function getFoodDataProviderDetails(authenticatedUserId, providerId) {
     throw error;
   }
 }
-
+ 
+async function deleteFoodDataProvider(authenticatedUserId, providerId) {
+  try {
+    const isOwner = await foodRepository.checkFoodDataProviderOwnership(providerId, authenticatedUserId);
+    if (!isOwner) {
+      throw new Error("Forbidden: You do not have permission to delete this food data provider.");
+    }
+    const success = await foodRepository.deleteFoodDataProvider(providerId);
+    if (!success) {
+      throw new Error('Food data provider not found or not authorized to delete.');
+    }
+    return true;
+  } catch (error) {
+    log('error', `Error deleting food data provider ${providerId} by user ${authenticatedUserId} in foodService:`, error);
+    throw error;
+  }
+}
+ 
 async function searchFatSecretFoods(query, clientId, clientSecret) {
   try {
     const accessToken = await getFatSecretAccessToken(clientId, clientSecret);
@@ -86,13 +103,13 @@ async function searchFatSecretFoods(query, clientId, clientSecret) {
         }
       }
     );
-
+ 
     if (!response.ok) {
       const errorText = await response.text();
       log('error', "FatSecret Food Search API error:", errorText);
       throw new Error(`FatSecret API error: ${errorText}`);
     }
-
+ 
     const data = await response.json();
     return data;
   } catch (error) {
@@ -162,8 +179,54 @@ async function searchFoods(authenticatedUserId, name, targetUserId, exactMatch, 
 
 async function createFood(authenticatedUserId, foodData) {
   try {
-    const newFood = await foodRepository.createFood(foodData);
-    return newFood;
+    // Create the default food variant first
+    const defaultVariantData = {
+      food_id: null, // Will be updated after food creation
+      serving_size: foodData.serving_size,
+      serving_unit: foodData.serving_unit,
+      calories: foodData.calories,
+      protein: foodData.protein,
+      carbs: foodData.carbs,
+      fat: foodData.fat,
+      saturated_fat: foodData.saturated_fat,
+      polyunsaturated_fat: foodData.polyunsaturated_fat,
+      monounsaturated_fat: foodData.monounsaturated_fat,
+      trans_fat: foodData.trans_fat,
+      cholesterol: foodData.cholesterol,
+      sodium: foodData.sodium,
+      potassium: foodData.potassium,
+      dietary_fiber: foodData.dietary_fiber,
+      sugars: foodData.sugars,
+      vitamin_a: foodData.vitamin_a,
+      vitamin_c: foodData.vitamin_c,
+      calcium: foodData.calcium,
+      iron: foodData.iron,
+    };
+
+    // Create the food without nutrient details
+    const foodToCreate = {
+      name: foodData.name,
+      is_custom: foodData.is_custom,
+      user_id: foodData.user_id,
+      brand: foodData.brand,
+      barcode: foodData.barcode,
+      provider_external_id: foodData.provider_external_id,
+      shared_with_public: foodData.shared_with_public,
+      provider_type: foodData.provider_type,
+      default_variant_id: null, // Will be updated after variant creation
+    };
+
+    const newFood = await foodRepository.createFood(foodToCreate);
+
+    // Now update the default variant with the new food_id
+    defaultVariantData.food_id = newFood.id;
+    const newVariant = await foodRepository.createFoodVariant(defaultVariantData);
+
+    // Update the food with the default_variant_id
+    await foodRepository.updateFood(newFood.id, newFood.user_id, { default_variant_id: newVariant.id });
+
+    // Return the food with its default variant details
+    return { ...newFood, ...newVariant };
   } catch (error) {
     log('error', `Error creating food for user ${authenticatedUserId} in foodService:`, error);
     throw error;
@@ -197,9 +260,43 @@ async function updateFood(authenticatedUserId, foodId, foodData) {
     if (!foodOwnerId) {
       throw new Error('Food not found.');
     }
+    if (foodOwnerId !== authenticatedUserId) {
+      throw new Error('Forbidden: You do not have permission to update this food.');
+    }
+
+    // Update the food's main details
     const updatedFood = await foodRepository.updateFood(foodId, foodOwnerId, foodData);
     if (!updatedFood) {
       throw new Error('Food not found or not authorized to update.');
+    }
+
+    // If nutrient or serving data is provided, update the default variant
+    if (foodData.serving_size !== undefined || foodData.calories !== undefined) {
+      const defaultVariant = await foodRepository.getFoodVariantById(updatedFood.default_variant_id);
+      if (defaultVariant) {
+        const updatedVariantData = {
+          serving_size: foodData.serving_size ?? defaultVariant.serving_size,
+          serving_unit: foodData.serving_unit ?? defaultVariant.serving_unit,
+          calories: foodData.calories ?? defaultVariant.calories,
+          protein: foodData.protein ?? defaultVariant.protein,
+          carbs: foodData.carbs ?? defaultVariant.carbs,
+          fat: foodData.fat ?? defaultVariant.fat,
+          saturated_fat: foodData.saturated_fat ?? defaultVariant.saturated_fat,
+          polyunsaturated_fat: foodData.polyunsaturated_fat ?? defaultVariant.polyunsaturated_fat,
+          monounsaturated_fat: foodData.monounsaturated_fat ?? defaultVariant.monounsaturated_fat,
+          trans_fat: foodData.trans_fat ?? defaultVariant.trans_fat,
+          cholesterol: foodData.cholesterol ?? defaultVariant.cholesterol,
+          sodium: foodData.sodium ?? defaultVariant.sodium,
+          potassium: foodData.potassium ?? defaultVariant.potassium,
+          dietary_fiber: foodData.dietary_fiber ?? defaultVariant.dietary_fiber,
+          sugars: foodData.sugars ?? defaultVariant.sugars,
+          vitamin_a: foodData.vitamin_a ?? defaultVariant.vitamin_a,
+          vitamin_c: foodData.vitamin_c ?? defaultVariant.vitamin_c,
+          calcium: foodData.calcium ?? defaultVariant.calcium,
+          iron: foodData.iron ?? defaultVariant.iron,
+        };
+        await foodRepository.updateFoodVariant(defaultVariant.id, updatedVariantData);
+      }
     }
     return updatedFood;
   } catch (error) {
@@ -247,6 +344,10 @@ async function createFoodVariant(authenticatedUserId, variantData) {
     if (!foodOwnerId) {
       throw new Error('Food not found.');
     }
+    if (foodOwnerId !== authenticatedUserId) {
+      throw new Error('Forbidden: You do not have permission to create a variant for this food.');
+    }
+    variantData.user_id = authenticatedUserId; // Ensure user_id is set from authenticated user
     const newVariant = await foodRepository.createFoodVariant(variantData);
     return newVariant;
   } catch (error) {
@@ -282,6 +383,10 @@ async function updateFoodVariant(authenticatedUserId, variantId, variantData) {
     if (!foodOwnerId) {
       throw new Error('Associated food not found.');
     }
+    if (foodOwnerId !== authenticatedUserId) {
+      throw new Error('Forbidden: You do not have permission to update this food variant.');
+    }
+    variantData.user_id = authenticatedUserId; // Ensure user_id is set from authenticated user
     const updatedVariant = await foodRepository.updateFoodVariant(variantId, variantData);
     if (!updatedVariant) {
       throw new Error('Food variant not found.');
@@ -315,25 +420,57 @@ async function deleteFoodVariant(authenticatedUserId, variantId) {
 }
 
 async function getFoodVariantsByFoodId(authenticatedUserId, foodId) {
+  log('info', `getFoodVariantsByFoodId: Fetching variants for foodId: ${foodId}, authenticatedUserId: ${authenticatedUserId}`);
   try {
     const foodOwnerId = await foodRepository.getFoodOwnerId(foodId);
+    log('info', `getFoodVariantsByFoodId: foodOwnerId for ${foodId}: ${foodOwnerId}`);
+    // If food is not found (foodOwnerId is null), return an empty array of variants.
+    // The client-side expects an empty array if no variants exist for a food.
     if (!foodOwnerId) {
-      throw new Error('Food not found.');
+      log('warn', `getFoodVariantsByFoodId: Food with ID ${foodId} not found or not owned by user. Returning empty array.`);
+      return [];
     }
     const variants = await foodRepository.getFoodVariantsByFoodId(foodId);
+    log('info', `getFoodVariantsByFoodId: Found ${variants.length} variants for foodId: ${foodId}`);
     return variants;
   } catch (error) {
     log('error', `Error fetching food variants for food ${foodId} by user ${authenticatedUserId} in foodService:`, error);
     throw error;
   }
 }
-
+ 
 async function createFoodEntry(authenticatedUserId, entryData) {
   try {
+    entryData.user_id = authenticatedUserId; // Ensure user_id is set from authenticated user
     const newEntry = await foodRepository.createFoodEntry(entryData);
     return newEntry;
   } catch (error) {
-    log('error', `Error creating food entry for user ${entryData.user_id} by ${authenticatedUserId} in foodService:`, error);
+    log('error', `Error creating food entry for user ${authenticatedUserId} in foodService:`, error);
+    throw error;
+  }
+}
+
+async function deleteFoodEntry(authenticatedUserId, entryId) {
+  try {
+    const entryOwnerId = await foodRepository.getFoodEntryOwnerId(entryId);
+    if (!entryOwnerId) {
+      throw new Error('Food entry not found.');
+    }
+    // Authorization check: Ensure the authenticated user owns the entry
+    // or has family access to the owner's data.
+    // For simplicity, assuming direct ownership for now.
+    if (entryOwnerId !== authenticatedUserId) {
+      // In a real app, you'd check family access here.
+      throw new Error('Forbidden: You do not have permission to delete this food entry.');
+    }
+
+    const success = await foodRepository.deleteFoodEntry(entryId);
+    if (!success) {
+      throw new Error('Food entry not found or not authorized to delete.');
+    }
+    return true;
+  } catch (error) {
+    log('error', `Error deleting food entry ${entryId} by user ${authenticatedUserId} in foodService:`, error);
     throw error;
   }
 }
@@ -377,18 +514,27 @@ async function createOrGetFood(authenticatedUserId, foodSuggestion) {
     }
 
     // If not found, create a new custom food for the user
-    const newFoodData = {
+    const foodToCreate = {
       name: foodSuggestion.name,
       brand: foodSuggestion.brand || null,
-      calories: foodSuggestion.calories,
-      protein: foodSuggestion.protein,
-      carbs: foodSuggestion.carbs,
-      fat: foodSuggestion.fat,
-      serving_size: foodSuggestion.serving_size,
-      serving_unit: foodSuggestion.serving_unit,
       is_custom: true,
       user_id: authenticatedUserId,
-      // Add other nutritional fields if available in foodSuggestion
+      barcode: foodSuggestion.barcode || null,
+      provider_external_id: foodSuggestion.provider_external_id || null,
+      shared_with_public: foodSuggestion.shared_with_public || false,
+      provider_type: foodSuggestion.provider_type || null,
+    };
+
+    const newFood = await foodRepository.createFood(foodToCreate);
+
+    const defaultVariantData = {
+      food_id: newFood.id,
+      serving_size: foodSuggestion.serving_size || 0,
+      serving_unit: foodSuggestion.serving_unit || 'g',
+      calories: foodSuggestion.calories || 0,
+      protein: foodSuggestion.protein || 0,
+      carbs: foodSuggestion.carbs || 0,
+      fat: foodSuggestion.fat || 0,
       saturated_fat: foodSuggestion.saturated_fat || 0,
       polyunsaturated_fat: foodSuggestion.polyunsaturated_fat || 0,
       monounsaturated_fat: foodSuggestion.monounsaturated_fat || 0,
@@ -403,9 +549,13 @@ async function createOrGetFood(authenticatedUserId, foodSuggestion) {
       calcium: foodSuggestion.calcium || 0,
       iron: foodSuggestion.iron || 0,
     };
-    const newFood = await foodRepository.createFood(newFoodData);
-    log('info', `Created new food: ${newFood.name} (ID: ${newFood.id})`);
-    return newFood;
+    const newVariant = await foodRepository.createFoodVariant(defaultVariantData);
+
+    // Update the food with the default_variant_id
+    await foodRepository.updateFood(newFood.id, newFood.user_id, { default_variant_id: newVariant.id });
+
+    log('info', `Created new food: ${newFood.name} (ID: ${newFood.id}) with default variant (ID: ${newVariant.id})`);
+    return { ...newFood, ...newVariant };
   } catch (error) {
     log('error', `Error in createOrGetFood for user ${authenticatedUserId}:`, error);
     throw error;
@@ -414,11 +564,14 @@ async function createOrGetFood(authenticatedUserId, foodSuggestion) {
 
 async function bulkCreateFoodVariants(authenticatedUserId, variantsData) {
   try {
-    // Ensure all variants belong to foods owned by the authenticated user
-    // or are public foods. This check might be more complex depending on
-    // your exact ownership rules for variants. For simplicity, assuming
-    // food_id in variantsData refers to a food the user can modify.
-    const createdVariants = await foodRepository.bulkCreateFoodVariants(variantsData);
+    const variantsToCreate = await Promise.all(variantsData.map(async (variant) => {
+      const foodOwnerId = await foodRepository.getFoodOwnerId(variant.food_id);
+      if (!foodOwnerId || foodOwnerId !== authenticatedUserId) {
+        throw new Error(`Forbidden: You do not have permission to create a variant for food ID ${variant.food_id}.`);
+      }
+      return { ...variant, user_id: authenticatedUserId };
+    }));
+    const createdVariants = await foodRepository.bulkCreateFoodVariants(variantsToCreate);
     return createdVariants;
   } catch (error) {
     log('error', `Error in bulkCreateFoodVariants for user ${authenticatedUserId}:`, error);
@@ -445,8 +598,10 @@ module.exports = {
   deleteFoodVariant,
   getFoodVariantsByFoodId,
   createFoodEntry,
+  deleteFoodEntry,
   getFoodEntriesByDate,
   getFoodEntriesByDateRange,
   createOrGetFood,
   bulkCreateFoodVariants,
+  deleteFoodDataProvider,
 };

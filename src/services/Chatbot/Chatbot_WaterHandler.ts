@@ -4,9 +4,9 @@ import { debug, info, warn, error, UserLoggingLevel } from '@/utils/logging'; //
 import { apiCall } from '../api'; // Import apiCall
 
 // Function to fetch water intake from the backend
-const fetchWaterIntake = async (userId: string, date: string) => {
+const fetchWaterIntake = async (date: string) => {
   try {
-    const data = await apiCall(`/api/water-intake/${userId}/${date}`, {
+    const data = await apiCall(`/api/water-intake/${date}`, {
       method: 'GET',
     });
     return data;
@@ -17,7 +17,7 @@ const fetchWaterIntake = async (userId: string, date: string) => {
 };
 
 // Function to upsert water intake to the backend
-const upsertWaterIntake = async (payload: { user_id: string; entry_date: string; glasses_consumed: number }) => {
+const upsertWaterIntake = async (payload: { entry_date: string; glasses_consumed: number }) => {
   try {
     const data = await apiCall('/api/water-intake', {
       method: 'POST',
@@ -31,7 +31,7 @@ const upsertWaterIntake = async (payload: { user_id: string; entry_date: string;
 };
 
 // Function to process water intake input
-export const processWaterInput = async (userId: string, data: { glasses_consumed: number | null }, entryDate: string | undefined, formatDateInUserTimezone: (date: string | Date, formatStr?: string) => string, userLoggingLevel: UserLoggingLevel): Promise<CoachResponse> => {
+export const processWaterInput = async (data: { glasses_consumed: number | null }, entryDate: string | undefined, formatDateInUserTimezone: (date: string | Date, formatStr?: string) => string, userLoggingLevel: UserLoggingLevel): Promise<CoachResponse> => {
   try {
     // Always log the received userLoggingLevel to diagnose why debug messages are not showing
     debug(userLoggingLevel, 'Processing water input with data:', data, 'and entryDate:', entryDate);
@@ -45,7 +45,7 @@ export const processWaterInput = async (userId: string, data: { glasses_consumed
     // Get current water intake
     let currentWater = null;
     try {
-      currentWater = await fetchWaterIntake(userId, dateToUse);
+      currentWater = await fetchWaterIntake(dateToUse);
     } catch (fetchError: any) {
       error(userLoggingLevel, '❌ [Nutrition Coach] Error fetching current water intake:', fetchError.message);
       return {
@@ -64,7 +64,6 @@ export const processWaterInput = async (userId: string, data: { glasses_consumed
     }
 
     debug(userLoggingLevel, 'Attempting to upsert water intake with payload:', {
-      user_id: userId,
       entry_date: dateToUse,
       glasses_consumed: newTotal
     });
@@ -72,7 +71,6 @@ export const processWaterInput = async (userId: string, data: { glasses_consumed
     let upsertError = null;
     try {
       await upsertWaterIntake({
-        user_id: userId,
         entry_date: dateToUse,
         glasses_consumed: newTotal as number
       });

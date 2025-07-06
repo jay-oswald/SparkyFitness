@@ -17,9 +17,9 @@ const upsertCheckInMeasurement = async (payload: any) => {
 };
 
 // Function to search for a custom category
-const searchCustomCategory = async (userId: string, name: string) => {
+const searchCustomCategory = async (name: string) => {
   try {
-    const data = await apiCall(`/api/measurements/custom-categories?userId=${userId}&name=${encodeURIComponent(name)}`, {
+    const data = await apiCall(`/api/measurements/custom-categories?name=${encodeURIComponent(name)}`, {
       method: 'GET',
       suppress404Toast: true, // Suppress toast for 404 errors
     });
@@ -36,7 +36,7 @@ const searchCustomCategory = async (userId: string, name: string) => {
 };
 
 // Function to create a custom category
-const createCustomCategory = async (payload: { user_id: string; name: string; frequency: string; measurement_type: string }) => {
+const createCustomCategory = async (payload: { name: string; frequency: string; measurement_type: string }) => {
   try {
     const data = await apiCall('/api/measurements/custom-categories', {
       method: 'POST',
@@ -50,7 +50,7 @@ const createCustomCategory = async (payload: { user_id: string; name: string; fr
 };
 
 // Function to insert custom measurement entry
-const insertCustomMeasurement = async (payload: { user_id: string; category_id: string; entry_date: string; value: number; entry_timestamp: string }) => {
+const insertCustomMeasurement = async (payload: { category_id: string; entry_date: string; value: number; entry_timestamp: string }) => {
   try {
     const data = await apiCall('/api/measurements/custom-entries', {
       method: 'POST',
@@ -64,7 +64,7 @@ const insertCustomMeasurement = async (payload: { user_id: string; category_id: 
 };
 
 // Function to process measurement input
-export const processMeasurementInput = async (userId: string, data: { measurements: Array<{ type: string; value: number; unit?: string | null; name?: string | null }> }, entryDate: string | undefined, formatDateInUserTimezone: (date: string | Date, formatStr?: string) => string, userLoggingLevel: UserLoggingLevel): Promise<CoachResponse> => {
+export const processMeasurementInput = async (data: { measurements: Array<{ type: string; value: number; unit?: string | null; name?: string | null }> }, entryDate: string | undefined, formatDateInUserTimezone: (date: string | Date, formatStr?: string) => string, userLoggingLevel: UserLoggingLevel): Promise<CoachResponse> => {
   try {
     debug(userLoggingLevel, 'Processing measurement input with data:', data, 'and entryDate:', entryDate);
 
@@ -77,7 +77,6 @@ export const processMeasurementInput = async (userId: string, data: { measuremen
       if (measurement.type === 'weight' || measurement.type === 'neck' || measurement.type === 'waist' || measurement.type === 'hips' || measurement.type === 'steps') {
         // Handle standard check-in measurements
         const updateData: any = {
-          user_id: userId,
           entry_date: dateToUse, // Use the determined date
         };
         updateData[measurement.type] = measurement.value;
@@ -103,7 +102,7 @@ export const processMeasurementInput = async (userId: string, data: { measuremen
         let existingCategory = null;
         let categorySearchError: any = null;
         try {
-          existingCategory = await searchCustomCategory(userId, measurement.name);
+          existingCategory = await searchCustomCategory(measurement.name);
         } catch (err: any) {
           categorySearchError = err;
         }
@@ -122,7 +121,6 @@ export const processMeasurementInput = async (userId: string, data: { measuremen
           let categoryCreateError: any = null;
           try {
             newCategory = await createCustomCategory({
-              user_id: userId,
               name: measurement.name,
               frequency: 'Daily',
               measurement_type: 'numeric'
@@ -149,7 +147,6 @@ export const processMeasurementInput = async (userId: string, data: { measuremen
         let customEntryError: any = null;
         try {
           await insertCustomMeasurement({
-            user_id: userId,
             category_id: categoryId,
             entry_date: dateToUse,
             value: measurement.value,

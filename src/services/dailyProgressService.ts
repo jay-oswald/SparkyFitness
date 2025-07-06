@@ -57,8 +57,8 @@ export interface CheckInMeasurement {
   steps?: number;
 }
 
-export const getGoalsForDate = async (userId: string, date: string): Promise<Goals | null> => {
-  const params = new URLSearchParams({ userId, date });
+export const getGoalsForDate = async (date: string): Promise<Goals | null> => {
+  const params = new URLSearchParams({ date });
   const data = await apiCall(`/api/goals/for-date?${params.toString()}`, {
     method: 'GET',
     suppress404Toast: true, // Suppress toast for 404
@@ -66,25 +66,26 @@ export const getGoalsForDate = async (userId: string, date: string): Promise<Goa
   return data || null; // Return null if 404 (no goals found)
 };
 
-export const getFoodEntriesForDate = async (userId: string, date: string): Promise<FoodEntry[]> => {
-  const data = await apiCall(`/api/food-entries/${userId}/${date}`, {
+export const getFoodEntriesForDate = async (date: string): Promise<FoodEntry[]> => {
+  const data = await apiCall(`/api/foods/food-entries/${date}`, {
     method: 'GET',
     suppress404Toast: true, // Suppress toast for 404
   });
   return data || []; // Return empty array if 404 (no food entries found)
 };
 
-export const getExerciseEntriesForDate = async (userId: string, date: string): Promise<ExerciseEntry[]> => {
-  const data = await apiCall(`/api/exercise-entries/${userId}/${date}`, {
+export const getExerciseEntriesForDate = async (date: string): Promise<ExerciseEntry[]> => {
+  const params = new URLSearchParams({ selectedDate: date });
+  const data = await apiCall(`/api/exercise-entries/by-date?${params.toString()}`, {
     method: 'GET',
     suppress404Toast: true, // Suppress toast for 404
   });
   return data || []; // Return empty array if 404 (no exercise entries found)
 };
 
-export const getCheckInMeasurementsForDate = async (userId: string, date: string): Promise<CheckInMeasurement | null> => {
+export const getCheckInMeasurementsForDate = async (date: string): Promise<CheckInMeasurement | null> => {
   try {
-    const measurement = await apiCall(`/api/measurements/check-in/${userId}/${date}`, {
+    const measurement = await apiCall(`/api/measurements/check-in/${date}`, {
       method: 'GET',
       suppress404Toast: true, // Suppress toast for 404
     });

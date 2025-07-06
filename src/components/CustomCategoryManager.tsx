@@ -40,7 +40,7 @@ const CustomCategoryManager = ({ categories, onCategoriesChange }: CustomCategor
     const fetchCategories = async () => {
       if (user) {
         try {
-          const fetchedCategories = await getCategories(user.id, loggingLevel); // Pass loggingLevel
+          const fetchedCategories = await getCategories(loggingLevel); // Pass loggingLevel
           onCategoriesChange(fetchedCategories);
         } catch (error) {
           console.error("Error fetching custom categories:", error);
@@ -147,7 +147,7 @@ const CustomCategoryManager = ({ categories, onCategoriesChange }: CustomCategor
     }
 
     try {
-      await deleteCategory(idToDelete, user.id, loggingLevel); // Pass loggingLevel
+      await deleteCategory(idToDelete, loggingLevel); // Pass loggingLevel
       onCategoriesChange(categories.filter(cat => cat.id !== idToDelete));
       
       toast({
@@ -184,6 +184,9 @@ const CustomCategoryManager = ({ categories, onCategoriesChange }: CustomCategor
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>Add Custom Category</DialogTitle>
+                <DialogDescription>
+                  Fill in the details for your new custom measurement category.
+                </DialogDescription>
               </DialogHeader>
               <div className="space-y-4">
                 <div>
@@ -269,6 +272,9 @@ const CustomCategoryManager = ({ categories, onCategoriesChange }: CustomCategor
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Edit Custom Category</DialogTitle>
+              <DialogDescription>
+                Update the details for your custom measurement category.
+              </DialogDescription>
             </DialogHeader>
             {editingCategory && (
               <div className="space-y-4">

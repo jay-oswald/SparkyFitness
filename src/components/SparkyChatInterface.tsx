@@ -20,11 +20,7 @@ import {
 } from '@/services/sparkyChatService';
 
 
-interface SparkyChatInterfaceProps {
-  userId: string;
-}
-
-const SparkyChatInterface = ({ userId }: SparkyChatInterfaceProps) => {
+const SparkyChatInterface = () => {
   const { timezone, formatDateInUserTimezone } = usePreferences(); // Get timezone and formatter from context
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
@@ -38,10 +34,8 @@ const SparkyChatInterface = ({ userId }: SparkyChatInterfaceProps) => {
   // Load user preferences and chat history when userId is ready
   useEffect(() => {
     
-    if (userId) {
-      loadUserPreferencesAndHistory();
-    }
-  }, [userId]);
+    loadUserPreferencesAndHistory();
+  }, []);
 
   // Auto-scroll to bottom when new messages are added
   useEffect(() => {
@@ -57,7 +51,7 @@ const SparkyChatInterface = ({ userId }: SparkyChatInterfaceProps) => {
   // Initialize chat when coach, userId, and preferences are ready (runs once on mount)
   useEffect(() => {
     const checkAndInitialize = () => {
-      if (userId && userPreferences && coachRef.current && !isInitialized) {
+      if (userPreferences && coachRef.current && !isInitialized) {
         initializeChat();
       } else if (!isInitialized) {
         // If not initialized but dependencies aren't ready, check again
@@ -71,7 +65,7 @@ const SparkyChatInterface = ({ userId }: SparkyChatInterfaceProps) => {
     return () => {
       // Any cleanup needed when the component unmounts
     };
-  }, [userId, userPreferences, isInitialized]); // Dependencies for the effect (userId and preferences might load async)
+  }, [userPreferences, isInitialized]); // Dependencies for the effect (userId and preferences might load async)
 
 
   // Effect to listen for clear chat history event
@@ -104,22 +98,20 @@ const SparkyChatInterface = ({ userId }: SparkyChatInterfaceProps) => {
     return () => {
       window.removeEventListener('clearChatHistory', handleClearChatHistory);
     };
-  }, [userId, coachRef.current]); // Dependencies for the effect
+  }, [coachRef.current]); // Dependencies for the effect
 
   const loadUserPreferencesAndHistory = async () => {
-    if (!userId) return;
-
     // Load user preferences
-    const preferencesData = await loadUserPreferences(userId);
+    const preferencesData = await loadUserPreferences();
     setUserPreferences(preferencesData);
 
     const autoClearHistory = preferencesData?.auto_clear_history || 'never';
 
     if (autoClearHistory === 'all') {
-      await clearChatHistory(userId, 'all');
+      await clearChatHistory('all');
     }
 
-    const historyData = await loadChatHistory(userId, autoClearHistory);
+    const historyData = await loadChatHistory(autoClearHistory);
     setMessages(historyData);
     
     // Mark as initialized after loading history and preferences
@@ -146,7 +138,7 @@ const SparkyChatInterface = ({ userId }: SparkyChatInterfaceProps) => {
     setIsLoading(true);
     try {
       const today = new Date().toISOString().split('T')[0];
-      const nutritionData = await getTodaysNutrition(userId, today);
+      const nutritionData = await getTodaysNutrition(today);
       
       // Only add welcome message if no messages were loaded from history AND messages state is still empty
       // This prevents adding the welcome message if history was loaded but was empty
@@ -215,7 +207,7 @@ const SparkyChatInterface = ({ userId }: SparkyChatInterfaceProps) => {
     };
 
     setMessages(prev => [...prev, userMessage]);
-    await saveMessageToHistory(userId, userMessage.content, 'user');
+    await saveMessageToHistory(userMessage.content, 'user');
     
     const currentInput = inputValue.trim();
     setInputValue('');
@@ -240,7 +232,7 @@ const SparkyChatInterface = ({ userId }: SparkyChatInterfaceProps) => {
         };
         setMessages(prev => [...prev, userMessageWithImage]);
         
-        response = await processUserInput(userId, inputValue.trim(), selectedImage, transactionId);
+        response = await processUserInput(inputValue.trim(), selectedImage, transactionId);
         setSelectedImage(null); // Clear the selected image after sending
         
       } else {
@@ -256,14 +248,14 @@ const SparkyChatInterface = ({ userId }: SparkyChatInterfaceProps) => {
           if (lastBotMessage?.metadata?.foodOptions) {
             const optionIndex = parseInt(numberMatch[1]) - 1;
             info(userPreferences?.logging_level || 'INFO', `[${transactionId}] Processing food option selection:`, optionIndex, lastBotMessage.metadata);
-            response = await processUserInput(userId, currentInput, null, transactionId, lastBotMessage.metadata);
+            response = await processUserInput(currentInput, null, transactionId, lastBotMessage.metadata);
           } else {
             info(userPreferences?.logging_level || 'INFO', `[${transactionId}] No food options metadata found on last bot message, processing as new input.`);
-            response = await processUserInput(userId, currentInput, null, transactionId);
+            response = await processUserInput(currentInput, null, transactionId);
           }
         } else {
           info(userPreferences?.logging_level || 'INFO', `[${transactionId}] Processing input as new request:`, currentInput);
-          response = await processUserInput(userId, currentInput, null, transactionId);
+          response = await processUserInput(currentInput, null, transactionId);
         }
       }
       
@@ -285,7 +277,7 @@ const SparkyChatInterface = ({ userId }: SparkyChatInterfaceProps) => {
               try {
                 info(userPreferences?.logging_level || 'INFO', `[${transactionId}] Triggering data refresh after logging.`);
                 const today = new Date().toISOString().split('T')[0];
-                const nutritionData = await getTodaysNutrition(userId, today);
+                const nutritionData = await getTodaysNutrition(today);
                 if (nutritionData && nutritionData.analysis) {
                   const updateMessage: Message = {
                     id: `msg-${Date.now()}-update`,
@@ -342,7 +334,7 @@ const SparkyChatInterface = ({ userId }: SparkyChatInterfaceProps) => {
       
       // Always add the bot message after processing, regardless of whether an image was sent
       setMessages(prev => [...prev, botMessage]);
-      await saveMessageToHistory(userId, botMessage.content, 'assistant', botMessage.metadata);
+      await saveMessageToHistory(botMessage.content, 'assistant', botMessage.metadata);
       
       
     } catch (err) {
@@ -405,7 +397,6 @@ const SparkyChatInterface = ({ userId }: SparkyChatInterfaceProps) => {
     <div className="flex flex-col h-full">
       <SparkyNutritionCoach
         ref={coachRef}
-        userId={userId}
         userLoggingLevel={userPreferences?.logging_level || 'ERROR'} // Pass logging level, default to ERROR
         timezone={timezone} // Pass timezone
         formatDateInUserTimezone={formatDateInUserTimezone} // Pass formatter

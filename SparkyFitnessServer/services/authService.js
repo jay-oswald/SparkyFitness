@@ -38,15 +38,15 @@ async function loginUser(email, password) {
   }
 }
 
-async function getUser(userId) {
+async function getUser(authenticatedUserId) {
   try {
-    const user = await userRepository.findUserById(userId);
+    const user = await userRepository.findUserById(authenticatedUserId);
     if (!user) {
       throw new Error('User not found.');
     }
     return user;
   } catch (error) {
-    log('error', `Error fetching user ${userId} in authService:`, error);
+    log('error', `Error fetching user ${authenticatedUserId} in authService:`, error);
     throw error;
   }
 }
@@ -75,35 +75,25 @@ async function generateUserApiKey(authenticatedUserId, targetUserId, description
   }
 }
 
-async function revokeUserApiKey(authenticatedUserId, targetUserId, apiKeyId) {
+async function deleteUserApiKey(authenticatedUserId, targetUserId, apiKeyId) {
   try {
-    const success = await userRepository.revokeApiKey(apiKeyId, targetUserId);
+    const success = await userRepository.deleteApiKey(apiKeyId, targetUserId);
     if (!success) {
-      throw new Error('API Key not found or already inactive for this user.');
+      throw new Error('API Key not found or not authorized for deletion.');
     }
     return true;
   } catch (error) {
-    log('error', `Error revoking API key ${apiKeyId} for user ${targetUserId} in authService:`, error);
+    log('error', `Error deleting API key ${apiKeyId} for user ${targetUserId} in authService:`, error);
     throw error;
   }
 }
 
-async function revokeAllUserApiKeys(authenticatedUserId, targetUserId) {
+async function getAccessibleUsers(authenticatedUserId) {
   try {
-    await userRepository.revokeAllApiKeys(targetUserId);
-    return true;
-  } catch (error) {
-    log('error', `Error revoking all API keys for user ${targetUserId} in authService:`, error);
-    throw error;
-  }
-}
-
-async function getAccessibleUsers(userId) {
-  try {
-    const users = await userRepository.getAccessibleUsers(userId);
+    const users = await userRepository.getAccessibleUsers(authenticatedUserId);
     return users;
   } catch (error) {
-    log('error', `Error fetching accessible users for user ${userId} in authService:`, error);
+    log('error', `Error fetching accessible users for user ${authenticatedUserId} in authService:`, error);
     throw error;
   }
 }
@@ -148,60 +138,60 @@ async function getUserApiKeys(authenticatedUserId, targetUserId) {
   }
 }
 
-async function updateUserPassword(userId, newPassword) {
+async function updateUserPassword(authenticatedUserId, newPassword) {
   try {
     const saltRounds = 10;
     const hashedPassword = await bcrypt.hash(newPassword, saltRounds);
-    const success = await userRepository.updateUserPassword(userId, hashedPassword);
+    const success = await userRepository.updateUserPassword(authenticatedUserId, hashedPassword);
     if (!success) {
       throw new Error('User not found.');
     }
     return true;
   } catch (error) {
-    log('error', `Error updating password for user ${userId} in authService:`, error);
+    log('error', `Error updating password for user ${authenticatedUserId} in authService:`, error);
     throw error;
   }
 }
 
-async function updateUserEmail(userId, newEmail) {
+async function updateUserEmail(authenticatedUserId, newEmail) {
   try {
     const existingUser = await userRepository.findUserByEmail(newEmail);
-    if (existingUser && existingUser.id !== userId) {
+    if (existingUser && existingUser.id !== authenticatedUserId) {
       throw new Error('Email already in use by another account.');
     }
-    const success = await userRepository.updateUserEmail(userId, newEmail);
+    const success = await userRepository.updateUserEmail(authenticatedUserId, newEmail);
     if (!success) {
       throw new Error('User not found.');
     }
     return true;
   } catch (error) {
-    log('error', `Error updating email for user ${userId} in authService:`, error);
+    log('error', `Error updating email for user ${authenticatedUserId} in authService:`, error);
     throw error;
   }
 }
 
-async function canAccessUserData(targetUserId, permissionType, currentUserId) {
+async function canAccessUserData(targetUserId, permissionType, authenticatedUserId) {
   try {
     const pool = require('../db/connection'); // Import pool from connection.js
     const client = await pool.connect();
     const result = await client.query(
       `SELECT public.can_access_user_data($1, $2, $3) AS can_access`,
-      [targetUserId, permissionType, currentUserId]
+      [targetUserId, permissionType, authenticatedUserId]
     );
     client.release();
     return result.rows[0].can_access;
   } catch (error) {
-    log('error', `Error checking access for user ${targetUserId} by ${currentUserId} with permission ${permissionType} in authService:`, error);
+    log('error', `Error checking access for user ${targetUserId} by ${authenticatedUserId} with permission ${permissionType} in authService:`, error);
     throw error;
   }
 }
 
-async function checkFamilyAccess(familyUserId, ownerUserId, permission) {
+async function checkFamilyAccess(authenticatedUserId, ownerUserId, permission) {
   try {
-    const hasAccess = await familyAccessRepository.checkFamilyAccessPermission(familyUserId, ownerUserId, permission);
+    const hasAccess = await familyAccessRepository.checkFamilyAccessPermission(authenticatedUserId, ownerUserId, permission);
     return hasAccess;
   } catch (error) {
-    log('error', `Error checking family access for family user ${familyUserId} and owner ${ownerUserId} with permission ${permission} in authService:`, error);
+    log('error', `Error checking family access for family user ${authenticatedUserId} and owner ${ownerUserId} with permission ${permission} in authService:`, error);
     throw error;
   }
 }
@@ -224,7 +214,7 @@ async function getFamilyAccessEntries(authenticatedUserId, targetUserId) {
 async function createFamilyAccessEntry(authenticatedUserId, entryData) {
   try {
     const newEntry = await familyAccessRepository.createFamilyAccessEntry(
-      entryData.owner_user_id,
+      authenticatedUserId, // Use authenticatedUserId as owner_user_id
       entryData.family_user_id,
       entryData.family_email,
       entryData.access_permissions,
@@ -233,16 +223,16 @@ async function createFamilyAccessEntry(authenticatedUserId, entryData) {
     );
     return newEntry;
   } catch (error) {
-    log('error', `Error creating family access entry for owner ${entryData.owner_user_id} in authService:`, error);
+    log('error', `Error creating family access entry for owner ${authenticatedUserId} in authService:`, error);
     throw error;
   }
 }
 
-async function updateFamilyAccessEntry(authenticatedUserId, id, targetOwnerUserId, updateData) {
+async function updateFamilyAccessEntry(authenticatedUserId, id, updateData) {
   try {
     const updatedEntry = await familyAccessRepository.updateFamilyAccessEntry(
       id,
-      targetOwnerUserId,
+      authenticatedUserId, // Use authenticatedUserId as owner_user_id
       updateData.access_permissions,
       updateData.access_end_date,
       updateData.is_active,
@@ -253,20 +243,20 @@ async function updateFamilyAccessEntry(authenticatedUserId, id, targetOwnerUserI
     }
     return updatedEntry;
   } catch (error) {
-    log('error', `Error updating family access entry ${id} for owner ${targetOwnerUserId} in authService:`, error);
+    log('error', `Error updating family access entry ${id} for owner ${authenticatedUserId} in authService:`, error);
     throw error;
   }
 }
 
-async function deleteFamilyAccessEntry(authenticatedUserId, id, targetOwnerUserId) {
+async function deleteFamilyAccessEntry(authenticatedUserId, id) {
   try {
-    const success = await familyAccessRepository.deleteFamilyAccessEntry(id, targetOwnerUserId);
+    const success = await familyAccessRepository.deleteFamilyAccessEntry(id, authenticatedUserId); // Use authenticatedUserId as owner_user_id
     if (!success) {
       throw new Error('Family access entry not found or not authorized to delete.');
     }
     return true;
   } catch (error) {
-    log('error', `Error deleting family access entry ${id} for owner ${targetOwnerUserId} in authService:`, error);
+    log('error', `Error deleting family access entry ${id} for owner ${authenticatedUserId} in authService:`, error);
     throw error;
   }
 }
@@ -277,8 +267,7 @@ module.exports = {
   getUser,
   findUserIdByEmail,
   generateUserApiKey,
-  revokeUserApiKey,
-  revokeAllUserApiKeys,
+  deleteUserApiKey,
   getAccessibleUsers,
   getUserProfile,
   updateUserProfile,

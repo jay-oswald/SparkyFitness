@@ -41,23 +41,23 @@ async function getActiveAiServiceSetting(authenticatedUserId, targetUserId) {
   }
 }
 
-async function deleteAiServiceSetting(authenticatedUserId, id, targetUserId) {
+async function deleteAiServiceSetting(authenticatedUserId, id) {
   try {
-    // Verify that the setting belongs to the target user before deleting
-    const setting = await chatRepository.getAiServiceSettingById(id, targetUserId);
+    // Verify that the setting belongs to the authenticated user before deleting
+    const setting = await chatRepository.getAiServiceSettingById(id, authenticatedUserId);
     if (!setting) {
       throw new Error('AI service setting not found.');
     }
-    if (setting.user_id !== targetUserId) {
-      throw new Error('Forbidden: The provided user ID does not match the setting owner.');
+    if (setting.user_id !== authenticatedUserId) {
+      throw new Error('Forbidden: You do not have permission to delete this AI service setting.');
     }
-    const success = await chatRepository.deleteAiServiceSetting(id, targetUserId);
+    const success = await chatRepository.deleteAiServiceSetting(id, authenticatedUserId);
     if (!success) {
       throw new Error('AI service setting not found.');
     }
     return { message: 'AI service setting deleted successfully.' };
   } catch (error) {
-    log('error', `Error deleting AI service setting ${id} for user ${targetUserId} by ${authenticatedUserId}:`, error);
+    log('error', `Error deleting AI service setting ${id} by ${authenticatedUserId}:`, error);
     throw error;
   }
 }
@@ -96,48 +96,64 @@ async function getSparkyChatHistoryEntry(authenticatedUserId, id) {
   }
 }
 
-async function updateSparkyChatHistoryEntry(authenticatedUserId, id, targetUserId, updateData) {
+async function updateSparkyChatHistoryEntry(authenticatedUserId, id, updateData) {
   try {
-    const updatedEntry = await chatRepository.updateChatHistoryEntry(id, targetUserId, updateData);
+    const entryOwnerId = await chatRepository.getChatHistoryEntryOwnerId(id);
+    if (!entryOwnerId) {
+      throw new Error('Chat history entry not found.');
+    }
+    if (entryOwnerId !== authenticatedUserId) {
+      throw new Error('Forbidden: You do not have permission to update this chat history entry.');
+    }
+    const updatedEntry = await chatRepository.updateChatHistoryEntry(id, authenticatedUserId, updateData);
     if (!updatedEntry) {
       throw new Error('Chat history entry not found or not authorized to update.');
     }
     return updatedEntry;
   } catch (error) {
-    log('error', `Error updating chat history entry ${id} for user ${targetUserId} by ${authenticatedUserId}:`, error);
+    log('error', `Error updating chat history entry ${id} by ${authenticatedUserId}:`, error);
     throw error;
   }
 }
 
-async function deleteSparkyChatHistoryEntry(authenticatedUserId, id, targetUserId) {
+async function deleteSparkyChatHistoryEntry(authenticatedUserId, id) {
   try {
-    const success = await chatRepository.deleteChatHistoryEntry(id, targetUserId);
+    const entryOwnerId = await chatRepository.getChatHistoryEntryOwnerId(id);
+    if (!entryOwnerId) {
+      throw new Error('Chat history entry not found.');
+    }
+    if (entryOwnerId !== authenticatedUserId) {
+      throw new Error('Forbidden: You do not have permission to delete this chat history entry.');
+    }
+    const success = await chatRepository.deleteChatHistoryEntry(id, authenticatedUserId);
     if (!success) {
-      throw new Error('Chat history entry not found or not authorized to delete.');
+      throw new Error('Chat history entry not found.');
     }
     return { message: 'Chat history entry deleted successfully.' };
   } catch (error) {
-    log('error', `Error deleting chat history entry ${id} for user ${targetUserId} by ${authenticatedUserId}:`, error);
+    log('error', `Error deleting chat history entry ${id} by ${authenticatedUserId}:`, error);
     throw error;
   }
 }
 
-async function clearAllSparkyChatHistory(authenticatedUserId, targetUserId) {
+async function clearAllSparkyChatHistory(authenticatedUserId) {
   try {
-    await chatRepository.clearAllChatHistory(targetUserId);
+    await chatRepository.clearAllChatHistory(authenticatedUserId);
     return { message: 'All chat history cleared successfully.' };
   } catch (error) {
-    log('error', `Error clearing all chat history for user ${targetUserId} by ${authenticatedUserId}:`, error);
+    log('error', `Error clearing all chat history for user ${authenticatedUserId}:`, error);
     throw error;
   }
 }
 
 async function saveSparkyChatHistory(authenticatedUserId, historyData) {
   try {
+    // Ensure the history is saved for the authenticated user
+    historyData.user_id = authenticatedUserId;
     await chatRepository.saveChatHistory(historyData);
     return { message: 'Chat history saved successfully.' };
   } catch (error) {
-    log('error', `Error saving chat history for user ${historyData.user_id} by ${authenticatedUserId}:`, error);
+    log('error', `Error saving chat history for user ${authenticatedUserId}:`, error);
     throw error;
   }
 }

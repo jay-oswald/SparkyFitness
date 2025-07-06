@@ -15,9 +15,9 @@ export interface UserPreferences {
   auto_clear_history: string;
 }
 
-export const getAIServices = async (userId: string): Promise<AIService[]> => {
+export const getAIServices = async (): Promise<AIService[]> => {
   try {
-    const services = await apiCall(`/api/chat/ai-service-settings/${userId}`, {
+    const services = await apiCall(`/api/chat/ai-service-settings`, {
       method: 'GET',
       suppress404Toast: true, // Suppress toast for 404
     });
@@ -32,9 +32,9 @@ export const getAIServices = async (userId: string): Promise<AIService[]> => {
   }
 };
 
-export const getPreferences = async (userId: string): Promise<UserPreferences> => {
+export const getPreferences = async (): Promise<UserPreferences> => {
   try {
-    const preferences = await apiCall(`/api/user-preferences/${userId}`, {
+    const preferences = await apiCall(`/api/user-preferences`, {
       method: 'GET',
       suppress404Toast: true, // Suppress toast for 404
     });
@@ -76,8 +76,8 @@ export const updateAIServiceStatus = async (serviceId: string, isActive: boolean
   });
 };
 
-export const updateUserPreferences = async (userId: string, preferences: UserPreferences): Promise<UserPreferences> => {
-  return apiCall(`/api/user-preferences/${userId}`, {
+export const updateUserPreferences = async (preferences: UserPreferences): Promise<UserPreferences> => {
+  return apiCall(`/api/user-preferences`, {
     method: 'PUT',
     body: preferences,
   });

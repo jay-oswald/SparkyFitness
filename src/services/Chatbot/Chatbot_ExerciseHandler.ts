@@ -4,7 +4,7 @@ import { debug, info, warn, error, UserLoggingLevel } from '@/utils/logging'; //
 import { apiCall } from '../api'; // Import apiCall
 
 // Function to process exercise input
-export const processExerciseInput = async (userId: string, data: { exercise_name: string; duration_minutes: number | null; distance: number | null; distance_unit: string | null }, entryDate: string | undefined, formatDateInUserTimezone: (date: string | Date, formatStr?: string) => string, userLoggingLevel: UserLoggingLevel): Promise<CoachResponse> => {
+export const processExerciseInput = async (data: { exercise_name: string; duration_minutes: number | null; distance: number | null; distance_unit: string | null }, entryDate: string | undefined, formatDateInUserTimezone: (date: string | Date, formatStr?: string) => string, userLoggingLevel: UserLoggingLevel): Promise<CoachResponse> => {
   try {
     debug(userLoggingLevel, 'Processing exercise input with data:', data, 'and entryDate:', entryDate);
 
@@ -56,7 +56,6 @@ export const processExerciseInput = async (userId: string, data: { exercise_name
             category: 'cardio',
             calories_per_hour: estimatedCaloriesPerHour,
             is_custom: true,
-            user_id: userId
           }
         });
       } catch (err: any) {
@@ -80,7 +79,6 @@ export const processExerciseInput = async (userId: string, data: { exercise_name
       exerciseEntry = await apiCall('/api/exercise-entries', {
         method: 'POST',
         body: {
-          user_id: userId,
           exercise_id: exerciseId,
           duration_minutes: duration,
           calories_burned: caloriesBurned,

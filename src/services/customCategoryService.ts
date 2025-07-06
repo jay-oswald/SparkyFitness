@@ -9,8 +9,8 @@ export interface CustomCategory {
   frequency: string;
 }
 
-export const getCategories = async (userId: string, loggingLevel: UserLoggingLevel): Promise<CustomCategory[]> => {
-  const response = await apiCall(`/api/measurements/custom-categories?userId=${userId}`, {
+export const getCategories = async (loggingLevel: UserLoggingLevel): Promise<CustomCategory[]> => {
+  const response = await apiCall(`/api/measurements/custom-categories`, {
     method: 'GET',
     suppress404Toast: true,
   });
@@ -53,12 +53,8 @@ export const updateCategory = async (categoryId: string, categoryData: { name: s
   return { ...response, id: id };
 };
 
-export const deleteCategory = async (categoryId: string, userId: string, loggingLevel: UserLoggingLevel): Promise<void> => {
-  if (!userId) {
-    error(loggingLevel, 'Attempted to delete a category with an undefined or null user ID.');
-    throw new Error('User ID is missing for delete operation.');
-  }
-  return apiCall(`/api/measurements/custom-categories/${categoryId}?userId=${userId}`, {
+export const deleteCategory = async (categoryId: string, loggingLevel: UserLoggingLevel): Promise<void> => {
+  return apiCall(`/api/measurements/custom-categories/${categoryId}`, {
     method: 'DELETE',
   });
 };
