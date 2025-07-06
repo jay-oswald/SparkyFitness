@@ -44,7 +44,7 @@ export const useActiveUser = () => {
 import { NavigateFunction } from 'react-router-dom';
 
 export const ActiveUserProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user } = useAuth(); // No longer passing navigate
+  const { user, loading } = useAuth(); // Get loading state from useAuth
   const { loggingLevel } = usePreferences();
   debug(loggingLevel, "ActiveUserProvider: Initializing ActiveUserProvider.");
 
@@ -53,18 +53,20 @@ export const ActiveUserProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const [accessibleUsers, setAccessibleUsers] = useState<AccessibleUser[]>([]);
 
   useEffect(() => {
-    if (user) {
-      info(loggingLevel, "ActiveUserProvider: User logged in, setting active user and loading accessible users.");
-      setActiveUserId(user.id);
-      setActiveUserName(user.email || 'You');
-      loadAccessibleUsers();
-    } else {
-      info(loggingLevel, "ActiveUserProvider: User logged out, clearing active user and accessible users.");
-      setActiveUserId(null);
-      setActiveUserName(null);
-      setAccessibleUsers([]);
+    if (!loading) { // Only proceed after authentication loading is complete
+      if (user) {
+        info(loggingLevel, "ActiveUserProvider: User logged in, setting active user and loading accessible users.");
+        setActiveUserId(user.id);
+        setActiveUserName(user.email || 'You');
+        loadAccessibleUsers();
+      } else {
+        info(loggingLevel, "ActiveUserProvider: User logged out, clearing active user and accessible users.");
+        setActiveUserId(null);
+        setActiveUserName(null);
+        setAccessibleUsers([]);
+      }
     }
-  }, [user, loggingLevel]); // Add loggingLevel to dependency array
+  }, [user, loading, loggingLevel]); // Add loading to dependency array
 
   const loadAccessibleUsers = async () => {
     if (!user) {

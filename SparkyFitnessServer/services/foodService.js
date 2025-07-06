@@ -436,7 +436,6 @@ module.exports = {
   searchFoods,
   createFood,
   getFoodById,
-  getFoodOwnerId,
   updateFood,
   deleteFood,
   getFoodsWithPagination,

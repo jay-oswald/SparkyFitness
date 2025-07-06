@@ -47,9 +47,11 @@ export const loadFoodEntries = async (userId: string, selectedDate: string): Pro
     userId,
     selectedDate,
   });
-  return apiCall(`/api/food-entries?${params.toString()}`, {
+  const data = await apiCall(`/api/food-entries?${params.toString()}`, {
     method: 'GET',
+    suppress404Toast: true, // Suppress toast for 404
   });
+  return data || []; // Return empty array if 404 (no food entries found)
 };
 
 export const loadGoals = async (userId: string, selectedDate: string): Promise<Goal> => {
@@ -59,6 +61,7 @@ export const loadGoals = async (userId: string, selectedDate: string): Promise<G
   });
   const data = await apiCall(`/api/goals?${params.toString()}`, {
     method: 'GET',
+    suppress404Toast: true, // Suppress toast for 404
   });
   return data[0] || { calories: 2000, protein: 150, carbs: 250, fat: 67 }; // Return default if no goals found
 };

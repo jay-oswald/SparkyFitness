@@ -7,7 +7,7 @@ const cors = require('cors'); // Added this line
 const pool = require('./db/connection');
 const { log } = require('./config/logging');
 const { getDefaultModel } = require('./ai/config');
-const authenticateToken = require('./middleware/authMiddleware');
+const { authenticateToken } = require('./middleware/authMiddleware');
 const foodRoutes = require('./routes/foodRoutes');
 const reportRoutes = require('./routes/reportRoutes');
 const preferenceRoutes = require('./routes/preferenceRoutes');
@@ -32,6 +32,14 @@ app.use(cors({
 
 // Middleware to parse JSON bodies for all incoming requests
 app.use(express.json());
+
+// Apply authentication middleware to all /api routes except auth
+app.use('/api', (req, res, next) => {
+  if (req.path.startsWith('/auth/login') || req.path.startsWith('/auth/register')) {
+    return next(); // Skip authentication for login and register
+  }
+  authenticateToken(req, res, next);
+});
 
 // Link all routes
 app.use('/api/chat', chatRoutes);

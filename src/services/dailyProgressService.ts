@@ -57,24 +57,29 @@ export interface CheckInMeasurement {
   steps?: number;
 }
 
-export const getGoalsForDate = async (userId: string, date: string): Promise<Goals> => {
+export const getGoalsForDate = async (userId: string, date: string): Promise<Goals | null> => {
   const params = new URLSearchParams({ userId, date });
   const data = await apiCall(`/api/goals/for-date?${params.toString()}`, {
     method: 'GET',
+    suppress404Toast: true, // Suppress toast for 404
   });
-  return data;
+  return data || null; // Return null if 404 (no goals found)
 };
 
 export const getFoodEntriesForDate = async (userId: string, date: string): Promise<FoodEntry[]> => {
-  return apiCall(`/api/food-entries/${userId}/${date}`, {
+  const data = await apiCall(`/api/food-entries/${userId}/${date}`, {
     method: 'GET',
+    suppress404Toast: true, // Suppress toast for 404
   });
+  return data || []; // Return empty array if 404 (no food entries found)
 };
 
 export const getExerciseEntriesForDate = async (userId: string, date: string): Promise<ExerciseEntry[]> => {
-  return apiCall(`/api/exercise-entries/${userId}/${date}`, {
+  const data = await apiCall(`/api/exercise-entries/${userId}/${date}`, {
     method: 'GET',
+    suppress404Toast: true, // Suppress toast for 404
   });
+  return data || []; // Return empty array if 404 (no exercise entries found)
 };
 
 export const getCheckInMeasurementsForDate = async (userId: string, date: string): Promise<CheckInMeasurement | null> => {
@@ -84,10 +89,10 @@ export const getCheckInMeasurementsForDate = async (userId: string, date: string
       suppress404Toast: true, // Suppress toast for 404
     });
     return measurement; // Will be null if 404
-  } catch (error) {
+  } catch (error: any) { // Explicitly type error as any
     // If it's a 404 and we suppressed the toast, it means no measurement was found.
     // Return null as expected by the component.
-    if (error.message.includes('not found')) { // Check for specific message from backend
+    if (error.message && error.message.includes('not found')) { // Check for specific message from backend
       return null;
     }
     throw error; // Re-throw other errors

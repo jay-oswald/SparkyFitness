@@ -8,7 +8,7 @@ import { useAuth } from '@/hooks/useAuth';
 
 const DraggableChatbotButton: React.FC = () => {
   const { toggleChat } = useChatbotVisibility();
-  const { user } = useAuth(); // Destructure user from useAuth
+  const { user, loading } = useAuth(); // Destructure user and loading from useAuth
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const [hasAiProvider, setHasAiProvider] = useState(false); // New state for AI provider check
@@ -32,7 +32,7 @@ const DraggableChatbotButton: React.FC = () => {
 
   useEffect(() => {
     const checkAiProviders = async () => {
-      if (user?.id) { // Use user.id instead of userId
+      if (!loading && user?.id) { // Only fetch if not loading and user is available
         try {
           const services = await getAIServices(user.id);
           setHasAiProvider(services && services.length > 0);
@@ -40,10 +40,12 @@ const DraggableChatbotButton: React.FC = () => {
           console.error("Failed to fetch AI services:", error);
           setHasAiProvider(false);
         }
+      } else if (!loading && !user) { // If loading is false and no user, ensure AI provider is false
+        setHasAiProvider(false);
       }
     };
     checkAiProviders();
-  }, [user?.id]); // Depend on user.id
+  }, [user?.id, loading]); // Depend on user.id and loading
 
   const isMobile = useIsMobile();
 

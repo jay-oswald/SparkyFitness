@@ -182,10 +182,14 @@ async function updateUserEmail(userId, newEmail) {
 
 async function canAccessUserData(targetUserId, permissionType, currentUserId) {
   try {
-    if (targetUserId === currentUserId) {
-      return true;
-    }
-    return true; // If targetUserId is currentUserId, access is always granted
+    const pool = require('../db/connection'); // Import pool from connection.js
+    const client = await pool.connect();
+    const result = await client.query(
+      `SELECT public.can_access_user_data($1, $2, $3) AS can_access`,
+      [targetUserId, permissionType, currentUserId]
+    );
+    client.release();
+    return result.rows[0].can_access;
   } catch (error) {
     log('error', `Error checking access for user ${targetUserId} by ${currentUserId} with permission ${permissionType} in authService:`, error);
     throw error;

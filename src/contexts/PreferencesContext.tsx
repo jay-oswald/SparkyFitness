@@ -24,6 +24,7 @@ const fetchUserPreferences = async (userId: string) => {
     if (err.message && err.message.includes('404')) {
       return null;
     }
+    // Only log other errors, but still re-throw them if they are not 404s
     console.error("Error fetching user preferences:", err);
     throw err;
   }
@@ -78,7 +79,7 @@ export const usePreferences = () => {
 };
 
 export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user } = useAuth();
+  const { user, loading } = useAuth(); // Destructure loading from useAuth
   const [weightUnit, setWeightUnitState] = useState<'kg' | 'lbs'>('kg');
   const [measurementUnit, setMeasurementUnitState] = useState<'cm' | 'inches'>('cm');
   const [dateFormat, setDateFormatState] = useState<string>('MM/dd/yyyy');
@@ -94,36 +95,38 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
   }, []);
 
   useEffect(() => {
-    if (user) {
-      info(loggingLevel, "PreferencesProvider: User logged in, loading preferences from database.");
-      loadPreferences();
-    } else {
-      info(loggingLevel, "PreferencesProvider: User not logged in, loading preferences from localStorage.");
-      // Load from localStorage when not logged in
-      const savedWeightUnit = localStorage.getItem('weightUnit') as 'kg' | 'lbs';
-      const savedMeasurementUnit = localStorage.getItem('measurementUnit') as 'cm' | 'inches';
-      const savedDateFormat = localStorage.getItem('dateFormat');
-      const savedTimezone = localStorage.getItem('timezone');
-      // auto_clear_history and loggingLevel are not stored in localStorage, defaults to 'never' and 'INFO' respectively
+    if (!loading) { // Only proceed after authentication loading is complete
+      if (user) {
+        info(loggingLevel, "PreferencesProvider: User logged in, loading preferences from database.");
+        loadPreferences();
+      } else {
+        info(loggingLevel, "PreferencesProvider: User not logged in, loading preferences from localStorage.");
+        // Load from localStorage when not logged in
+        const savedWeightUnit = localStorage.getItem('weightUnit') as 'kg' | 'lbs';
+        const savedMeasurementUnit = localStorage.getItem('measurementUnit') as 'cm' | 'inches';
+        const savedDateFormat = localStorage.getItem('dateFormat');
+        const savedTimezone = localStorage.getItem('timezone');
+        // auto_clear_history and loggingLevel are not stored in localStorage, defaults to 'never' and 'INFO' respectively
 
-      if (savedWeightUnit) {
-        setWeightUnitState(savedWeightUnit);
-        debug(loggingLevel, "PreferencesProvider: Loaded weightUnit from localStorage:", savedWeightUnit);
-      }
-      if (savedMeasurementUnit) {
-        setMeasurementUnitState(savedMeasurementUnit);
-        debug(loggingLevel, "PreferencesProvider: Loaded measurementUnit from localStorage:", savedMeasurementUnit);
-      }
-      if (savedDateFormat) {
-        setDateFormatState(savedDateFormat);
-        debug(loggingLevel, "PreferencesProvider: Loaded dateFormat from localStorage:", savedDateFormat);
-      }
-      if (savedTimezone) {
-        setTimezoneState(savedTimezone);
-        debug(loggingLevel, "PreferencesProvider: Loaded timezone from localStorage:", savedTimezone);
+        if (savedWeightUnit) {
+          setWeightUnitState(savedWeightUnit);
+          debug(loggingLevel, "PreferencesProvider: Loaded weightUnit from localStorage:", savedWeightUnit);
+        }
+        if (savedMeasurementUnit) {
+          setMeasurementUnitState(savedMeasurementUnit);
+          debug(loggingLevel, "PreferencesProvider: Loaded measurementUnit from localStorage:", savedMeasurementUnit);
+        }
+        if (savedDateFormat) {
+          setDateFormatState(savedDateFormat);
+          debug(loggingLevel, "PreferencesProvider: Loaded dateFormat from localStorage:", savedDateFormat);
+        }
+        if (savedTimezone) {
+          setTimezoneState(savedTimezone);
+          debug(loggingLevel, "PreferencesProvider: Loaded timezone from localStorage:", savedTimezone);
+        }
       }
     }
-  }, [user]); // Removed loggingLevel from dependency array
+  }, [user, loading]); // Add loading to dependency array
 
   const loadPreferences = async () => {
     if (!user) {

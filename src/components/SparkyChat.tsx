@@ -9,11 +9,15 @@ import { useChatbotVisibility } from '@/contexts/ChatbotVisibilityContext';
 import { getAIServices } from '@/services/aiServiceSettingsService';
 
 const SparkyChat = () => {
-  const { user } = useAuth();
+  const { user, loading } = useAuth(); // Get loading state from useAuth
   const { isChatOpen, closeChat } = useChatbotVisibility();
   const [hasEnabledServices, setHasEnabledServices] = useState(false); // Keep this state
 
   const checkEnabledServices = useCallback(async () => {
+    if (loading) { // Do not proceed if authentication is still loading
+      setHasEnabledServices(false);
+      return;
+    }
     if (!user?.id) {
       setHasEnabledServices(false);
       return;
@@ -26,7 +30,7 @@ const SparkyChat = () => {
       console.error('Error fetching AI services:', error);
       setHasEnabledServices(false);
     }
-  }, [user?.id]);
+  }, [user?.id, loading]); // Add loading to dependency array
 
   useEffect(() => {
     checkEnabledServices();

@@ -23,16 +23,23 @@ const authenticateToken = (req, res, next) => {
 
 const authorizeAccess = (permissionType) => {
   return async (req, res, next) => {
-    const targetUserId = req.params.userId || req.body.userId || req.query.userId || req.userId; // Assuming userId is in params, body, query, or is the authenticated user
     const authenticatedUserId = req.userId; // From authenticateToken middleware
 
-    if (!targetUserId || !authenticatedUserId) {
-      log('error', `Authorization: Missing targetUserId or authenticatedUserId. Target: ${targetUserId}, Auth: ${authenticatedUserId}`);
-      return res.status(400).json({ error: 'Authorization: Missing user IDs for access check.' });
+    // Determine targetUserId: prioritize from params, body, query, then default to authenticatedUserId
+    const targetUserId = req.params.userId || req.body.userId || req.query.userId || authenticatedUserId;
+
+    if (!authenticatedUserId) {
+      log('error', `Authorization: authenticatedUserId is missing.`);
+      return res.status(401).json({ error: 'Authorization: Authentication required.' });
+    }
+
+    if (!targetUserId) {
+      log('error', `Authorization: targetUserId is missing. Target: ${targetUserId}, Auth: ${authenticatedUserId}`);
+      return res.status(400).json({ error: 'Authorization: Target user ID is missing for access check.' });
     }
 
     try {
-      const { pool } = require('../db/db'); // Import pool here to avoid circular dependency
+      const pool = require('../db/connection'); // Import pool from connection.js
       const client = await pool.connect();
       const result = await client.query(
         `SELECT public.can_access_user_data($1, $2, $3) AS can_access`,
@@ -47,7 +54,7 @@ const authorizeAccess = (permissionType) => {
         return res.status(403).json({ error: 'Authorization: Access denied.' });
       }
     } catch (error) {
-      log('error', `Authorization: Error checking access for user ${authenticatedUserId} to ${targetUserId} with permission ${permissionType}:`, error.message);
+      log('error', `Authorization: Error checking access for user ${authenticatedUserId} to ${targetUserId} with permission ${permissionType}:`, error); // Log the entire error object
       return res.status(500).json({ error: 'Authorization: Internal server error during access check.' });
     }
   };

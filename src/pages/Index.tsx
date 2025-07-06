@@ -22,7 +22,7 @@ import { toast } from "@/hooks/use-toast";
 // Define the base URL for your backend API
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3010";
 const Index = () => {
-   const { user, signOut } = useAuth();
+   const { user, signOut, loading } = useAuth(); // Destructure loading from useAuth
    const { isActingOnBehalf, hasPermission, hasWritePermission, activeUserName } = useActiveUser();
    const { loggingLevel } = usePreferences();
    debug(loggingLevel, "Index: Component rendered.");
@@ -54,20 +54,26 @@ const Index = () => {
 
    useEffect(() => {
      const fetchDisplayName = async () => {
-       if (user?.id) {
+       if (!loading && user?.id) { // Only fetch if not loading and user is available
          try {
-           const profile = await apiCall(`/api/auth/profiles/${user.id}`);
-           setDisplayName(profile.full_name || user.email || '');
+           const profile = await apiCall(`/api/auth/profiles/${user.id}`, { suppress404Toast: true });
+           setDisplayName(profile?.full_name || user.email || ''); // Handle null profile
          } catch (err) {
-           error(loggingLevel, "Index: Error fetching profile for display name:", err);
-           setDisplayName(user.email || '');
+           // If it's a 404, it means no profile is found, which is a valid scenario.
+           // We set display name to user's email or empty string.
+           if (err.message && err.message.includes('404')) {
+             setDisplayName(user.email || '');
+           } else {
+             error(loggingLevel, "Index: Error fetching profile for display name:", err);
+             setDisplayName(user.email || '');
+           }
          }
-       } else {
+       } else if (!loading && !user) { // If loading is false and no user, clear display name
          setDisplayName('');
        }
      };
      fetchDisplayName();
-   }, [user, loggingLevel]);
+   }, [user, loading, loggingLevel]); // Add loading to dependency array
  
    // Memoize available tabs to prevent hook order violations
    const availableTabs = useMemo(() => {

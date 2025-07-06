@@ -27,9 +27,11 @@ export interface Exercise {
 
 export const fetchExerciseEntries = async (userId: string, selectedDate: string): Promise<ExerciseEntry[]> => {
   const params = new URLSearchParams({ userId, selectedDate });
-  return apiCall(`/api/exercise-entries?${params.toString()}`, {
+  const data = await apiCall(`/api/exercise-entries?${params.toString()}`, {
     method: 'GET',
+    suppress404Toast: true, // Suppress toast for 404
   });
+  return data || []; // Return empty array if 404 (no exercise entries found)
 };
 
 export const addExerciseEntry = async (payload: {
@@ -54,7 +56,9 @@ export const deleteExerciseEntry = async (entryId: string): Promise<void> => {
 
 export const searchExercises = async (query: string, filterType: string, userId: string): Promise<Exercise[]> => {
   const params = new URLSearchParams({ query, filterType, userId });
-  return apiCall(`/api/exercises/search/${encodeURIComponent(query)}?filterType=${filterType}&userId=${userId}`, {
+  const data = await apiCall(`/api/exercises/search/${encodeURIComponent(query)}?filterType=${filterType}&userId=${userId}`, {
     method: 'GET',
+    suppress404Toast: true, // Suppress toast for 404
   });
+  return data || []; // Return empty array if 404 (no exercises found)
 };
