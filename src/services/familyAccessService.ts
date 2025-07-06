@@ -62,9 +62,8 @@ export const loadFamilyAccess = async (ownerUserId: string): Promise<FamilyAcces
 };
 
 export const findUserByEmail = async (email: string): Promise<string | null> => {
-  const response = await apiCall('/api/family-access/find-user-by-email', {
-    method: 'POST',
-    body: { email },
+  const response = await apiCall(`/api/auth/users/find-by-email?email=${encodeURIComponent(email)}`, {
+    method: 'GET',
   });
   return response.userId || null;
 };
@@ -84,7 +83,7 @@ export const updateFamilyAccess = async (id: string, payload: Partial<FamilyAcce
 };
 
 export const toggleFamilyAccessActiveStatus = async (id: string, isActive: boolean): Promise<FamilyAccess> => {
-  return apiCall(`/api/family-access/${id}/toggle-active`, {
+  return apiCall(`/api/auth/family-access/${id}`, {
     method: 'PUT',
     body: { is_active: isActive },
   });

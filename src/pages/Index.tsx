@@ -56,7 +56,7 @@ const Index = () => {
      const fetchDisplayName = async () => {
        if (user?.id) {
          try {
-           const profile = await apiCall(`/api/profiles/${user.id}`);
+           const profile = await apiCall(`/api/auth/profiles/${user.id}`);
            setDisplayName(profile.full_name || user.email || '');
          } catch (err) {
            error(loggingLevel, "Index: Error fetching profile for display name:", err);

@@ -74,7 +74,7 @@ export const ActiveUserProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     info(loggingLevel, "ActiveUserProvider: Loading accessible users for user:", user.id);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/users/accessible-users?userId=${user.id}`);
+      const response = await fetch(`${API_BASE_URL}/api/auth/users/accessible-users?userId=${user.id}`);
       if (!response.ok) {
         const errorData = await response.json();
         error(loggingLevel, 'ActiveUserProvider: Error fetching accessible users from backend:', errorData);

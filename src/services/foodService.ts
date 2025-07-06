@@ -81,7 +81,7 @@ export const loadFoods = async (
 };
 
 export const togglePublicSharing = async (foodId: string, currentState: boolean): Promise<void> => {
-  return apiCall(`/api/foods/${foodId}/toggle-share`, {
+  return apiCall(`/api/foods/${foodId}`, {
     method: 'PUT',
     body: { shared_with_public: !currentState },
   });

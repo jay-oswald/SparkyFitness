@@ -66,7 +66,7 @@ export const deleteExercise = async (id: string, userId: string): Promise<void> 
 };
 
 export const updateExerciseShareStatus = async (id: string, sharedWithPublic: boolean): Promise<Exercise> => {
-  return apiCall(`/api/exercises/${id}/share`, {
+  return apiCall(`/api/exercises/${id}`, {
     method: 'PUT',
     body: { shared_with_public: sharedWithPublic },
   });

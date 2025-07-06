@@ -77,9 +77,6 @@ export const processFoodInput = async (userId: string, data: {
       // Continue even if search fails, will try broad search
     }
 
-    if (exactError) {
-      error(userLoggingLevel, '❌ [Nutrition Coach] Error searching for exact food match:', exactError);
-    }
     debug(userLoggingLevel, 'Exact search results:', exactFoods);
 
     let existingFoods = exactFoods;
@@ -101,13 +98,6 @@ export const processFoodInput = async (userId: string, data: {
       existingFoods = broadFoods;
     }
 
-    if (exactError || broadError) {
-      error(userLoggingLevel, '❌ [Nutrition Coach] Error during food search:', exactError || broadError);
-      return {
-        action: 'none',
-        response: 'Sorry, I had trouble accessing the food database. Please try again.'
-      };
-    }
 
     debug(userLoggingLevel, 'Final search results:', existingFoods);
 
@@ -239,7 +229,7 @@ export const addFoodOption = async (userId: string, optionIndex: number, origina
             // Selected option unit is different from base food unit, check/create variant
             let existingVariant = null;
             try {
-              existingVariant = await apiCall(`/api/food-variants/search?foodId=${foodId}&servingUnit=${encodeURIComponent(selectedOption.serving_unit)}`, {
+              existingVariant = await apiCall(`/api/food-variants?food_id=${foodId}&serving_unit=${encodeURIComponent(selectedOption.serving_unit)}`, {
                 method: 'GET',
               });
             } catch (err: any) {

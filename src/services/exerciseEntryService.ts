@@ -54,7 +54,7 @@ export const deleteExerciseEntry = async (entryId: string): Promise<void> => {
 
 export const searchExercises = async (query: string, filterType: string, userId: string): Promise<Exercise[]> => {
   const params = new URLSearchParams({ query, filterType, userId });
-  return apiCall(`/api/exercises/search?${params.toString()}`, {
+  return apiCall(`/api/exercises/search/${encodeURIComponent(query)}?filterType=${filterType}&userId=${userId}`, {
     method: 'GET',
   });
 };

@@ -21,7 +21,7 @@ interface UpdateCategoryData {
 }
 
 export const addCategory = async (categoryData: NewCategoryData): Promise<CustomCategory> => {
-  const response = await apiCall('/api/custom_categories', {
+  const response = await apiCall('/api/measurements/custom-categories', {
     method: 'POST',
     body: categoryData,
   });
@@ -29,7 +29,7 @@ export const addCategory = async (categoryData: NewCategoryData): Promise<Custom
 };
 
 export const updateCategory = async (id: string, categoryData: UpdateCategoryData): Promise<CustomCategory> => {
-  const response = await apiCall(`/api/custom_categories/${id}`, {
+  const response = await apiCall(`/api/measurements/custom-categories/${id}`, {
     method: 'PUT',
     body: categoryData,
   });
@@ -37,13 +37,13 @@ export const updateCategory = async (id: string, categoryData: UpdateCategoryDat
 };
 
 export const deleteCategory = async (id: string): Promise<void> => {
-  await apiCall(`/api/custom_categories/${id}`, {
+  await apiCall(`/api/measurements/custom-categories/${id}`, {
     method: 'DELETE',
   });
 };
 
 export const getCategories = async (userId: string): Promise<CustomCategory[]> => {
-  const response = await apiCall(`/api/custom_categories?user_id=${userId}`, {
+  const response = await apiCall(`/api/measurements/custom-categories?userId=${userId}`, {
     method: 'GET',
   });
   return response;

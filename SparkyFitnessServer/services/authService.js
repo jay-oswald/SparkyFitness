@@ -1,0 +1,290 @@
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
+const { v4: uuidv4 } = require('uuid');
+const { log } = require('../config/logging');
+const { JWT_SECRET } = require('../security/encryption');
+const userRepository = require('../models/userRepository');
+const familyAccessRepository = require('../models/familyAccessRepository');
+
+async function registerUser(email, password, full_name) {
+  try {
+    const saltRounds = 10;
+    const hashedPassword = await bcrypt.hash(password, saltRounds);
+    const userId = uuidv4();
+
+    await userRepository.createUser(userId, email, hashedPassword, full_name);
+
+    const token = jwt.sign({ userId: userId }, JWT_SECRET, { expiresIn: '1h' });
+    return { userId, token };
+  } catch (error) {
+    log('error', 'Error during user registration in authService:', error);
+    throw error;
+  }
+}
+
+async function loginUser(email, password) {
+  try {
+    const user = await userRepository.findUserByEmail(email);
+
+    if (!user || !(await bcrypt.compare(password, user.password_hash))) {
+      throw new Error('Invalid credentials.');
+    }
+
+    const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '1h' });
+    return { userId: user.id, token };
+  } catch (error) {
+    log('error', 'Error during user login in authService:', error);
+    throw error;
+  }
+}
+
+async function getUser(userId) {
+  try {
+    const user = await userRepository.findUserById(userId);
+    if (!user) {
+      throw new Error('User not found.');
+    }
+    return user;
+  } catch (error) {
+    log('error', `Error fetching user ${userId} in authService:`, error);
+    throw error;
+  }
+}
+
+async function findUserIdByEmail(email) {
+  try {
+    const user = await userRepository.findUserIdByEmail(email);
+    if (!user) {
+      throw new Error('User not found.');
+    }
+    return user.id;
+  } catch (error) {
+    log('error', `Error finding user by email ${email} in authService:`, error);
+    throw error;
+  }
+}
+
+async function generateUserApiKey(authenticatedUserId, targetUserId, description) {
+  try {
+    const newApiKey = uuidv4();
+    const apiKey = await userRepository.generateApiKey(targetUserId, newApiKey, description);
+    return apiKey;
+  } catch (error) {
+    log('error', `Error generating API key for user ${targetUserId} in authService:`, error);
+    throw error;
+  }
+}
+
+async function revokeUserApiKey(authenticatedUserId, targetUserId, apiKeyId) {
+  try {
+    const success = await userRepository.revokeApiKey(apiKeyId, targetUserId);
+    if (!success) {
+      throw new Error('API Key not found or already inactive for this user.');
+    }
+    return true;
+  } catch (error) {
+    log('error', `Error revoking API key ${apiKeyId} for user ${targetUserId} in authService:`, error);
+    throw error;
+  }
+}
+
+async function revokeAllUserApiKeys(authenticatedUserId, targetUserId) {
+  try {
+    await userRepository.revokeAllApiKeys(targetUserId);
+    return true;
+  } catch (error) {
+    log('error', `Error revoking all API keys for user ${targetUserId} in authService:`, error);
+    throw error;
+  }
+}
+
+async function getAccessibleUsers(userId) {
+  try {
+    const users = await userRepository.getAccessibleUsers(userId);
+    return users;
+  } catch (error) {
+    log('error', `Error fetching accessible users for user ${userId} in authService:`, error);
+    throw error;
+  }
+}
+
+async function getUserProfile(authenticatedUserId, targetUserId) {
+  try {
+    const profile = await userRepository.getUserProfile(targetUserId);
+    return profile;
+  } catch (error) {
+    log('error', `Error fetching profile for user ${targetUserId} in authService:`, error);
+    throw error;
+  }
+}
+
+async function updateUserProfile(authenticatedUserId, targetUserId, profileData) {
+  try {
+    const updatedProfile = await userRepository.updateUserProfile(
+      targetUserId,
+      profileData.full_name,
+      profileData.phone_number,
+      profileData.date_of_birth,
+      profileData.bio,
+      profileData.avatar_url
+    );
+    if (!updatedProfile) {
+      throw new Error('Profile not found or no changes made.');
+    }
+    return updatedProfile;
+  } catch (error) {
+    log('error', `Error updating profile for user ${targetUserId} in authService:`, error);
+    throw error;
+  }
+}
+
+async function getUserApiKeys(authenticatedUserId, targetUserId) {
+  try {
+    const apiKeys = await userRepository.getUserApiKeys(targetUserId);
+    return apiKeys;
+  } catch (error) {
+    log('error', `Error fetching API keys for user ${targetUserId} in authService:`, error);
+    throw error;
+  }
+}
+
+async function updateUserPassword(userId, newPassword) {
+  try {
+    const saltRounds = 10;
+    const hashedPassword = await bcrypt.hash(newPassword, saltRounds);
+    const success = await userRepository.updateUserPassword(userId, hashedPassword);
+    if (!success) {
+      throw new Error('User not found.');
+    }
+    return true;
+  } catch (error) {
+    log('error', `Error updating password for user ${userId} in authService:`, error);
+    throw error;
+  }
+}
+
+async function updateUserEmail(userId, newEmail) {
+  try {
+    const existingUser = await userRepository.findUserByEmail(newEmail);
+    if (existingUser && existingUser.id !== userId) {
+      throw new Error('Email already in use by another account.');
+    }
+    const success = await userRepository.updateUserEmail(userId, newEmail);
+    if (!success) {
+      throw new Error('User not found.');
+    }
+    return true;
+  } catch (error) {
+    log('error', `Error updating email for user ${userId} in authService:`, error);
+    throw error;
+  }
+}
+
+async function canAccessUserData(targetUserId, permissionType, currentUserId) {
+  try {
+    if (targetUserId === currentUserId) {
+      return true;
+    }
+    return true; // If targetUserId is currentUserId, access is always granted
+  } catch (error) {
+    log('error', `Error checking access for user ${targetUserId} by ${currentUserId} with permission ${permissionType} in authService:`, error);
+    throw error;
+  }
+}
+
+async function checkFamilyAccess(familyUserId, ownerUserId, permission) {
+  try {
+    const hasAccess = await familyAccessRepository.checkFamilyAccessPermission(familyUserId, ownerUserId, permission);
+    return hasAccess;
+  } catch (error) {
+    log('error', `Error checking family access for family user ${familyUserId} and owner ${ownerUserId} with permission ${permission} in authService:`, error);
+    throw error;
+  }
+}
+
+async function getFamilyAccessEntries(authenticatedUserId, targetUserId) {
+  try {
+    let entries;
+    if (authenticatedUserId === targetUserId) {
+      entries = await familyAccessRepository.getFamilyAccessEntriesByUserId(targetUserId);
+    } else {
+      entries = await familyAccessRepository.getFamilyAccessEntriesByOwner(targetUserId);
+    }
+    return entries;
+  } catch (error) {
+    log('error', `Error fetching family access entries for user ${targetUserId} in authService:`, error);
+    throw error;
+  }
+}
+
+async function createFamilyAccessEntry(authenticatedUserId, entryData) {
+  try {
+    const newEntry = await familyAccessRepository.createFamilyAccessEntry(
+      entryData.owner_user_id,
+      entryData.family_user_id,
+      entryData.family_email,
+      entryData.access_permissions,
+      entryData.access_end_date,
+      entryData.status
+    );
+    return newEntry;
+  } catch (error) {
+    log('error', `Error creating family access entry for owner ${entryData.owner_user_id} in authService:`, error);
+    throw error;
+  }
+}
+
+async function updateFamilyAccessEntry(authenticatedUserId, id, targetOwnerUserId, updateData) {
+  try {
+    const updatedEntry = await familyAccessRepository.updateFamilyAccessEntry(
+      id,
+      targetOwnerUserId,
+      updateData.access_permissions,
+      updateData.access_end_date,
+      updateData.is_active,
+      updateData.status
+    );
+    if (!updatedEntry) {
+      throw new Error('Family access entry not found or not authorized to update.');
+    }
+    return updatedEntry;
+  } catch (error) {
+    log('error', `Error updating family access entry ${id} for owner ${targetOwnerUserId} in authService:`, error);
+    throw error;
+  }
+}
+
+async function deleteFamilyAccessEntry(authenticatedUserId, id, targetOwnerUserId) {
+  try {
+    const success = await familyAccessRepository.deleteFamilyAccessEntry(id, targetOwnerUserId);
+    if (!success) {
+      throw new Error('Family access entry not found or not authorized to delete.');
+    }
+    return true;
+  } catch (error) {
+    log('error', `Error deleting family access entry ${id} for owner ${targetOwnerUserId} in authService:`, error);
+    throw error;
+  }
+}
+
+module.exports = {
+  registerUser,
+  loginUser,
+  getUser,
+  findUserIdByEmail,
+  generateUserApiKey,
+  revokeUserApiKey,
+  revokeAllUserApiKeys,
+  getAccessibleUsers,
+  getUserProfile,
+  updateUserProfile,
+  getUserApiKeys,
+  updateUserPassword,
+  updateUserEmail,
+  canAccessUserData,
+  checkFamilyAccess,
+  getFamilyAccessEntries,
+  createFamilyAccessEntry,
+  updateFamilyAccessEntry,
+  deleteFamilyAccessEntry,
+};

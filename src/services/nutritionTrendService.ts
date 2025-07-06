@@ -22,7 +22,7 @@ export const loadNutritionTrendData = async (
     startDate,
     endDate,
   });
-  return apiCall(`/api/nutrition-trends?${params.toString()}`, {
+  return apiCall(`/api/reports/nutrition-trends-with-goals?${params.toString()}`, {
     method: 'GET',
   });
 };

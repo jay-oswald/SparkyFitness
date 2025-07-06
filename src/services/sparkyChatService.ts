@@ -27,7 +27,7 @@ export const loadChatHistory = async (userId: string, autoClearHistory: string):
   const params = new URLSearchParams({
     autoClearHistory,
   });
-  const data = await apiCall(`/api/chat-history/${userId}?${params.toString()}`, {
+  const data = await apiCall(`/api/chat/sparky-chat-history/${userId}?${params.toString()}`, {
     method: 'GET',
   });
   return (data || []).map((item: any) => ({
@@ -45,16 +45,16 @@ export const saveMessageToHistory = async (
   messageType: 'user' | 'assistant',
   metadata?: any
 ): Promise<void> => {
-  await apiCall(`/api/chat-history/${userId}`, {
+  await apiCall(`/api/chat/save-history`, {
     method: 'POST',
-    body: { content, message_type: messageType, metadata },
+    body: { userId, content, messageType, metadata },
   });
 };
 
 export const clearChatHistory = async (userId: string, clearType: 'manual' | 'all'): Promise<void> => {
-  await apiCall(`/api/chat-history/${userId}/clear`, {
+  await apiCall(`/api/chat/${clearType === 'all' ? 'clear-all-history' : 'clear-old-history'}`, {
     method: 'POST',
-    body: { clear_type: clearType },
+    body: { userId },
   });
 };
 
@@ -76,7 +76,7 @@ export const processUserInput = async (
     formData.append('lastBotMessageMetadata', JSON.stringify(lastBotMessageMetadata));
   }
 
-  return apiCall('/api/chat/process-input', {
+  return apiCall('/api/chat', {
     method: 'POST',
     body: formData,
     headers: {

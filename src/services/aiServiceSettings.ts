@@ -16,45 +16,45 @@ interface UserPreferences {
 }
 
 export const getAIServices = async (userId: string): Promise<AIService[]> => {
-  const response = await apiCall(`/api/ai-service-settings?userId=${userId}`, {
+  const response = await apiCall(`/api/chat/ai-service-settings/${userId}`, {
     method: 'GET',
   });
   return response;
 };
 
 export const getPreferences = async (userId: string): Promise<UserPreferences> => {
-  const response = await apiCall(`/api/user-preferences?userId=${userId}`, {
+  const response = await apiCall(`/api/user-preferences/${userId}`, {
     method: 'GET',
   });
   return response;
 };
 
 export const addAIService = async (serviceData: AIService): Promise<AIService> => {
-  const response = await apiCall('/api/ai-service-settings', {
+  const response = await apiCall('/api/chat', {
     method: 'POST',
-    body: serviceData,
+    body: { action: 'save_ai_service_settings', service_data: serviceData },
   });
   return response;
 };
 
 export const updateAIService = async (serviceId: string, serviceData: Partial<AIService>): Promise<AIService> => {
-  const response = await apiCall(`/api/ai-service-settings/${serviceId}`, {
-    method: 'PUT',
-    body: serviceData,
+  const response = await apiCall('/api/chat', {
+    method: 'POST',
+    body: { action: 'save_ai_service_settings', service_data: { id: serviceId, ...serviceData } },
   });
   return response;
 };
 
 export const deleteAIService = async (serviceId: string): Promise<void> => {
-  await apiCall(`/api/ai-service-settings/${serviceId}`, {
+  await apiCall(`/api/chat/ai-service-settings/${serviceId}`, {
     method: 'DELETE',
   });
 };
 
 export const updateAIServiceStatus = async (serviceId: string, isActive: boolean): Promise<void> => {
-  await apiCall(`/api/ai-service-settings/${serviceId}/status`, {
-    method: 'PUT',
-    body: { is_active: isActive },
+  await apiCall('/api/chat', {
+    method: 'POST',
+    body: { action: 'save_ai_service_settings', service_data: { id: serviceId, is_active: isActive } },
   });
 };
 

@@ -19,7 +19,7 @@ const upsertCheckInMeasurement = async (payload: any) => {
 // Function to search for a custom category
 const searchCustomCategory = async (userId: string, name: string) => {
   try {
-    const data = await apiCall(`/api/measurements/custom-categories/${userId}/${encodeURIComponent(name)}`, {
+    const data = await apiCall(`/api/measurements/custom-categories?userId=${userId}&name=${encodeURIComponent(name)}`, {
       method: 'GET',
       suppress404Toast: true, // Suppress toast for 404 errors
     });

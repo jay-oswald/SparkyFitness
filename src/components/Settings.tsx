@@ -185,7 +185,7 @@ const Settings = () => {
     if (!user) return;
 
     try {
-      const data = await apiCall(`/api/profiles/${user.id}`, {
+      const data = await apiCall(`/api/auth/profiles/${user.id}`, {
         method: 'GET',
       });
       setProfile(data);
@@ -212,7 +212,7 @@ const Settings = () => {
 
     setLoading(true);
     try {
-      await apiCall(`/api/profiles/${user.id}`, {
+      await apiCall(`/api/auth/profiles/${user.id}`, {
         method: 'PUT', // Or PATCH, depending on backend implementation
         body: JSON.stringify({
           full_name: profileForm.full_name,
@@ -387,7 +387,7 @@ const Settings = () => {
       const publicUrl = `http://localhost:3010/uploads/${fileName}`; // Dummy URL
 
       // Update profile with new avatar URL
-      await apiCall(`/api/profiles/${user.id}`, {
+      await apiCall(`/api/auth/profiles/${user.id}`, {
         method: 'PUT',
         body: JSON.stringify({ avatar_url: publicUrl }),
       });
