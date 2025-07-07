@@ -22,44 +22,44 @@ export interface CustomMeasurement {
 }
 
 export const loadCustomCategories = async (): Promise<CustomCategory[]> => {
-  return apiCall(`/api/measurements/custom-categories`, {
+  return apiCall(`/measurements/custom-categories`, {
     method: 'GET',
   });
 };
 
 export const fetchRecentMeasurements = async (): Promise<CustomMeasurement[]> => {
-  return apiCall(`/api/measurements/custom-entries?limit=20&orderBy=entry_timestamp.desc&filter=value.gt.0`, {
+  return apiCall(`/measurements/custom-entries?limit=20&orderBy=entry_timestamp.desc&filter=value.gt.0`, {
     method: 'GET',
   });
 };
 
 export const handleDeleteMeasurement = async (measurementId: string): Promise<void> => {
-  await apiCall(`/api/measurements/custom-entries/${measurementId}`, {
+  await apiCall(`/measurements/custom-entries/${measurementId}`, {
     method: 'DELETE',
   });
 };
 
 export const loadExistingCheckInMeasurements = async (selectedDate: string): Promise<any> => {
-  return apiCall(`/api/measurements/check-in/${selectedDate}`, {
+  return apiCall(`/measurements/check-in/${selectedDate}`, {
     method: 'GET',
   });
 };
 
 export const loadExistingCustomMeasurements = async (selectedDate: string): Promise<CustomMeasurement[]> => {
-  return apiCall(`/api/measurements/custom-entries/${selectedDate}`, {
+  return apiCall(`/measurements/custom-entries/${selectedDate}`, {
     method: 'GET',
   });
 };
 
 export const saveCheckInMeasurements = async (payload: any): Promise<void> => {
-  await apiCall('/api/measurements/check-in', {
+  await apiCall('/measurements/check-in', {
     method: 'POST',
     body: payload,
   });
 };
 
 export const saveCustomMeasurement = async (payload: any): Promise<void> => {
-  await apiCall('/api/measurements/custom-entries', {
+  await apiCall('/measurements/custom-entries', {
     method: 'POST',
     body: payload,
   });

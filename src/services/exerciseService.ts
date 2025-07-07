@@ -40,33 +40,33 @@ export const loadExercises = async (
     itemsPerPage: itemsPerPage.toString(),
   }).toString();
 
-  return apiCall(`/api/exercises?${queryParams}`, {
+  return apiCall(`/exercises?${queryParams}`, {
     method: 'GET',
   });
 };
 
 export const createExercise = async (payload: ExercisePayload): Promise<Exercise> => {
-  return apiCall('/api/exercises', {
+  return apiCall('/exercises', {
     method: 'POST',
     body: payload,
   });
 };
 
 export const updateExercise = async (id: string, payload: Partial<ExercisePayload>): Promise<Exercise> => {
-  return apiCall(`/api/exercises/${id}`, {
+  return apiCall(`/exercises/${id}`, {
     method: 'PUT',
     body: payload,
   });
 };
 
 export const deleteExercise = async (id: string, userId: string): Promise<void> => {
-  return apiCall(`/api/exercises/${id}?userId=${userId}`, {
+  return apiCall(`/exercises/${id}?userId=${userId}`, {
     method: 'DELETE',
   });
 };
 
 export const updateExerciseShareStatus = async (id: string, sharedWithPublic: boolean): Promise<Exercise> => {
-  return apiCall(`/api/exercises/${id}`, {
+  return apiCall(`/exercises/${id}`, {
     method: 'PUT',
     body: { shared_with_public: sharedWithPublic },
   });

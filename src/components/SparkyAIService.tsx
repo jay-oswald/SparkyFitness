@@ -104,7 +104,7 @@ class SparkyAIService {
       // For now, we'll use a placeholder or assume it's handled by a higher-level component
       // that calls this service.
       // In a real app, you'd likely pass the user ID or get it from a global state/context.
-      const data = await apiCall(`/api/ai-service-settings`, {
+      const data = await apiCall(`/ai-service-settings`, {
         method: 'GET',
       });
 
@@ -255,7 +255,7 @@ class SparkyAIService {
             dataToSave[measurement.type] = valueToStore;
           }
 
-          const response = await apiCall('/api/measurements/check-in', {
+          const response = await apiCall('/measurements/check-in', {
             method: 'POST',
             body: dataToSave,
           });
@@ -878,7 +878,7 @@ class SparkyAIService {
           // Check if category exists
           let category: { id: string } | null = null;
           try {
-            category = await apiCall(`/api/measurements/custom-categories/${encodeURIComponent(categoryInfo.name)}`, {
+            category = await apiCall(`/measurements/custom-categories/${encodeURIComponent(categoryInfo.name)}`, {
               method: 'GET',
             });
           } catch (e: any) {
@@ -894,7 +894,7 @@ class SparkyAIService {
           if (!category || !category.id) {
             // Create category if it doesn't exist
             try {
-              const newCategory = await apiCall('/api/measurements/custom-categories', {
+              const newCategory = await apiCall('/measurements/custom-categories', {
                 method: 'POST',
                 body: {
                   name: categoryInfo.name,
@@ -911,7 +911,7 @@ class SparkyAIService {
 
           // Save the measurement
           try {
-            await apiCall('/api/measurements/custom-entries', {
+            await apiCall('/measurements/custom-entries', {
               method: 'POST',
               body: {
                 category_id: category.id,

@@ -5,7 +5,7 @@ import { apiCall } from './api'; // Import apiCall
 // Function to fetch current user details from the backend
 const fetchCurrentUser = async () => {
   try {
-    const user = await apiCall(`/api/auth/user`);
+    const user = await apiCall(`/auth/user`);
     return { user };
   } catch (error) {
     console.error("Error fetching current user:", error);
@@ -16,7 +16,7 @@ const fetchCurrentUser = async () => {
 // Function to fetch family access permissions from the backend
 const fetchFamilyAccessPermissions = async (userId: string) => {
   try {
-    const data = await apiCall(`/api/users/accessible-users`);
+    const data = await apiCall(`/users/accessible-users`);
     return data;
   } catch (error) {
     console.error("Error fetching family access permissions:", error);

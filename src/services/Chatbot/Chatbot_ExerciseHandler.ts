@@ -23,7 +23,7 @@ export const processExerciseInput = async (data: { exercise_name: string; durati
     let existingExercises = null;
     let searchError = null; // Re-declare searchError
     try {
-      existingExercises = await apiCall(`/api/exercises/search/${encodeURIComponent(exercise_name)}`, {
+      existingExercises = await apiCall(`/exercises/search/${encodeURIComponent(exercise_name)}`, {
         method: 'GET',
       });
     } catch (err: any) {
@@ -49,7 +49,7 @@ export const processExerciseInput = async (data: { exercise_name: string; durati
 
       let newExercise = null;
       try {
-        newExercise = await apiCall('/api/exercises', {
+        newExercise = await apiCall('/exercises', {
           method: 'POST',
           body: {
             name: exercise_name,
@@ -76,7 +76,7 @@ export const processExerciseInput = async (data: { exercise_name: string; durati
     // Add exercise entry
     let exerciseEntry = null;
     try {
-      exerciseEntry = await apiCall('/api/exercise-entries', {
+      exerciseEntry = await apiCall('/exercise-entries', {
         method: 'POST',
         body: {
           exercise_id: exerciseId,

@@ -16,21 +16,21 @@ interface UserPreferences {
 }
 
 export const getAIServices = async (userId: string): Promise<AIService[]> => {
-  const response = await apiCall(`/api/chat/ai-service-settings/${userId}`, {
+  const response = await apiCall(`/chat/ai-service-settings/${userId}`, {
     method: 'GET',
   });
   return response;
 };
 
 export const getPreferences = async (userId: string): Promise<UserPreferences> => {
-  const response = await apiCall(`/api/user-preferences/${userId}`, {
+  const response = await apiCall(`/user-preferences/${userId}`, {
     method: 'GET',
   });
   return response;
 };
 
 export const addAIService = async (serviceData: AIService): Promise<AIService> => {
-  const response = await apiCall('/api/chat', {
+  const response = await apiCall('/chat', {
     method: 'POST',
     body: { action: 'save_ai_service_settings', service_data: serviceData },
   });
@@ -38,7 +38,7 @@ export const addAIService = async (serviceData: AIService): Promise<AIService> =
 };
 
 export const updateAIService = async (serviceId: string, serviceData: Partial<AIService>): Promise<AIService> => {
-  const response = await apiCall('/api/chat', {
+  const response = await apiCall('/chat', {
     method: 'POST',
     body: { action: 'save_ai_service_settings', service_data: { id: serviceId, ...serviceData } },
   });
@@ -46,20 +46,20 @@ export const updateAIService = async (serviceId: string, serviceData: Partial<AI
 };
 
 export const deleteAIService = async (serviceId: string): Promise<void> => {
-  await apiCall(`/api/chat/ai-service-settings/${serviceId}`, {
+  await apiCall(`/chat/ai-service-settings/${serviceId}`, {
     method: 'DELETE',
   });
 };
 
 export const updateAIServiceStatus = async (serviceId: string, isActive: boolean): Promise<void> => {
-  await apiCall('/api/chat', {
+  await apiCall('/chat', {
     method: 'POST',
     body: { action: 'save_ai_service_settings', service_data: { id: serviceId, is_active: isActive } },
   });
 };
 
 export const updateUserPreferences = async (userId: string, preferences: UserPreferences): Promise<void> => {
-  await apiCall(`/api/user-preferences/${userId}`, {
+  await apiCall(`/user-preferences/${userId}`, {
     method: 'PUT',
     body: preferences,
   });

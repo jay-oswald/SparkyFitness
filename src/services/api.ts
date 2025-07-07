@@ -9,7 +9,7 @@ interface ApiCallOptions extends RequestInit {
 }
 
 
-export const API_BASE_URL = "__SPARKY_FITNESS_SERVER_URL__";
+export const API_BASE_URL = "/api";
 //export const API_BASE_URL = 'http://192.168.1.111:3010';
 
 export async function apiCall(endpoint: string, options?: ApiCallOptions): Promise<any> {

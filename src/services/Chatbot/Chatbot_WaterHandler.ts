@@ -6,7 +6,7 @@ import { apiCall } from '../api'; // Import apiCall
 // Function to fetch water intake from the backend
 const fetchWaterIntake = async (date: string) => {
   try {
-    const data = await apiCall(`/api/water-intake/${date}`, {
+    const data = await apiCall(`/water-intake/${date}`, {
       method: 'GET',
     });
     return data;
@@ -19,7 +19,7 @@ const fetchWaterIntake = async (date: string) => {
 // Function to upsert water intake to the backend
 const upsertWaterIntake = async (payload: { entry_date: string; glasses_consumed: number }) => {
   try {
-    const data = await apiCall('/api/water-intake', {
+    const data = await apiCall('/water-intake', {
       method: 'POST',
       body: payload,
     });

@@ -12,7 +12,7 @@ export interface FoodSuggestion {
 }
 
 export const createFoodInDatabase = async (foodSuggestion: FoodSuggestion, activeUserId: string): Promise<string> => {
-  const response = await apiCall('/api/foods/create-or-get', {
+  const response = await apiCall('/foods/create-or-get', {
     method: 'POST',
     body: { foodSuggestion, activeUserId },
   });
@@ -20,7 +20,7 @@ export const createFoodInDatabase = async (foodSuggestion: FoodSuggestion, activ
 };
 
 export const addFoodEntry = async (foodSuggestion: FoodSuggestion, foodId: string, activeUserId: string, targetDate: string): Promise<void> => {
-  await apiCall('/api/food-entries', {
+  await apiCall('/food-entries', {
     method: 'POST',
     body: {
       user_id: activeUserId,

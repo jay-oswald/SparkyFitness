@@ -48,34 +48,34 @@ export const loadFoods = async (
   params.append('itemsPerPage', itemsPerPage.toString());
   params.append('userId', userId);
   params.append('sortBy', sortBy); // Add sortBy parameter
-  const response = await apiCall(`/api/foods/foods-paginated?${params.toString()}`, {
+  const response = await apiCall(`/foods/foods-paginated?${params.toString()}`, {
     method: 'GET',
   });
   return response;
 };
 
 export const togglePublicSharing = async (foodId: string, currentState: boolean): Promise<void> => {
-  return apiCall(`/api/foods/${foodId}`, {
+  return apiCall(`/foods/${foodId}`, {
     method: 'PUT',
     body: { shared_with_public: !currentState },
   });
 };
 
 export const deleteFood = async (foodId: string, userId: string): Promise<void> => {
-  return apiCall(`/api/foods/${foodId}?userId=${userId}`, {
+  return apiCall(`/foods/${foodId}?userId=${userId}`, {
     method: 'DELETE',
   });
 };
 
 export const createFood = async (payload: FoodPayload): Promise<Food> => {
-  return apiCall('/api/foods', {
+  return apiCall('/foods', {
     method: 'POST',
     body: payload,
   });
 };
 
 export const updateFood = async (id: string, payload: Partial<FoodPayload>): Promise<Food> => {
-  return apiCall(`/api/foods/${id}`, {
+  return apiCall(`/foods/${id}`, {
     method: 'PUT',
     body: payload,
   });

@@ -29,7 +29,7 @@ const SparkyNutritionCoach = forwardRef<any, { userLoggingLevel: UserLoggingLeve
       let goalsData = null;
       let goalsError = null;
       try {
-        goalsData = await apiCall(`/api/goals/for-date?date=${date}`, { method: 'GET' });
+        goalsData = await apiCall(`/goals/for-date?date=${date}`, { method: 'GET' });
       } catch (err: any) {
         goalsError = err;
       }
@@ -44,7 +44,7 @@ const SparkyNutritionCoach = forwardRef<any, { userLoggingLevel: UserLoggingLeve
       let foodEntries = null;
       let foodError = null;
       try {
-        foodEntries = await apiCall(`/api/food-entries/${date}`, { method: 'GET' });
+        foodEntries = await apiCall(`/food-entries/${date}`, { method: 'GET' });
       } catch (err: any) {
         foodError = err;
       }
@@ -75,7 +75,7 @@ const SparkyNutritionCoach = forwardRef<any, { userLoggingLevel: UserLoggingLeve
       // Get exercise entries
       let exerciseEntries = null;
       try {
-        exerciseEntries = await apiCall(`/api/exercise-entries/${date}`, { method: 'GET' });
+        exerciseEntries = await apiCall(`/exercise-entries/${date}`, { method: 'GET' });
       } catch (err: any) {
         error(userLoggingLevel, '❌ [Nutrition Coach] Error loading exercise entries:', err);
       }

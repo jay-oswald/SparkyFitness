@@ -14,7 +14,7 @@ export const loadFoodEntries = async (userId: string, selectedDate: string): Pro
     userId,
     selectedDate,
   });
-  const data = await apiCall(`/api/foods/food-entries?${params.toString()}`, {
+  const data = await apiCall(`/foods/food-entries?${params.toString()}`, {
     method: 'GET',
     suppress404Toast: true, // Suppress toast for 404
   });
@@ -26,7 +26,7 @@ export const loadGoals = async (userId: string, selectedDate: string): Promise<G
     userId,
     selectedDate,
   });
-  const data = await apiCall(`/api/goals?${params.toString()}`, {
+  const data = await apiCall(`/goals?${params.toString()}`, {
     method: 'GET',
     suppress404Toast: true, // Suppress toast for 404
   });
@@ -42,14 +42,14 @@ export const addFoodEntry = async (payload: {
   variant_id?: string;
   entry_date: string;
 }): Promise<FoodEntry> => {
-  return apiCall('/api/foods/food-entries', {
+  return apiCall('/foods/food-entries', {
     method: 'POST',
     body: payload,
   });
 };
 
 export const removeFoodEntry = async (entryId: string): Promise<void> => {
-  return apiCall(`/api/foods/food-entries/${entryId}`, {
+  return apiCall(`/foods/food-entries/${entryId}`, {
     method: 'DELETE',
   });
 };

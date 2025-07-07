@@ -59,7 +59,7 @@ export interface CheckInMeasurement {
 
 export const getGoalsForDate = async (date: string): Promise<Goals | null> => {
   const params = new URLSearchParams({ date });
-  const data = await apiCall(`/api/goals/for-date?${params.toString()}`, {
+  const data = await apiCall(`/goals/for-date?${params.toString()}`, {
     method: 'GET',
     suppress404Toast: true, // Suppress toast for 404
   });
@@ -67,7 +67,7 @@ export const getGoalsForDate = async (date: string): Promise<Goals | null> => {
 };
 
 export const getFoodEntriesForDate = async (date: string): Promise<FoodEntry[]> => {
-  const data = await apiCall(`/api/foods/food-entries/${date}`, {
+  const data = await apiCall(`/foods/food-entries/${date}`, {
     method: 'GET',
     suppress404Toast: true, // Suppress toast for 404
   });
@@ -76,7 +76,7 @@ export const getFoodEntriesForDate = async (date: string): Promise<FoodEntry[]> 
 
 export const getExerciseEntriesForDate = async (date: string): Promise<ExerciseEntry[]> => {
   const params = new URLSearchParams({ selectedDate: date });
-  const data = await apiCall(`/api/exercise-entries/by-date?${params.toString()}`, {
+  const data = await apiCall(`/exercise-entries/by-date?${params.toString()}`, {
     method: 'GET',
     suppress404Toast: true, // Suppress toast for 404
   });
@@ -85,7 +85,7 @@ export const getExerciseEntriesForDate = async (date: string): Promise<ExerciseE
 
 export const getCheckInMeasurementsForDate = async (date: string): Promise<CheckInMeasurement | null> => {
   try {
-    const measurement = await apiCall(`/api/measurements/check-in/${date}`, {
+    const measurement = await apiCall(`/measurements/check-in/${date}`, {
       method: 'GET',
       suppress404Toast: true, // Suppress toast for 404
     });

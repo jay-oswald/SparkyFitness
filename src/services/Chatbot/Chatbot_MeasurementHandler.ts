@@ -5,7 +5,7 @@ import { apiCall } from '../api'; // Import apiCall
 // Function to upsert check-in measurements
 const upsertCheckInMeasurement = async (payload: any) => {
   try {
-    const data = await apiCall('/api/measurements/check-in', {
+    const data = await apiCall('/measurements/check-in', {
       method: 'POST',
       body: payload,
     });
@@ -19,7 +19,7 @@ const upsertCheckInMeasurement = async (payload: any) => {
 // Function to search for a custom category
 const searchCustomCategory = async (name: string) => {
   try {
-    const data = await apiCall(`/api/measurements/custom-categories?name=${encodeURIComponent(name)}`, {
+    const data = await apiCall(`/measurements/custom-categories?name=${encodeURIComponent(name)}`, {
       method: 'GET',
       suppress404Toast: true, // Suppress toast for 404 errors
     });
@@ -38,7 +38,7 @@ const searchCustomCategory = async (name: string) => {
 // Function to create a custom category
 const createCustomCategory = async (payload: { name: string; frequency: string; measurement_type: string }) => {
   try {
-    const data = await apiCall('/api/measurements/custom-categories', {
+    const data = await apiCall('/measurements/custom-categories', {
       method: 'POST',
       body: payload,
     });
@@ -52,7 +52,7 @@ const createCustomCategory = async (payload: { name: string; frequency: string; 
 // Function to insert custom measurement entry
 const insertCustomMeasurement = async (payload: { category_id: string; entry_date: string; value: number; entry_timestamp: string }) => {
   try {
-    const data = await apiCall('/api/measurements/custom-entries', {
+    const data = await apiCall('/measurements/custom-entries', {
       method: 'POST',
       body: payload,
     });

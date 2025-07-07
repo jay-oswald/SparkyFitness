@@ -6,7 +6,7 @@ interface FoodEntryUpdateData {
 }
 
 export const updateFoodEntry = async (id: string, data: FoodEntryUpdateData): Promise<any> => {
-  const response = await apiCall(`/api/food-entries/${id}`, {
+  const response = await apiCall(`/food-entries/${id}`, {
     method: 'PUT',
     body: data,
   });
@@ -24,7 +24,7 @@ export interface FoodEntryCreateData {
 }
 
 export const createFoodEntry = async (data: FoodEntryCreateData): Promise<any> => {
-  const response = await apiCall('/api/food-entries', {
+  const response = await apiCall('/food-entries', {
     method: 'POST',
     body: data,
   });

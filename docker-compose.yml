@@ -13,18 +13,6 @@ services:
     networks:
       - default # Use default bridge network
 
-  sparkyfitness-frontend:
-    image: codewithcj/sparkyfitness:latest # Use pre-built image
-    environment:
-      SPARKY_FITNESS_SERVER_URL: ${SPARKY_FITNESS_SERVER_URL}
-    ports:
-      - "3004:3000" # Frontend port
-    networks:
-      - default # Use default bridge network
-    restart: always
-    depends_on:
-      - sparkyfitness-db # Frontend depends on the database being available
-
   sparkyfitness-server:
     image: codewithcj/sparkyfitness_server:latest # Use pre-built image
     ports:
@@ -46,6 +34,16 @@ services:
     depends_on:
       - sparkyfitness-db # Backend depends on the database being available
 
+
+  sparkyfitness-frontend:
+    image: codewithcj/sparkyfitness:latest # Use pre-built image
+    ports:
+      - "3004:80" # Map host port 8080 to container port 80 (Nginx)
+    networks:
+      - default # Use default bridge network
+    restart: always
+    depends_on:
+      - sparkyfitness-server # Frontend depends on the server
 networks:
   default:
     driver: bridge

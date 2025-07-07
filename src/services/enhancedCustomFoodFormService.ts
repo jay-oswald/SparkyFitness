@@ -3,7 +3,7 @@ import { apiCall } from './api';
 import { Food, FoodVariant } from '@/types/food';
 
 export const loadFoodVariants = async (foodId: string): Promise<FoodVariant[]> => {
-  return apiCall(`/api/foods/food-variants?food_id=${foodId}`, {
+  return apiCall(`/foods/food-variants?food_id=${foodId}`, {
     method: 'GET',
     suppress404Toast: true, // Suppress toast for 404 errors, return empty array instead
   });
@@ -14,7 +14,7 @@ export const saveFood = async (foodData: Food, variants: FoodVariant[], userId: 
 
   if (foodId) {
     // Update existing food
-    savedFood = await apiCall(`/api/foods/${foodId}`, {
+    savedFood = await apiCall(`/foods/${foodId}`, {
       method: 'PUT',
       body: foodData,
     });
@@ -28,7 +28,7 @@ export const saveFood = async (foodData: Food, variants: FoodVariant[], userId: 
 
     // Update existing variants
     for (const variant of variantsToUpdate) {
-      await apiCall(`/api/foods/food-variants/${variant.id}`, {
+      await apiCall(`/foods/food-variants/${variant.id}`, {
         method: 'PUT',
         body: {
           food_id: foodId, // Ensure food_id is passed for authorization/validation
@@ -81,7 +81,7 @@ export const saveFood = async (foodData: Food, variants: FoodVariant[], userId: 
         iron: variant.iron,
         is_default: variant.is_default || false, // Pass is_default flag
       }));
-      await apiCall('/api/foods/food-variants/bulk', {
+      await apiCall('/foods/food-variants/bulk', {
         method: 'POST',
         body: newVariantsData,
       });
@@ -89,7 +89,7 @@ export const saveFood = async (foodData: Food, variants: FoodVariant[], userId: 
 
     // Delete removed variants
     for (const variantToDelete of variantsToDelete) {
-      await apiCall(`/api/foods/food-variants/${variantToDelete.id}`, {
+      await apiCall(`/foods/food-variants/${variantToDelete.id}`, {
         method: 'DELETE',
       });
     }
@@ -125,7 +125,7 @@ export const saveFood = async (foodData: Food, variants: FoodVariant[], userId: 
       is_default: true, // Explicitly mark as default for new food creation
     };
 
-    savedFood = await apiCall('/api/foods', {
+    savedFood = await apiCall('/foods', {
       method: 'POST',
       body: foodToCreate,
     });
@@ -156,7 +156,7 @@ export const saveFood = async (foodData: Food, variants: FoodVariant[], userId: 
     }));
 
     if (additionalVariantsToInsert.length > 0) {
-      await apiCall('/api/foods/food-variants/bulk', {
+      await apiCall('/foods/food-variants/bulk', {
         method: 'POST',
         body: additionalVariantsToInsert,
       });

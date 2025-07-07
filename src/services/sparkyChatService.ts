@@ -15,7 +15,7 @@ export interface UserPreferences {
 }
 
 export const loadUserPreferences = async (): Promise<UserPreferences> => {
-  const data = await apiCall(`/api/user-preferences`, {
+  const data = await apiCall(`/user-preferences`, {
     method: 'GET',
   });
   const preferences = data || { auto_clear_history: 'never', logging_level: 'WARN' };
@@ -27,7 +27,7 @@ export const loadChatHistory = async (autoClearHistory: string): Promise<Message
   const params = new URLSearchParams({
     autoClearHistory,
   });
-  const data = await apiCall(`/api/chat/sparky-chat-history?${params.toString()}`, {
+  const data = await apiCall(`/chat/sparky-chat-history?${params.toString()}`, {
     method: 'GET',
   });
   return (data || []).map((item: any) => ({
@@ -44,14 +44,14 @@ export const saveMessageToHistory = async (
   messageType: 'user' | 'assistant',
   metadata?: any
 ): Promise<void> => {
-  await apiCall(`/api/chat/save-history`, {
+  await apiCall(`/chat/save-history`, {
     method: 'POST',
     body: { content, messageType, metadata },
   });
 };
 
 export const clearChatHistory = async (clearType: 'manual' | 'all'): Promise<void> => {
-  await apiCall(`/api/chat/${clearType === 'all' ? 'clear-all-history' : 'clear-old-history'}`, {
+  await apiCall(`/chat/${clearType === 'all' ? 'clear-all-history' : 'clear-old-history'}`, {
     method: 'POST',
     body: {}, // No body needed, user is identified by JWT
   });
@@ -73,7 +73,7 @@ export const processUserInput = async (
     formData.append('lastBotMessageMetadata', JSON.stringify(lastBotMessageMetadata));
   }
 
-  return apiCall('/api/chat', {
+  return apiCall('/chat', {
     method: 'POST',
     body: formData,
     headers: {
@@ -84,7 +84,7 @@ export const processUserInput = async (
 
 export const getTodaysNutrition = async (date: string): Promise<any> => {
   const params = new URLSearchParams({ date });
-  return apiCall(`/api/nutrition/today?${params.toString()}`, {
+  return apiCall(`/nutrition/today?${params.toString()}`, {
     method: 'GET',
   });
 };

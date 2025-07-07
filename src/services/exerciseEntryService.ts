@@ -37,14 +37,14 @@ export const addExerciseEntry = async (payload: {
   entry_date: string;
   notes?: string;
 }): Promise<ExerciseEntry> => {
-  return apiCall('/api/exercise-entries', {
+  return apiCall('/exercise-entries', {
     method: 'POST',
     body: payload,
   });
 };
 
 export const deleteExerciseEntry = async (entryId: string): Promise<void> => {
-  return apiCall(`/api/exercise-entries/${entryId}`, {
+  return apiCall(`/exercise-entries/${entryId}`, {
     method: 'DELETE',
   });
 };
@@ -54,7 +54,7 @@ export const searchExercises = async (query: string, filterType: string): Promis
     return [];
   }
   const params = new URLSearchParams({ searchTerm: query, ownershipFilter: filterType });
-  const data = await apiCall(`/api/exercises?${params.toString()}`, {
+  const data = await apiCall(`/exercises?${params.toString()}`, {
     method: 'GET',
     suppress404Toast: true, // Suppress toast for 404
   });

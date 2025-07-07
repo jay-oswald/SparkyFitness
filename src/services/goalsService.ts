@@ -23,7 +23,7 @@ export interface ExpandedGoals {
 
 export const loadGoals = async (userId: string, selectedDate: string): Promise<ExpandedGoals> => {
   const params = new URLSearchParams({ userId, selectedDate });
-  const data = await apiCall(`/api/goals?${params.toString()}`, {
+  const data = await apiCall(`/goals?${params.toString()}`, {
     method: 'GET',
   });
   return data[0] || {
@@ -49,7 +49,7 @@ export const loadGoals = async (userId: string, selectedDate: string): Promise<E
 };
 
 export const saveGoals = async (userId: string, selectedDate: string, goals: ExpandedGoals): Promise<void> => {
-  await apiCall('/api/goals', {
+  await apiCall('/goals', {
     method: 'POST',
     body: {
       p_user_id: userId,

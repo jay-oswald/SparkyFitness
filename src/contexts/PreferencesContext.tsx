@@ -13,7 +13,7 @@ import { apiCall } from '@/services/api'; // Import apiCall
 // Function to fetch user preferences from the backend
 const fetchUserPreferences = async (userId: string) => {
   try {
-    const data = await apiCall(`/api/user-preferences`, {
+    const data = await apiCall(`/user-preferences`, {
       method: 'GET',
       suppress404Toast: true, // Suppress toast for 404 errors
     });
@@ -33,7 +33,7 @@ const fetchUserPreferences = async (userId: string) => {
 // Function to upsert user preferences to the backend
 const upsertUserPreferences = async (payload: any) => {
   try {
-    const data = await apiCall('/api/user-preferences', {
+    const data = await apiCall('/user-preferences', {
       method: 'POST',
       body: payload,
     });

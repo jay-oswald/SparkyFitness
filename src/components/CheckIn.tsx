@@ -232,7 +232,6 @@ const CheckIn = () => {
     try {
       // Save standard check-in measurements
       const measurementData: any = {
-        user_id: currentUserId,
         entry_date: selectedDate, // Use selectedDate directly
       };
 
@@ -265,7 +264,6 @@ const CheckIn = () => {
             }
 
             const customMeasurementData = {
-              user_id: currentUserId,
               category_id: categoryId,
               value: isConvertible && !isNaN(parseFloat(value))
                 ? convertMeasurement(parseFloat(value), displayMeasurementUnit, 'cm')

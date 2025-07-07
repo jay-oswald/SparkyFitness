@@ -67,7 +67,7 @@ const GoalsSettings = () => {
       
       const today = new Date().toISOString().split('T')[0];
       
-      const data = await apiCall(`${API_BASE_URL}/api/goals/for-date?date=${today}`, {
+      const data = await apiCall(`/goals/for-date?date=${today}`, {
         method: 'GET',
       });
 
@@ -109,7 +109,7 @@ const GoalsSettings = () => {
       
       const today = new Date().toISOString().split('T')[0];
       
-      await apiCall(`${API_BASE_URL}/api/goals/manage-timeline`, {
+      await apiCall(`/goals/manage-timeline`, {
         method: 'POST',
         body: JSON.stringify({
           userId: user.id,

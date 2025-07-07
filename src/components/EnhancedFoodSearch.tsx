@@ -59,7 +59,7 @@ const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
   // Load food data providers and set default
   useEffect(() => {
     const loadFoodDataProviders = async () => {
-      const data = await apiCall(`/api/foods/food-data-providers`);
+      const data = await apiCall(`/foods/food-data-providers`);
       const error = null; // apiCall handles errors internally with toast, so we can assume data is valid if no error is thrown
 
       if (error) {
@@ -87,7 +87,7 @@ const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
     if (!searchTerm.trim()) return;
     
     setLoading(true);
-    const data = await apiCall(`/api/foods?name=${encodeURIComponent(searchTerm)}&broadMatch=true`);
+    const data = await apiCall(`/foods?name=${encodeURIComponent(searchTerm)}&broadMatch=true`);
     const error = null; // apiCall handles errors internally with toast, so we can assume data is valid if no error is thrown
 
     if (error) {
@@ -107,7 +107,7 @@ const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
     
     setLoading(true);
     try {
-      const data = await apiCall(`/api/foods/openfoodfacts/search?query=${encodeURIComponent(searchTerm)}`);
+      const data = await apiCall(`/foods/openfoodfacts/search?query=${encodeURIComponent(searchTerm)}`);
       
       if (data.products) {
         setOpenFoodFactsResults(data.products.filter((p: any) =>
@@ -127,7 +127,7 @@ const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
   const searchOpenFoodFactsByBarcode = async (barcode: string) => {
    setLoading(true);
    try {
-     const data = await apiCall(`/api/foods/openfoodfacts/barcode/${barcode}`);
+     const data = await apiCall(`/foods/openfoodfacts/barcode/${barcode}`);
 
      if (data.status === 1 && data.product) {
        setOpenFoodFactsResults([data.product]);

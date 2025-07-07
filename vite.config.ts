@@ -8,6 +8,12 @@ export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
     port: 8080,
+    proxy: {
+      '/api': {
+        target: 'http://localhost:3010',
+        changeOrigin: true,
+      },
+    },
   },
   envDir: './private', // Specify the directory for .env files
   plugins: [

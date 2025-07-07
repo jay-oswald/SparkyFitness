@@ -5,6 +5,8 @@ export interface Food {
   is_custom?: boolean;
   user_id?: string;
   shared_with_public?: boolean;
+  provider_external_id?: string; // Add this line
+  provider_type?: 'openfoodfacts' | 'nutritionix' | 'fatsecret'; // Add this line
   default_variant?: FoodVariant; // Add this line
   // These fields are now part of the default FoodVariant, but are also passed directly to createFood
   serving_size?: number;

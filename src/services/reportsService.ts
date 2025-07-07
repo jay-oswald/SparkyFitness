@@ -112,7 +112,7 @@ export const loadReportsData = async (
     startDate,
     endDate,
   });
-  const response = await apiCall(`/api/reports?${params.toString()}`, {
+  const response = await apiCall(`/reports?${params.toString()}`, {
     method: 'GET',
   });
   return response;

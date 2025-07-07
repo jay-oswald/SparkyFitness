@@ -74,7 +74,7 @@ export const ActiveUserProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     info(loggingLevel, "ActiveUserProvider: Loading accessible users for user:", user.id);
 
     try {
-      const data = await apiCall(`/api/auth/users/accessible-users`);
+      const data = await apiCall(`/auth/users/accessible-users`);
 
       info(loggingLevel, 'ActiveUserProvider: Accessible users data received:', data);
       

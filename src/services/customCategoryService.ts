@@ -10,7 +10,7 @@ export interface CustomCategory {
 }
 
 export const getCategories = async (loggingLevel: UserLoggingLevel): Promise<CustomCategory[]> => {
-  const response = await apiCall(`/api/measurements/custom-categories`, {
+  const response = await apiCall(`/measurements/custom-categories`, {
     method: 'GET',
     suppress404Toast: true,
   });
@@ -26,7 +26,7 @@ export const getCategories = async (loggingLevel: UserLoggingLevel): Promise<Cus
 };
 
 export const addCategory = async (categoryData: { user_id: string; name: string; measurement_type: string; frequency: string }, loggingLevel: UserLoggingLevel): Promise<CustomCategory> => {
-  const response = await apiCall('/api/measurements/custom-categories', {
+  const response = await apiCall('/measurements/custom-categories', {
     method: 'POST',
     body: categoryData,
   });
@@ -40,7 +40,7 @@ export const addCategory = async (categoryData: { user_id: string; name: string;
 };
 
 export const updateCategory = async (categoryId: string, categoryData: { name: string; measurement_type: string; frequency: string }, loggingLevel: UserLoggingLevel): Promise<CustomCategory> => {
-  const response = await apiCall(`/api/measurements/custom-categories/${categoryId}`, {
+  const response = await apiCall(`/measurements/custom-categories/${categoryId}`, {
     method: 'PUT',
     body: categoryData,
   });
@@ -54,7 +54,7 @@ export const updateCategory = async (categoryId: string, categoryData: { name: s
 };
 
 export const deleteCategory = async (categoryId: string, loggingLevel: UserLoggingLevel): Promise<void> => {
-  return apiCall(`/api/measurements/custom-categories/${categoryId}`, {
+  return apiCall(`/measurements/custom-categories/${categoryId}`, {
     method: 'DELETE',
   });
 };

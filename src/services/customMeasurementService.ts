@@ -22,31 +22,31 @@ export interface CustomMeasurement {
 }
 
 export const getCustomCategories = async (userId: string): Promise<CustomCategory[]> => {
-  return apiCall(`/api/measurements/custom-categories?userId=${userId}`, {
+  return apiCall(`/measurements/custom-categories?userId=${userId}`, {
     method: 'GET',
   });
 };
 
 export const getCustomMeasurements = async (userId: string): Promise<CustomMeasurement[]> => {
-  return apiCall(`/api/measurements/custom-entries?userId=${userId}`, {
+  return apiCall(`/measurements/custom-entries?userId=${userId}`, {
     method: 'GET',
   });
 };
 
 export const getCustomMeasurementsForDate = async (userId: string, date: string): Promise<CustomMeasurement[]> => {
-  return apiCall(`/api/measurements/custom-entries/${userId}/${date}`, {
+  return apiCall(`/measurements/custom-entries/${userId}/${date}`, {
     method: 'GET',
   });
 };
 
 export const saveCustomMeasurement = async (measurementData: any, frequency: string): Promise<CustomMeasurement> => {
   if (frequency === 'All') {
-    return apiCall('/api/measurements/custom-entries', {
+    return apiCall('/measurements/custom-entries', {
       method: 'POST',
       body: measurementData,
     });
   } else {
-    return apiCall('/api/measurements/custom-entries', {
+    return apiCall('/measurements/custom-entries', {
       method: 'PUT',
       body: measurementData,
     });
@@ -54,7 +54,7 @@ export const saveCustomMeasurement = async (measurementData: any, frequency: str
 };
 
 export const deleteCustomMeasurement = async (measurementId: string): Promise<void> => {
-  return apiCall(`/api/measurements/custom-entries/${measurementId}`, {
+  return apiCall(`/measurements/custom-entries/${measurementId}`, {
     method: 'DELETE',
   });
 };

@@ -10,7 +10,7 @@ export interface Exercise {
 
 export const searchExercises = async (query: string): Promise<Exercise[]> => {
   const params = new URLSearchParams({ query });
-  return apiCall(`/api/exercises/search/${encodeURIComponent(query)}`, {
+  return apiCall(`/exercises/search/${encodeURIComponent(query)}`, {
     method: 'GET',
   });
 };

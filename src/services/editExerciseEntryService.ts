@@ -16,7 +16,7 @@ export interface ExerciseEntry {
 }
 
 export const fetchExerciseDetails = async (exerciseId: string): Promise<{ calories_per_hour: number }> => {
-  return apiCall(`/api/exercises/${exerciseId}`, {
+  return apiCall(`/exercises/${exerciseId}`, {
     method: 'GET',
   });
 };
@@ -26,7 +26,7 @@ export const updateExerciseEntry = async (entryId: string, payload: {
   calories_burned: number;
   notes?: string;
 }): Promise<void> => {
-  await apiCall(`/api/exercise-entries/${entryId}`, {
+  await apiCall(`/exercise-entries/${entryId}`, {
     method: 'PUT',
     body: payload,
   });

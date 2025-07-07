@@ -213,7 +213,7 @@ async function searchFoods(name, userId, exactMatch, broadMatch, checkCustom) {
   try {
     let query = `
       SELECT
-        f.id, f.name, f.brand, f.is_custom, f.user_id, f.shared_with_public,
+        f.id, f.name, f.brand, f.is_custom, f.user_id, f.shared_with_public, f.provider_external_id, f.provider_type,
         json_build_object(
           'id', fv.id,
           'serving_size', fv.serving_size,

@@ -69,7 +69,7 @@ export const processFoodInput = async (data: {
     debug(userLoggingLevel, 'Searching for exact food match:', food_name);
     let exactFoods = null;
     try {
-      exactFoods = await apiCall(`/api/foods/search?name=${encodeURIComponent(food_name)}&exactMatch=true`, {
+      exactFoods = await apiCall(`/foods/search?name=${encodeURIComponent(food_name)}&exactMatch=true`, {
         method: 'GET',
       });
     } catch (err: any) {
@@ -87,7 +87,7 @@ export const processFoodInput = async (data: {
       debug(userLoggingLevel, 'No exact match found, searching broadly for:', food_name);
       let broadFoods = null;
       try {
-        broadFoods = await apiCall(`/api/foods/search?name=${encodeURIComponent(food_name)}&broadMatch=true`, {
+        broadFoods = await apiCall(`/foods/search?name=${encodeURIComponent(food_name)}&broadMatch=true`, {
           method: 'GET',
         });
       } catch (err: any) {
@@ -129,7 +129,7 @@ export const processFoodInput = async (data: {
       info(userLoggingLevel, 'Inserting food entry...');
       let insertError = null;
       try {
-        await apiCall('/api/food-entries', {
+        await apiCall('/food-entries', {
           method: 'POST',
           body: {
             food_id: food.id,
@@ -205,7 +205,7 @@ export const addFoodOption = async (optionIndex: number, originalMetadata: any, 
     // 1. Check if the food name already exists in the 'foods' table for the user
     let existingFoods = null;
     try {
-      existingFoods = await apiCall(`/api/foods/search?name=${encodeURIComponent(selectedOption.name)}&exactMatch=true&checkCustom=true`, {
+      existingFoods = await apiCall(`/foods/search?name=${encodeURIComponent(selectedOption.name)}&exactMatch=true&checkCustom=true`, {
         method: 'GET',
       });
     } catch (err: any) {
@@ -228,7 +228,7 @@ export const addFoodOption = async (optionIndex: number, originalMetadata: any, 
             // Selected option unit is different from base food unit, check/create variant
             let existingVariant = null;
             try {
-              existingVariant = await apiCall(`/api/food-variants?food_id=${foodId}&serving_unit=${encodeURIComponent(selectedOption.serving_unit)}`, {
+              existingVariant = await apiCall(`/food-variants?food_id=${foodId}&serving_unit=${encodeURIComponent(selectedOption.serving_unit)}`, {
                 method: 'GET',
               });
             } catch (err: any) {
@@ -248,7 +248,7 @@ export const addFoodOption = async (optionIndex: number, originalMetadata: any, 
                 info(userLoggingLevel, `[${transactionId}] Creating new food variant for existing food:`, selectedOption.name);
                 let newVariant = null;
                 try {
-                  newVariant = await apiCall('/api/food-variants', {
+                  newVariant = await apiCall('/food-variants', {
                     method: 'POST',
                     body: {
                       food_id: foodId,
@@ -288,7 +288,7 @@ export const addFoodOption = async (optionIndex: number, originalMetadata: any, 
         info(userLoggingLevel, `[${transactionId}] Creating new food entry:`, selectedOption.name);
         let newFood = null;
         try {
-          newFood = await apiCall('/api/foods', {
+          newFood = await apiCall('/foods', {
             method: 'POST',
             body: {
               name: selectedOption.name,
@@ -328,7 +328,6 @@ export const addFoodOption = async (optionIndex: number, originalMetadata: any, 
     // Then, add it to the diary
     debug(userLoggingLevel, `[${transactionId}] Preparing to insert food entry. Selected Option:`, selectedOption);
     debug(userLoggingLevel, `[${transactionId}] Food Entry Details:`, {
-        userId,
         foodId,
         mealType,
         quantity,
@@ -338,7 +337,7 @@ export const addFoodOption = async (optionIndex: number, originalMetadata: any, 
     });
     let entryError = null;
     try {
-      await apiCall('/api/food-entries', {
+      await apiCall('/food-entries', {
         method: 'POST',
         body: {
           food_id: foodId,

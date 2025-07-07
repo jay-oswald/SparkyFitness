@@ -4,7 +4,7 @@ import { apiCall } from './api'; // Import apiCall
 // Function to fetch food data provider details from your backend
 const fetchFoodDataProvider = async (providerId: string) => {
   try {
-    const data = await apiCall(`/api/foods/food-data-providers/${providerId}`);
+    const data = await apiCall(`/foods/food-data-providers/${providerId}`);
     return data;
   } catch (error) {
     console.error("Error fetching food data provider:", error);
@@ -81,7 +81,7 @@ export const searchNutritionixFoods = async (query: string, defaultFoodDataProvi
   };
 
   try {
-    const data: NutritionixInstantSearchResponse = await apiCall(`/api/foods/nutritionix/search?query=${encodeURIComponent(query)}&providerId=${defaultFoodDataProviderId}`);
+    const data: NutritionixInstantSearchResponse = await apiCall(`/foods/nutritionix/search?query=${encodeURIComponent(query)}&providerId=${defaultFoodDataProviderId}`);
     const commonFoods = (data.common || []).map((item) => ({
       id: item.food_name, // Use food_name as a temporary ID for common foods
       name: item.food_name,
@@ -147,7 +147,7 @@ export const getNutritionixNutrients = async (query: string, defaultFoodDataProv
   };
 
   try {
-    const data: any = await apiCall(`/api/foods/nutritionix/nutrients?query=${encodeURIComponent(query)}&providerId=${defaultFoodDataProviderId}`);
+    const data: any = await apiCall(`/foods/nutritionix/nutrients?query=${encodeURIComponent(query)}&providerId=${defaultFoodDataProviderId}`);
     if (data) {
       return {
         name: data.name,
@@ -208,7 +208,7 @@ export const getNutritionixBrandedNutrients = async (nixItemId: string, defaultF
   };
 
   try {
-    const data: any = await apiCall(`/api/foods/nutritionix/item?nix_item_id=${nixItemId}&providerId=${defaultFoodDataProviderId}`);
+    const data: any = await apiCall(`/foods/nutritionix/item?nix_item_id=${nixItemId}&providerId=${defaultFoodDataProviderId}`);
     if (data) {
       return {
         name: data.name,

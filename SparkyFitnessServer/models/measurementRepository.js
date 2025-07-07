@@ -146,6 +146,7 @@ async function upsertCheckInMeasurements(userId, entryDate, measurements) {
       const placeholders = cols.map((_, index) => `$${index + 1}`).join(', ');
       values = [userId, entryDate, ...Object.values(measurements), new Date().toISOString(), new Date().toISOString()];
       query = `INSERT INTO check_in_measurements (${cols.join(', ')}) VALUES (${placeholders}) RETURNING *`;
+      query = `INSERT INTO check_in_measurements (${cols.join(', ')}) VALUES (${placeholders}) RETURNING *`;
     }
 
     const result = await client.query(query, values);
@@ -409,7 +410,10 @@ async function upsertCustomMeasurement(userId, categoryId, value, entryDate, ent
         VALUES ($1, $2, $3, $4, $5, $6, now(), now())
         RETURNING *
       `;
-      values = [userId, categoryId, value, entryDate, entryHour, entryTimestamp];
+      // Ensure userId is the first value, then categoryId, then value, etc.
+      // Filter out user_id if it somehow made it into the incoming payload for custom measurements
+      const filteredCustomValues = [categoryId, value, entryDate, entryHour, entryTimestamp];
+      values = [userId, ...filteredCustomValues];
     }
 
     const result = await client.query(query, values);

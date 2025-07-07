@@ -15,7 +15,7 @@ export const fileToBase64 = (file: File): Promise<string> => {
 export const saveMessageToHistory = async (content: string, messageType: 'user' | 'assistant', metadata?: any) => {
   try {
     debug(null, 'Attempting to save message to history:', { content, messageType, metadata }); // Added logging
-    await apiCall('/api/chat/save-history', {
+    await apiCall('/chat/save-history', {
       method: 'POST',
       body: { content, messageType, metadata },
     });
@@ -32,7 +32,7 @@ export const clearHistory = async (autoClearPreference: string) => {
     if (autoClearPreference === 'session' || autoClearPreference === 'all' || autoClearPreference === 'manual') {
       info(null, `Clearing all chat history.`);
       try {
-        await apiCall('/api/chat/clear-all-history', {
+        await apiCall('/chat/clear-all-history', {
           method: 'POST',
           body: {}, // No body needed, user is identified by JWT
         });
@@ -43,7 +43,7 @@ export const clearHistory = async (autoClearPreference: string) => {
     } else if (autoClearPreference === '7days') {
       info(null, `Calling backend to clear old chat history.`);
       try {
-        await apiCall('/api/chat/clear-old-history', {
+        await apiCall('/chat/clear-old-history', {
           method: 'POST',
           // No body needed for this endpoint based on current backend implementation
         });

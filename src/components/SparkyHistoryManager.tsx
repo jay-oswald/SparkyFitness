@@ -30,7 +30,7 @@ const SparkyHistoryManager = ({ onClose }: SparkyHistoryManagerProps) => {
     let data = null;
     let error = null;
     try {
-      data = await apiCall(`/api/user-preferences/${user.id}`, 'GET');
+      data = await apiCall(`/user-preferences/${user.id}`, { method: 'GET' });
     } catch (err: any) {
       error = err;
     }
@@ -48,7 +48,7 @@ const SparkyHistoryManager = ({ onClose }: SparkyHistoryManagerProps) => {
     setLoading(true);
     let error = null;
     try {
-      await apiCall('/api/user-preferences', 'POST', {
+      await apiCall('/user-preferences', 'POST', {
         user_id: user.id,
         auto_clear_history: clearPreference
       });
@@ -73,7 +73,7 @@ const SparkyHistoryManager = ({ onClose }: SparkyHistoryManagerProps) => {
     setLoading(true);
     let error = null;
     try {
-      await apiCall(`/api/sparky-chat-history/${user.id}`, 'DELETE');
+      await apiCall(`/sparky-chat-history/${user.id}`, { method: 'DELETE' });
     } catch (err: any) {
       error = err;
     }
