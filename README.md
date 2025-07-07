@@ -75,71 +75,41 @@ To get the SparkyFitness application running on your local machine, follow these
 
 ### Prerequisites
 
-*   **Supabase Project**: You will need a Supabase project set up.
-    *   **Create a new project on Supabase**: Go to [Supabase](https://app.supabase.com/) and create a new project. (You can also try setting up a local Supabase project if preferred.)
-    *   Obtain your Supabase Project URL and Anon Key from your project settings (API section).
-    *   **Important Note on Supabase Authentication:** Update your URL Configuration in Supabase Authentication settings to match your domain. This is crucial for your domain to work and for receiving email invites for sign-up. Supabase offers extensive security features and third-party SSO options; configure them as per your project's needs.
-    *   Automated DB deployment to Supabase doesn't work with IPV4 if you have free version with Supabase. So, you need to configure your Network to use IPV6 connection. Oherwise DB migration will fail and you will need to deplopy manually.       
-
-
-    
-
 ### Installation
 
 1.  **Configure Environment Variables:**
-    Create a `.env` file under private folder. If you are using Portainer, directly create over there. 
-    Add your Supabase credentials:
-    ```
-    VITE_SUPABASE_URL="YOUR_SUPABASE_PROJECT_URL"
-    VITE_SUPABASE_ANON_KEY="YOUR_SUPABASE_ANON_KEY"
-    SUPABASE_PROJECT_REF="YOUR_SUPABASE_PROJECT_REF"    
-    ```
+    Create a `.env` file in the root directory of the project (where `docker-compose.yml` is located).
+    Copy the contents of `.env.example` into your new `.env` file and fill in the appropriate values.
+
+    **Key Environment Variables to Configure:**
+    *   `SPARKY_FITNESS_SERVER_URL`: The full URL to your backend server (e.g., `http://your_backend_ip_or_domain:3010`). This is used by the frontend to connect to the backend.
+    *   `SPARKY_FITNESS_FRONTEND_URL`: The full URL of your frontend application (e.g., `http://your_frontend_ip_or_domain:3004`). This is used by the backend for CORS configuration to allow requests from your frontend.
+    *   `SPARKY_FITNESS_DB_NAME`, `SPARKY_FITNESS_DB_USER`, `SPARKY_FITNESS_DB_PASSWORD`: Database credentials.  Try not to change anything as I didn't test properly. Go with defaults
+    *   `SPARKY_FITNESS_API_ENCRYPTION_KEY`, `JWT_SECRET`: Security keys for the backend. Use the command given in the example env file to generate keys. Otherwise App will fail due to security constraints
 
 2.  **Run with Docker Compose:**
-    Pull the Docker images and start the services:
+    Pull the Docker images and start the services. If you've made changes to the `.env` file, you should rebuild the images to ensure the new environment variables are picked up.
     ```sh
-    docker compose pull
-    docker compose up -d
+    docker-compose pull # Pull the latest Docker images
+    docker-compose up -d # Start the services in detached mode
     ```
+   
 
 3.  **Access the Application:**
-    Once the services are up and running, access SparkyFitness in your web browser at:
-    ```
-    http://localhost:3000
-    ```
+    Once the services are up and running, access SparkyFitness in your web browser at the URL configured for your frontend (e.g., `http://localhost:3004` or `http://your_frontend_ip_or_domain:3004`).
 
 4.  **AI Chatbot - Optional Configuration:**
-    To enable the AI Chatbot's full functionality, including secure API key storage and database access, follow these steps:
+    To enable the AI Chatbot's full functionality, you will need to configure the necessary API keys within the application's settings after logging in.
+    
+### ⚠️ Known Issues / Beta Features
 
-    *   **Configure `AI_API_ENCRYPTION_KEY`:** Generate a secret in "Supabase -> Edge Functions" -> "Environment Variables". This key is used for encrypting your AI keys when it is stored within Supabase.
+The following features are currently in beta and may not have been thoroughly tested. Expect potential bugs or incomplete functionality:
 
-    *   **Generate `SUPABASE_ACCESS_TOKEN`:**
-        1.  Access your Docker console.
-        2.  Run `supabase login` and authenticate using the provided URL.
-        3.  Retrieve the access token by running `cat ~/.supabase/access-token`.
-        4.  Update your `docker-compose.yml` or Portainer configuration with this token to redeploy.
-        5.  After redeployment, log in to SparkyFitness and configure the AI service with your preferred provider.
-     
+*   AI Chatbot
+*   Multi-user support
+*   Family & Friends access
+*   Apple Health Data integration
 
-### Manul Deployment of DB & Functions to Supabase
-**Method 1:  
-**If you don't have IPV6 network connection enabled, DB migration will fail as Supabase's free verssion doesn't support IPV4 direct connection.
-
-   1. Download latest release and unzip to your PC.
-   2. Navigate to the project folder. Docker needs to be up & running.
-   3. Run below commands. (functions deploy is needed only for AI configuration. If you don't need ChatBOT, you can skip it)
-``
-      supabase login  
-      supabase link  
-      supabase db push  
-      supabase functions deploy chat   
-``
-Re-run Docker compose. Front end App will start working.
-
-**Method 2:  
-   1. Download latest release and unzip to your PC.  
-   2. Navigate to the project folder.  
-   3. Go to supabase/migrations. Copy the SQL statements and run them in Supabase-->Project-->SQL Editor one by one in ASC order.  
-   4. [Optional] Do the same for supabase/functions/chat  if you require AI ChatBOT. Copy index.js and run it in Supabase-->Project-->Edge Function-->Deploy new function.  
+This application is intended for beta testing purposes.
 
 
