@@ -43,15 +43,15 @@ const EditGoals = ({ selectedDate, onGoalsUpdated }: EditGoalsProps) => {
 
   useEffect(() => {
     if (user && open) {
-      loadGoals();
+      fetchGoals(); // Call the renamed function
     }
   }, [user, selectedDate, open]);
 
-  const loadGoals = async () => {
+  const fetchGoals = async () => { // Renamed to avoid recursion
     try {
       setLoading(true);
       
-      const goalData = await loadGoals(user.id, selectedDate);
+      const goalData = await loadGoals(selectedDate); // This now correctly calls the imported loadGoals
       setGoals(goalData);
     } catch (error) {
       console.error('Error loading goals:', error);
@@ -60,17 +60,17 @@ const EditGoals = ({ selectedDate, onGoalsUpdated }: EditGoalsProps) => {
     }
   };
 
-  const saveGoals = async () => {
+  const handleSaveGoals = async () => { // Renamed to avoid recursion
     if (!user) return;
 
     try {
       setSaving(true);
       
-      await saveGoals(user.id, selectedDate, goals);
+      await saveGoals(selectedDate, goals); // This now correctly calls the imported saveGoals
 
       toast({
         title: "Success",
-        description: selectedDate >= new Date().toISOString().split('T')[0] 
+        description: selectedDate >= new Date().toISOString().split('T')[0]
           ? "Goals updated and will apply for the next 6 months (or until your next future goal)"
           : "Goal updated for this specific date",
       });
@@ -300,7 +300,7 @@ const EditGoals = ({ selectedDate, onGoalsUpdated }: EditGoalsProps) => {
             </div>
 
             <Button 
-              onClick={saveGoals} 
+              onClick={handleSaveGoals}
               className="w-full" 
               disabled={saving}
             >

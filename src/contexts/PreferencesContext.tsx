@@ -4,8 +4,7 @@ import { debug, info, warn, error } from '@/utils/logging';
 import { formatInTimeZone, toZonedTime } from 'date-fns-tz'; // Import formatInTimeZone and toZonedTime
 import { format, parseISO, startOfDay } from 'date-fns'; // Import format, parseISO and startOfDay
 
-// Define the base URL for your backend API
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3010";
+import { API_BASE_URL } from "@/services/api";
 
 // Function to fetch user preferences from the backend
 import { apiCall } from '@/services/api'; // Import apiCall

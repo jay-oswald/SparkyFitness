@@ -19,8 +19,7 @@ import { useActiveUser } from "@/contexts/ActiveUserContext";
 import { Home, Activity, BarChart3, Utensils, Settings as SettingsIcon, LogOut, Dumbbell } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 
-// Define the base URL for your backend API
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3010";
+import { API_BASE_URL } from "@/services/api";
 const Index = () => {
    const { user, signOut, loading } = useAuth(); // Destructure loading from useAuth
    const { isActingOnBehalf, hasPermission, hasWritePermission, activeUserName } = useActiveUser();

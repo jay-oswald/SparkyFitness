@@ -728,7 +728,7 @@ async function deleteFoodEntry(entryId) {
     client.release();
   }
 }
-async function updateFoodEntry(entryId, entryData) {
+async function updateFoodEntry(entryId, userId, entryData) {
   const client = await pool.connect();
   try {
     const result = await client.query(
@@ -738,7 +738,7 @@ async function updateFoodEntry(entryId, entryData) {
         unit = COALESCE($3, unit),
         entry_date = COALESCE($4, entry_date),
         variant_id = COALESCE($5, variant_id)
-      WHERE id = $6
+      WHERE id = $6 AND user_id = $7
       RETURNING *`,
       [
         entryData.meal_type,
@@ -746,7 +746,8 @@ async function updateFoodEntry(entryId, entryData) {
         entryData.unit,
         entryData.entry_date,
         entryData.variant_id,
-        entryId
+        entryId,
+        userId
       ]
     );
     return result.rows[0];

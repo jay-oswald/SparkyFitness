@@ -51,7 +51,7 @@ async function upsertGoal(goalData) {
         cholesterol, sodium, potassium, dietary_fiber, sugars,
         vitamin_a, vitamin_c, calcium, iron, created_at, updated_at
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, now(), now())
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
       ON CONFLICT (user_id, COALESCE(goal_date, '1900-01-01'::date))
       DO UPDATE SET
         calories = EXCLUDED.calories,
@@ -78,7 +78,9 @@ async function upsertGoal(goalData) {
         goalData.user_id, goalData.goal_date, goalData.calories, goalData.protein, goalData.carbs, goalData.fat, goalData.water_goal,
         goalData.saturated_fat, goalData.polyunsaturated_fat, goalData.monounsaturated_fat, goalData.trans_fat,
         goalData.cholesterol, goalData.sodium, goalData.potassium, goalData.dietary_fiber, goalData.sugars,
-        goalData.vitamin_a, goalData.vitamin_c, goalData.calcium, goalData.iron
+        goalData.vitamin_a, goalData.vitamin_c, goalData.calcium, goalData.iron,
+        new Date(), // for created_at ($20)
+        new Date()  // for updated_at ($21)
       ]
     );
     return result.rows[0];

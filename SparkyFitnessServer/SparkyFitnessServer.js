@@ -24,6 +24,8 @@ const errorHandler = require('./middleware/errorHandler'); // Import the new err
 const app = express();
 const PORT = process.env.SPARKY_FITNESS_SERVER_PORT || 3010;
 
+console.log(`DEBUG: SPARKY_FITNESS_FRONTEND_URL is: ${process.env.SPARKY_FITNESS_FRONTEND_URL}`);
+
 // Use cors middleware to allow requests from your frontend
 app.use(cors({
   origin: process.env.SPARKY_FITNESS_FRONTEND_URL || 'http://localhost:8080', // Allow requests from your frontend's origin, fallback to localhost

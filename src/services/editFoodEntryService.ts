@@ -9,7 +9,7 @@ export const loadFoodVariants = async (foodId: string): Promise<FoodVariant[]> =
 };
 
 export const updateFoodEntry = async (entryId: string, payload: { quantity: number; unit: string; variant_id?: string | null }): Promise<void> => {
-  await apiCall(`/food-entries/${entryId}`, {
+  await apiCall(`/foods/food-entries/${entryId}`, {
     method: 'PUT',
     body: payload,
   });

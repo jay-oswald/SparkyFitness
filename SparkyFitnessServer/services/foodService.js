@@ -424,7 +424,7 @@ async function updateFoodEntry(authenticatedUserId, entryId, entryData) {
     if (entryOwnerId !== authenticatedUserId) {
       throw new Error('Forbidden: You do not have permission to update this food entry.');
     }
-    const updatedEntry = await foodRepository.updateFoodEntry(entryId, entryData);
+    const updatedEntry = await foodRepository.updateFoodEntry(entryId, authenticatedUserId, entryData);
     if (!updatedEntry) {
       throw new Error('Food entry not found or not authorized to update.');
     }

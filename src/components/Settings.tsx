@@ -385,7 +385,7 @@ const Settings = () => {
       // The existing placeholder logic for updating the profile with a dummy URL remains.
 
       // For now, simulate success and update profile with a dummy URL
-      const publicUrl = `http://localhost:3010/uploads/${fileName}`; // Dummy URL
+      const publicUrl = `/uploads/${fileName}`; // Dummy URL
 
       // Update profile with new avatar URL
       await apiCall(`/auth/profiles`, {
