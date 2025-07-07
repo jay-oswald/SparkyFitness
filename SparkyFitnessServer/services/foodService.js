@@ -179,54 +179,10 @@ async function searchFoods(authenticatedUserId, name, targetUserId, exactMatch, 
 
 async function createFood(authenticatedUserId, foodData) {
   try {
-    // Create the default food variant first
-    const defaultVariantData = {
-      food_id: null, // Will be updated after food creation
-      serving_size: foodData.serving_size,
-      serving_unit: foodData.serving_unit,
-      calories: foodData.calories,
-      protein: foodData.protein,
-      carbs: foodData.carbs,
-      fat: foodData.fat,
-      saturated_fat: foodData.saturated_fat,
-      polyunsaturated_fat: foodData.polyunsaturated_fat,
-      monounsaturated_fat: foodData.monounsaturated_fat,
-      trans_fat: foodData.trans_fat,
-      cholesterol: foodData.cholesterol,
-      sodium: foodData.sodium,
-      potassium: foodData.potassium,
-      dietary_fiber: foodData.dietary_fiber,
-      sugars: foodData.sugars,
-      vitamin_a: foodData.vitamin_a,
-      vitamin_c: foodData.vitamin_c,
-      calcium: foodData.calcium,
-      iron: foodData.iron,
-    };
-
-    // Create the food without nutrient details
-    const foodToCreate = {
-      name: foodData.name,
-      is_custom: foodData.is_custom,
-      user_id: foodData.user_id,
-      brand: foodData.brand,
-      barcode: foodData.barcode,
-      provider_external_id: foodData.provider_external_id,
-      shared_with_public: foodData.shared_with_public,
-      provider_type: foodData.provider_type,
-      default_variant_id: null, // Will be updated after variant creation
-    };
-
-    const newFood = await foodRepository.createFood(foodToCreate);
-
-    // Now update the default variant with the new food_id
-    defaultVariantData.food_id = newFood.id;
-    const newVariant = await foodRepository.createFoodVariant(defaultVariantData);
-
-    // Update the food with the default_variant_id
-    await foodRepository.updateFood(newFood.id, newFood.user_id, { default_variant_id: newVariant.id });
-
-    // Return the food with its default variant details
-    return { ...newFood, ...newVariant };
+    // The foodData object already contains all necessary fields for food and its default variant.
+    // foodRepository.createFood handles the creation of both the food and its default variant in a single transaction.
+    const newFood = await foodRepository.createFood(foodData);
+    return newFood;
   } catch (error) {
     log('error', `Error creating food for user ${authenticatedUserId} in foodService:`, error);
     throw error;
@@ -430,6 +386,15 @@ async function getFoodVariantsByFoodId(authenticatedUserId, foodId) {
       log('warn', `getFoodVariantsByFoodId: Food with ID ${foodId} not found or not owned by user. Returning empty array.`);
       return [];
     }
+
+    // Authorization check: Ensure the authenticated user owns the food
+    // or has family access to the owner's data.
+    // For simplicity, assuming direct ownership for now.
+    if (foodOwnerId !== authenticatedUserId) {
+      log('warn', `getFoodVariantsByFoodId: Forbidden - User ${authenticatedUserId} does not own food ${foodId}.`);
+      throw new Error('Forbidden: You do not have permission to access variants for this food.');
+    }
+
     const variants = await foodRepository.getFoodVariantsByFoodId(foodId);
     log('info', `getFoodVariantsByFoodId: Found ${variants.length} variants for foodId: ${foodId}`);
     return variants;

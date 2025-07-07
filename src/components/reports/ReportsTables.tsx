@@ -369,7 +369,7 @@ const ReportsTables = ({
                       
                       return (
                         <TableRow key={index}>
-                          <TableCell>{formatDateInUserTimezone(parseISO(measurement.entry_date), dateFormat)}</TableCell>
+                          <TableCell>{measurement.entry_date && !isNaN(parseISO(measurement.entry_date).getTime()) ? formatDateInUserTimezone(parseISO(measurement.entry_date), dateFormat) : ''}</TableCell>
                           <TableCell>{formattedHour}</TableCell>
                           <TableCell>{measurement.value}</TableCell>
                         </TableRow>

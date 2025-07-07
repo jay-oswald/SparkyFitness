@@ -17,10 +17,10 @@ import {
   loadFoods,
   togglePublicSharing,
   deleteFood as deleteFoodService,
-  Food,
   FoodFilter,
 } from '@/services/foodService';
 import { createFoodEntry } from '@/services/foodEntryService'; // Import foodEntryService
+import { Food } from '@/types/food';
 
 
 
@@ -116,11 +116,6 @@ const FoodDatabaseManager = () => {
     setShowEditDialog(false);
     setEditingFood(null);
 
-    // If a new food was saved, open the FoodUnitSelector dialog
-    if (savedFood && !editingFood) { // Check if it's a new food (editingFood will be null)
-      setFoodToAddToMeal(savedFood);
-      setShowFoodUnitSelectorDialog(true);
-    }
   };
 
   const handleAddFoodToMeal = async (food: Food, quantity: number, unit: string, variantId?: string) => {
@@ -350,20 +345,20 @@ const FoodDatabaseManager = () => {
                         </div>
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4 text-xs sm:text-sm text-gray-600 dark:text-gray-400">
                           <div>
-                            <span className="font-medium">{food.calories}</span> cal
+                            <span className="font-medium">{food.default_variant?.calories || 0}</span> cal
                           </div>
                           <div>
-                            <span className="font-medium text-blue-600">{food.protein}g</span> protein
+                            <span className="font-medium text-blue-600">{food.default_variant?.protein || 0}g</span> protein
                           </div>
                           <div>
-                            <span className="font-medium text-orange-600">{food.carbs}g</span> carbs
+                            <span className="font-medium text-orange-600">{food.default_variant?.carbs || 0}g</span> carbs
                           </div>
                           <div>
-                            <span className="font-medium text-yellow-600">{food.fat}g</span> fat
+                            <span className="font-medium text-yellow-600">{food.default_variant?.fat || 0}g</span> fat
                           </div>
                         </div>
                         <div className="text-xs text-gray-500 mt-1">
-                          Per {food.serving_size} {food.serving_unit}
+                          Per {food.default_variant?.serving_size || 0} {food.default_variant?.serving_unit || ''}
                         </div>
                       </div>
                       {canEdit(food) && (
@@ -457,6 +452,7 @@ const FoodDatabaseManager = () => {
           open={showFoodUnitSelectorDialog}
           onOpenChange={setShowFoodUnitSelectorDialog}
           onSelect={handleAddFoodToMeal}
+          showUnitSelector={false}
         />
       )}
     </div>

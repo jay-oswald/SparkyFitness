@@ -10,9 +10,8 @@ import { debug, info, warn, error } from '@/utils/logging'; // Import logging ut
 import {
   loadFoodVariants,
   updateFoodEntry,
-  FoodVariant,
-  FoodEntry,
 } from '@/services/editFoodEntryService';
+import { FoodVariant, FoodEntry } from '@/types/food';
 
 
 
@@ -52,26 +51,26 @@ const EditFoodEntryDialog = ({ entry, open, onOpenChange, onSave }: EditFoodEntr
 
       // The primary unit is now the food_variants object directly from the entry
       const primaryUnit: FoodVariant = {
-        id: entry.food_variants.id,
-        serving_size: entry.food_variants.serving_size || 100,
-        serving_unit: entry.food_variants.serving_unit || 'g',
-        calories: entry.food_variants.calories,
-        protein: entry.food_variants.protein,
-        carbs: entry.food_variants.carbs,
-        fat: entry.food_variants.fat,
-        saturated_fat: entry.food_variants.saturated_fat,
-        polyunsaturated_fat: entry.food_variants.polyunsaturated_fat,
-        monounsaturated_fat: entry.food_variants.monounsaturated_fat,
-        trans_fat: entry.food_variants.trans_fat,
-        cholesterol: entry.food_variants.cholesterol,
-        sodium: entry.food_variants.sodium,
-        potassium: entry.food_variants.potassium,
-        dietary_fiber: entry.food_variants.dietary_fiber,
-        sugars: entry.food_variants.sugars,
-        vitamin_a: entry.food_variants.vitamin_a,
-        vitamin_c: entry.food_variants.vitamin_c,
-        calcium: entry.food_variants.calcium,
-        iron: entry.food_variants.iron
+        id: entry.food_variants?.id || entry.food_id, // Use variant ID if available, otherwise food ID
+        serving_size: entry.food_variants?.serving_size || 100,
+        serving_unit: entry.food_variants?.serving_unit || 'g',
+        calories: entry.food_variants?.calories || 0,
+        protein: entry.food_variants?.protein || 0,
+        carbs: entry.food_variants?.carbs || 0,
+        fat: entry.food_variants?.fat || 0,
+        saturated_fat: entry.food_variants?.saturated_fat || 0,
+        polyunsaturated_fat: entry.food_variants?.polyunsaturated_fat || 0,
+        monounsaturated_fat: entry.food_variants?.monounsaturated_fat || 0,
+        trans_fat: entry.food_variants?.trans_fat || 0,
+        cholesterol: entry.food_variants?.cholesterol || 0,
+        sodium: entry.food_variants?.sodium || 0,
+        potassium: entry.food_variants?.potassium || 0,
+        dietary_fiber: entry.food_variants?.dietary_fiber || 0,
+        sugars: entry.food_variants?.sugars || 0,
+        vitamin_a: entry.food_variants?.vitamin_a || 0,
+        vitamin_c: entry.food_variants?.vitamin_c || 0,
+        calcium: entry.food_variants?.calcium || 0,
+        iron: entry.food_variants?.iron || 0
       };
 
       let combinedVariants: FoodVariant[] = [primaryUnit];

@@ -1,59 +1,11 @@
 import { apiCall } from './api';
 
-export interface Food {
-  id?: string;
-  name: string;
-  brand?: string;
-  user_id?: string;
-  is_custom?: boolean;
-  // These fields are now part of the default FoodVariant
-  // calories?: number;
-  // protein?: number;
-  // carbs?: number;
-  // fat?: number;
-  // serving_size?: number;
-  // serving_unit?: string;
-  // saturated_fat?: number;
-  // polyunsaturated_fat?: number;
-  // monounsaturated_fat?: number;
-  // trans_fat?: number;
-  // cholesterol?: number;
-  // sodium?: number;
-  // potassium?: number;
-  // dietary_fiber?: number;
-  // sugars?: number;
-  // vitamin_a?: number;
-  // vitamin_c?: number;
-  // calcium?: number;
-  // iron?: number;
-}
-
-export interface FoodVariant {
-  id?: string;
-  serving_size: number;
-  serving_unit: string;
-  calories: number;
-  protein: number;
-  carbs: number;
-  fat: number;
-  saturated_fat: number;
-  polyunsaturated_fat: number;
-  monounsaturated_fat: number;
-  trans_fat: number;
-  cholesterol: number;
-  sodium: number;
-  potassium: number;
-  dietary_fiber: number;
-  sugars: number;
-  vitamin_a: number;
-  vitamin_c: number;
-  calcium: number;
-  iron: number;
-}
+import { Food, FoodVariant } from '@/types/food';
 
 export const loadFoodVariants = async (foodId: string): Promise<FoodVariant[]> => {
-  return apiCall(`/api/food-variants?food_id=${foodId}`, {
+  return apiCall(`/api/foods/food-variants?food_id=${foodId}`, {
     method: 'GET',
+    suppress404Toast: true, // Suppress toast for 404 errors, return empty array instead
   });
 };
 
@@ -76,7 +28,7 @@ export const saveFood = async (foodData: Food, variants: FoodVariant[], userId: 
 
     // Update existing variants
     for (const variant of variantsToUpdate) {
-      await apiCall(`/api/food-variants/${variant.id}`, {
+      await apiCall(`/api/foods/food-variants/${variant.id}`, {
         method: 'PUT',
         body: {
           food_id: foodId, // Ensure food_id is passed for authorization/validation
@@ -99,6 +51,7 @@ export const saveFood = async (foodData: Food, variants: FoodVariant[], userId: 
           vitamin_c: variant.vitamin_c,
           calcium: variant.calcium,
           iron: variant.iron,
+          is_default: variant.is_default || false, // Pass is_default flag
         },
       });
     }
@@ -126,8 +79,9 @@ export const saveFood = async (foodData: Food, variants: FoodVariant[], userId: 
         vitamin_c: variant.vitamin_c,
         calcium: variant.calcium,
         iron: variant.iron,
+        is_default: variant.is_default || false, // Pass is_default flag
       }));
-      await apiCall('/api/food-variants/bulk', {
+      await apiCall('/api/foods/food-variants/bulk', {
         method: 'POST',
         body: newVariantsData,
       });
@@ -135,7 +89,7 @@ export const saveFood = async (foodData: Food, variants: FoodVariant[], userId: 
 
     // Delete removed variants
     for (const variantToDelete of variantsToDelete) {
-      await apiCall(`/api/food-variants/${variantToDelete.id}`, {
+      await apiCall(`/api/foods/food-variants/${variantToDelete.id}`, {
         method: 'DELETE',
       });
     }
@@ -168,6 +122,7 @@ export const saveFood = async (foodData: Food, variants: FoodVariant[], userId: 
       vitamin_c: primaryVariant.vitamin_c,
       calcium: primaryVariant.calcium,
       iron: primaryVariant.iron,
+      is_default: true, // Explicitly mark as default for new food creation
     };
 
     savedFood = await apiCall('/api/foods', {
@@ -197,10 +152,11 @@ export const saveFood = async (foodData: Food, variants: FoodVariant[], userId: 
       vitamin_c: variant.vitamin_c,
       calcium: variant.calcium,
       iron: variant.iron,
+      is_default: false, // Explicitly mark as not default for additional variants
     }));
 
     if (additionalVariantsToInsert.length > 0) {
-      await apiCall('/api/food-variants/bulk', {
+      await apiCall('/api/foods/food-variants/bulk', {
         method: 'POST',
         body: additionalVariantsToInsert,
       });

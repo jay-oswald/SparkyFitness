@@ -52,6 +52,14 @@ const authorizeAccess = (permissionType, getTargetUserIdFromRequest = null) => {
             repository = require('../models/foodRepository');
             getOwnerIdFunction = repository.getFoodEntryOwnerId;
             break;
+          case 'food_list':
+            repository = require('../models/foodRepository');
+            if (req.originalUrl.includes('/food-variants')) {
+              getOwnerIdFunction = repository.getFoodVariantOwnerId;
+            } else {
+              getOwnerIdFunction = repository.getFoodOwnerId;
+            }
+            break;
           case 'checkin':
             repository = require('../models/measurementRepository');
             // Distinguish between custom categories and custom measurement entries

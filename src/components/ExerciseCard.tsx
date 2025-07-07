@@ -35,6 +35,7 @@ const ExerciseCard = ({ selectedDate, onExerciseChange }: ExerciseCardProps) => 
   debug(loggingLevel, "ExerciseCard component rendered for date:", selectedDate);
   const [exerciseEntries, setExerciseEntries] = useState<ExerciseEntry[]>([]);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const addDialogRef = useRef<HTMLDivElement>(null); // Declare addDialogRef
   const [selectedExerciseId, setSelectedExerciseId] = useState<string | null>(null);
   const [duration, setDuration] = useState<number>(30);
   const [notes, setNotes] = useState<string>("");
@@ -44,45 +45,9 @@ const ExerciseCard = ({ selectedDate, onExerciseChange }: ExerciseCardProps) => 
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [filterType, setFilterType] = useState<string>("all");
-  const addDialogRef = useRef<HTMLDivElement>(null);
 
   const currentUserId = activeUserId || user?.id;
   debug(loggingLevel, "Current user ID:", currentUserId);
-
-  const handleCloseAddDialog = useCallback(() => {
-    debug(loggingLevel, "Closing add exercise dialog.");
-    setIsAddDialogOpen(false);
-    setSelectedExerciseId(null);
-    setDuration(30);
-    setNotes("");
-    setSearchTerm("");
-    setExercises([]);
-    info(loggingLevel, "Add exercise dialog closed and state reset.");
-  }, [loggingLevel]);
-
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        handleCloseAddDialog();
-      }
-    };
-
-    const handleClickOutside = (event: MouseEvent) => {
-      if (addDialogRef.current && !addDialogRef.current.contains(event.target as Node)) {
-        handleCloseAddDialog();
-      }
-    };
-
-    if (isAddDialogOpen) {
-      document.addEventListener('keydown', handleKeyDown);
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [isAddDialogOpen, handleCloseAddDialog]);
 
   const _fetchExerciseEntries = useCallback(async () => {
     debug(loggingLevel, "Fetching exercise entries for date:", selectedDate);
@@ -138,6 +103,16 @@ const ExerciseCard = ({ selectedDate, onExerciseChange }: ExerciseCardProps) => 
   const handleOpenAddDialog = () => {
     debug(loggingLevel, "Opening add exercise dialog.");
     setIsAddDialogOpen(true);
+    setSearchTerm("");
+    setExercises([]);
+  };
+
+  const handleCloseAddDialog = () => {
+    debug(loggingLevel, "Closing add exercise dialog.");
+    setIsAddDialogOpen(false);
+    setSelectedExerciseId(null);
+    setDuration(30);
+    setNotes("");
     setSearchTerm("");
     setExercises([]);
   };
@@ -328,115 +303,113 @@ const ExerciseCard = ({ selectedDate, onExerciseChange }: ExerciseCardProps) => 
         )}
 
         {/* Add Exercise Dialog */}
-        {isAddDialogOpen && (
-          <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-            <div ref={addDialogRef} className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
-              <div className="mt-3 text-center">
-                <h3 className="text-lg leading-6 font-medium text-gray-900">Add Exercise</h3>
-                <DialogDescription>
-                  Add a new exercise entry for the selected date.
-                </DialogDescription>
-                <div className="mt-2">
-                  <div className="mb-4">
-                    <Input
-                      type="text"
-                      placeholder="Search for exercises..."
-                      value={searchTerm}
-                      onChange={(e) => {
-                        debug(loggingLevel, "Exercise search term changed:", e.target.value);
-                        setSearchTerm(e.target.value);
-                      }}
-                      className="mb-2"
-                    />
-                    <Select value={filterType} onValueChange={(value) => {
-                      debug(loggingLevel, "Exercise filter type changed:", value);
-                      setFilterType(value);
-                    }}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Filter exercises" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Exercises</SelectItem>
-                        <SelectItem value="my_own">My Own</SelectItem>
-                        <SelectItem value="family">Family</SelectItem>
-                        <SelectItem value="public">Public</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+          <DialogContent ref={addDialogRef}>
+            <DialogHeader>
+              <DialogTitle>Add Exercise</DialogTitle>
+              <DialogDescription>
+                Add a new exercise entry for the selected date.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="mt-2">
+              <div className="mb-4">
+                <Input
+                  type="text"
+                  placeholder="Search for exercises..."
+                  value={searchTerm}
+                  onChange={(e) => {
+                    debug(loggingLevel, "Exercise search term changed:", e.target.value);
+                    setSearchTerm(e.target.value);
+                  }}
+                  className="mb-2"
+                />
+                <Select value={filterType} onValueChange={(value) => {
+                  debug(loggingLevel, "Exercise filter type changed:", value);
+                  setFilterType(value);
+                }}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Filter exercises" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Exercises</SelectItem>
+                    <SelectItem value="my_own">My Own</SelectItem>
+                    <SelectItem value="family">Family</SelectItem>
+                    <SelectItem value="public">Public</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
 
-                  {searchLoading && <div>Searching...</div>}
+              {searchLoading && <div>Searching...</div>}
 
-                  <div className="max-h-60 overflow-y-auto space-y-2 mb-4">
-                    {exercises.map((exercise) => (
-                      <div
-                        key={exercise.id}
-                        className={`flex items-center justify-between p-3 border rounded-lg cursor-pointer ${
-                          selectedExerciseId === exercise.id ? 'bg-blue-100 border-blue-300' : 'hover:bg-gray-50'
-                        }`}
-                        onClick={() => handleExerciseSelect(exercise.id)}
-                      >
-                        <div>
-                          <div className="font-medium">{exercise.name}</div>
-                          <div className="text-sm text-gray-500">
-                            {exercise.category} • {exercise.calories_per_hour} cal/hour
-                          </div>
-                          {exercise.description && (
-                            <div className="text-xs text-gray-400">{exercise.description}</div>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {searchTerm && !searchLoading && exercises.length === 0 && (
-                    <div className="text-center text-gray-500 mb-4">No exercises found</div>
-                  )}
-
-                  <div className="mt-4">
-                    <label htmlFor="duration" className="block text-gray-700 text-sm font-bold mb-2">
-                      Duration (minutes):
-                    </label>
-                    <Input
-                      type="number"
-                      id="duration"
-                      value={duration}
-                      onChange={(e) => {
-                        debug(loggingLevel, "Exercise duration changed:", e.target.value);
-                        setDuration(Number(e.target.value));
-                      }}
-                    />
-                  </div>
-                  <div className="mt-4">
-                    <label htmlFor="notes" className="block text-gray-700 text-sm font-bold mb-2">
-                      Notes:
-                    </label>
-                    <textarea
-                      id="notes"
-                      className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                      value={notes}
-                      onChange={(e) => {
-                        debug(loggingLevel, "Exercise notes changed:", e.target.value);
-                        setNotes(e.target.value);
-                      }}
-                    />
-                  </div>
-                </div>
-                <div className="items-center px-4 py-3">
-                  <Button
-                    className="px-4 py-2 bg-green-500 text-white text-base font-medium rounded-md w-full shadow-sm hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-300"
-                    onClick={handleSubmit}
-                    disabled={!selectedExerciseId}
+              <div className="max-h-60 overflow-y-auto space-y-2 mb-4">
+                {exercises.map((exercise) => (
+                  <div
+                    key={exercise.id}
+                    className={`flex items-center justify-between p-3 border rounded-lg cursor-pointer ${
+                      selectedExerciseId === exercise.id ? 'bg-blue-100 border-blue-300' : 'hover:bg-gray-50'
+                    }`}
+                    onClick={() => handleExerciseSelect(exercise.id)}
                   >
-                    Add
-                  </Button>
-                  <Button variant="ghost" className="mt-2 px-4 py-2 text-gray-500 text-base font-medium rounded-md w-full shadow-sm hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-300" onClick={handleCloseAddDialog}>
-                    Cancel
-                  </Button>
-                </div>
+                    <div>
+                      <div className="font-medium">{exercise.name}</div>
+                      <div className="text-sm text-gray-500">
+                        {exercise.category} • {exercise.calories_per_hour} cal/hour
+                      </div>
+                      {exercise.description && (
+                        <div className="text-xs text-gray-400">{exercise.description}</div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {searchTerm && !searchLoading && exercises.length === 0 && (
+                <div className="text-center text-gray-500 mb-4">No exercises found</div>
+              )}
+
+              <div className="mt-4">
+                <label htmlFor="duration" className="block text-gray-700 text-sm font-bold mb-2">
+                  Duration (minutes):
+                </label>
+                <Input
+                  type="number"
+                  id="duration"
+                  value={duration}
+                  onChange={(e) => {
+                    debug(loggingLevel, "Exercise duration changed:", e.target.value);
+                    setDuration(Number(e.target.value));
+                  }}
+                />
+              </div>
+              <div className="mt-4">
+                <label htmlFor="notes" className="block text-gray-700 text-sm font-bold mb-2">
+                  Notes:
+                </label>
+                <textarea
+                  id="notes"
+                  className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                  value={notes}
+                  onChange={(e) => {
+                    debug(loggingLevel, "Exercise notes changed:", e.target.value);
+                    setNotes(e.target.value);
+                  }}
+                />
               </div>
             </div>
-          </div>
-        )}
+            <div className="items-center px-4 py-3">
+              <Button
+                className="w-full"
+                onClick={handleSubmit}
+                disabled={!selectedExerciseId}
+              >
+                Add
+              </Button>
+              <Button variant="ghost" className="mt-2 px-4 py-2 text-gray-500 text-base font-medium rounded-md w-full shadow-sm hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-300" onClick={handleCloseAddDialog}>
+                Cancel
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
 
         {/* Edit Exercise Entry Dialog */}
         {editingEntry && (

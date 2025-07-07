@@ -11,48 +11,7 @@ import EnhancedCustomFoodForm from "./EnhancedCustomFoodForm";
 import { usePreferences } from "@/contexts/PreferencesContext"; // Import usePreferences
 import { debug, info, warn, error } from '@/utils/logging'; // Import logging utility
 
-interface FoodVariant {
-  id?: string;
-  serving_size: number;
-  serving_unit: string;
-  calories: number;
-  protein: number;
-  carbs: number;
-  fat: number;
-  saturated_fat?: number;
-  polyunsaturated_fat?: number;
-  monounsaturated_fat?: number;
-  trans_fat?: number;
-  cholesterol?: number;
-  sodium?: number;
-  potassium?: number;
-  dietary_fiber?: number;
-  sugars?: number;
-  vitamin_a?: number;
-  vitamin_c?: number;
-  calcium?: number;
-  iron?: number;
-}
-
-interface Food {
-  id: string;
-  name: string;
-  brand?: string;
-  user_id?: string;
-  is_custom?: boolean;
-  shared_with_public?: boolean;
-}
-
-interface FoodEntry {
-  id: string;
-  food_id: string;
-  meal_type: string;
-  quantity: number;
-  unit: string;
-  variant_id?: string;
-  foods: Food;
-  food_variants: FoodVariant;
-}
+import { Food, FoodVariant, FoodEntry } from '@/types/food';
 
 interface Meal {
   name: string;
@@ -73,7 +32,7 @@ interface MealCardProps {
   totals: MealTotals;
   onFoodSelect: (food: Food, mealType: string) => void;
   onEditEntry: (entry: FoodEntry) => void;
-  onEditFood: (entry: FoodEntry) => void;
+  onEditFood: (food: Food) => void;
   onRemoveEntry: (entryId: string) => void;
   getEntryNutrition: (entry: FoodEntry) => MealTotals;
 }
@@ -101,7 +60,7 @@ const MealCard = ({
     debug(loggingLevel, "MealCard: Handling save food.");
     // Close the dialog and trigger refresh
     setEditingFoodEntry(null);
-    onEditFood(editingFoodEntry!);
+    onEditFood(editingFoodEntry!.foods); // Pass the Food object
     info(loggingLevel, "MealCard: Food saved and refresh triggered.");
   };
 

@@ -80,6 +80,7 @@ const NutritionChartsGrid = ({ nutritionData }: NutritionChartsGridProps) => {
                     <YAxis fontSize={10} />
                     <Tooltip
                       labelFormatter={(value) => formatDateForChart(value as string)} // Apply formatter
+                      formatter={(value: number) => [`${value.toFixed(1)} ${chart.unit}`]}
                     />
                     <Line
                       type="monotone"

@@ -53,10 +53,10 @@ export const searchExercises = async (query: string, filterType: string): Promis
   if (!query.trim()) {
     return [];
   }
-  const params = new URLSearchParams({ query, filterType });
-  const data = await apiCall(`/api/exercises/search?${params.toString()}`, {
+  const params = new URLSearchParams({ searchTerm: query, ownershipFilter: filterType });
+  const data = await apiCall(`/api/exercises?${params.toString()}`, {
     method: 'GET',
     suppress404Toast: true, // Suppress toast for 404
   });
-  return data || []; // Return empty array if 404 (no exercises found)
+  return data.exercises || []; // Return empty array if 404 or no exercises found
 };

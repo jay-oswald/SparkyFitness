@@ -1,32 +1,6 @@
 import { apiCall } from './api';
 
-export interface Food {
-  id: string;
-  name: string;
-  brand?: string;
-  calories: number;
-  protein: number;
-  carbs: number;
-  fat: number;
-  serving_size: number;
-  serving_unit: string;
-  is_custom: boolean;
-  user_id?: string;
-  shared_with_public?: boolean;
-  saturated_fat?: number;
-  polyunsaturated_fat?: number;
-  monounsaturated_fat?: number;
-  trans_fat?: number;
-  cholesterol?: number;
-  sodium?: number;
-  potassium?: number;
-  dietary_fiber?: number;
-  sugars?: number;
-  vitamin_a?: number;
-  vitamin_c?: number;
-  calcium?: number;
-  iron?: number;
-}
+import { Food } from '@/types/food';
 
 export type FoodFilter = 'all' | 'mine' | 'family' | 'public';
 

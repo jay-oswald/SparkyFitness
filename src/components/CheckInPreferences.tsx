@@ -14,23 +14,27 @@ import { format } from 'date-fns'; // Import format from date-fns
 
 
 interface CheckInPreferencesProps {
-  weightUnit: string;
-  measurementUnit: string;
+  weightUnit: 'kg' | 'lbs';
+  measurementUnit: 'cm' | 'inches';
+  setWeightUnit: (unit: 'kg' | 'lbs') => void;
+  setMeasurementUnit: (unit: 'cm' | 'inches') => void;
   selectedDate: string;
-  onWeightUnitChange: (unit: string) => void;
-  onMeasurementUnitChange: (unit: string) => void;
   onDateChange: (date: string) => void;
 }
 
 const CheckInPreferences = ({
   weightUnit,
   measurementUnit,
+  setWeightUnit,
+  setMeasurementUnit,
   selectedDate,
-  onWeightUnitChange,
-  onMeasurementUnitChange,
   onDateChange
 }: CheckInPreferencesProps) => {
-  const { formatDate, parseDateInUserTimezone, loggingLevel } = usePreferences(); // Get logging level and parseDateInUserTimezone
+  const {
+    formatDate,
+    parseDateInUserTimezone,
+    loggingLevel
+  } = usePreferences();
   debug(loggingLevel, "CheckInPreferences component rendered.", { selectedDate, weightUnit, measurementUnit });
   const date = parseDateInUserTimezone(selectedDate); // Use parseDateInUserTimezone
 
@@ -71,32 +75,22 @@ const CheckInPreferences = ({
         <CardContent className="p-4">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0">
             {/* Unit Toggles */}
-            <div className="flex flex-row items-center gap-4 md:gap-6">
+            <div className="flex items-center space-x-4">
               <div className="flex items-center space-x-2">
-                <Label className="text-sm hidden md:block">Weight</Label>
-                <span className={`text-xs ${weightUnit === 'kg' ? 'font-bold' : ''}`}>kg</span>
                 <Switch
+                  id="weight-unit-toggle"
                   checked={weightUnit === 'lbs'}
-                  onCheckedChange={(checked) => {
-                    const unit = checked ? 'lbs' : 'kg';
-                    debug(loggingLevel, "Weight unit switch toggled:", unit);
-                    onWeightUnitChange(unit);
-                  }}
+                  onCheckedChange={(checked) => setWeightUnit(checked ? 'lbs' : 'kg')}
                 />
-                <span className={`text-xs ${weightUnit === 'lbs' ? 'font-bold' : ''}`}>lbs</span>
+                <Label htmlFor="weight-unit-toggle">Weight ({weightUnit})</Label>
               </div>
               <div className="flex items-center space-x-2">
-                <Label className="text-sm hidden md:block">Measurements</Label>
-                <span className={`text-xs ${measurementUnit === 'cm' ? 'font-bold' : ''}`}>cm</span>
                 <Switch
+                  id="measurement-unit-toggle"
                   checked={measurementUnit === 'inches'}
-                  onCheckedChange={(checked) => {
-                    const unit = checked ? 'inches' : 'cm';
-                    debug(loggingLevel, "Measurement unit switch toggled:", unit);
-                    onMeasurementUnitChange(unit);
-                  }}
+                  onCheckedChange={(checked) => setMeasurementUnit(checked ? 'inches' : 'cm')}
                 />
-                <span className={`text-xs ${measurementUnit === 'inches' ? 'font-bold' : ''}`}>inches</span>
+                <Label htmlFor="measurement-unit-toggle">Measurements ({measurementUnit})</Label>
               </div>
             </div>
 

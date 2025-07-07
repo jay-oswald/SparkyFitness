@@ -30,33 +30,43 @@ const CheckIn = () => {
   const { user } = useAuth();
   const { activeUserId } = useActiveUser();
   const {
-    weightUnit,
-    measurementUnit,
+    weightUnit: defaultWeightUnit, // Default from preferences
+    measurementUnit: defaultMeasurementUnit, // Default from preferences
     loadPreferences,
-    setWeightUnit: updateWeightUnit,
-    setMeasurementUnit: updateMeasurementUnit,
-    formatDateInUserTimezone, // Add formatDateInUserTimezone
-    parseDateInUserTimezone, // Add parseDateInUserTimezone
-    loggingLevel // Get logging level
+    formatDateInUserTimezone,
+    parseDateInUserTimezone,
+    loggingLevel,
+    convertWeight,
+    convertMeasurement,
   } = usePreferences();
-  const [selectedDate, setSelectedDate] = useState(formatDateInUserTimezone(new Date(), 'yyyy-MM-dd')); // Use formatDateInUserTimezone for initial date
+
+  const [selectedDate, setSelectedDate] = useState(formatDateInUserTimezone(new Date(), 'yyyy-MM-dd'));
   const [weight, setWeight] = useState("");
   const [neck, setNeck] = useState("");
   const [waist, setWaist] = useState("");
   const [hips, setHips] = useState("");
   const [steps, setSteps] = useState("");
+  const [displayWeightUnit, setDisplayWeightUnit] = useState<'kg' | 'lbs'>(defaultWeightUnit);
+  const [displayMeasurementUnit, setDisplayMeasurementUnit] = useState<'cm' | 'inches'>(defaultMeasurementUnit);
   const [customCategories, setCustomCategories] = useState<CustomCategory[]>([]);
   const [customValues, setCustomValues] = useState<{[key: string]: string}>({});
+
   const [loading, setLoading] = useState(false);
   const [recentMeasurements, setRecentMeasurements] = useState<CustomMeasurement[]>([]);
 
   const currentUserId = activeUserId || user?.id;
   debug(loggingLevel, "Current user ID:", currentUserId);
 
+  // Helper to determine if a custom measurement type should be converted
+  const shouldConvertCustomMeasurement = (unit: string) => {
+    const convertibleUnits = ['kg', 'lbs', 'cm', 'inches'];
+    return convertibleUnits.includes(unit.toLowerCase());
+  };
+
   useEffect(() => {
     if (currentUserId) {
       loadExistingData();
-      loadPreferences();
+      loadPreferences(); // Load user's default preferences
       loadCustomCategories();
       fetchRecentMeasurements();
     }
@@ -71,10 +81,41 @@ const CheckIn = () => {
 
     return () => {
       window.removeEventListener('measurementsRefresh', handleRefresh);
-    };
-  }, [currentUserId, selectedDate, loadPreferences, formatDateInUserTimezone, parseDateInUserTimezone]); // Update dependency array
-
-  const loadCustomCategories = async () => {
+      };
+    }, [currentUserId, selectedDate, loadPreferences, formatDateInUserTimezone, parseDateInUserTimezone, convertWeight, convertMeasurement, defaultWeightUnit, defaultMeasurementUnit]);
+  
+    useEffect(() => {
+      setDisplayWeightUnit(defaultWeightUnit);
+      setDisplayMeasurementUnit(defaultMeasurementUnit);
+      // Trigger data reload when default units change to ensure values are displayed in the new default unit
+      loadExistingData();
+    }, [defaultWeightUnit, defaultMeasurementUnit]);
+  
+    // Effect to re-convert displayed values when display units change
+    useEffect(() => {
+      // Only re-convert if there's a value to convert
+      if (weight) {
+        const converted = convertWeight(parseFloat(weight), displayWeightUnit === 'kg' ? 'lbs' : 'kg', displayWeightUnit);
+        setWeight(typeof converted === 'number' && !isNaN(converted) ? converted.toFixed(1) : "");
+      }
+      if (neck) {
+        const converted = convertMeasurement(parseFloat(neck), displayMeasurementUnit === 'cm' ? 'inches' : 'cm', displayMeasurementUnit);
+        setNeck(typeof converted === 'number' && !isNaN(converted) ? converted.toFixed(1) : "");
+      }
+      if (waist) {
+        const converted = convertMeasurement(parseFloat(waist), displayMeasurementUnit === 'cm' ? 'inches' : 'cm', displayMeasurementUnit);
+        setWaist(typeof converted === 'number' && !isNaN(converted) ? converted.toFixed(1) : "");
+      }
+      if (hips) {
+        const converted = convertMeasurement(parseFloat(hips), displayMeasurementUnit === 'cm' ? 'inches' : 'cm', displayMeasurementUnit);
+        setHips(typeof converted === 'number' && !isNaN(converted) ? converted.toFixed(1) : "");
+      }
+      // Re-load custom values to ensure they are displayed in the correct unit
+      loadExistingData();
+    }, [displayWeightUnit, displayMeasurementUnit]);
+  
+  
+    const loadCustomCategories = async () => {
     if (!currentUserId) {
       warn(loggingLevel, "loadCustomCategories called with no current user ID.");
       return;
@@ -94,7 +135,6 @@ const CheckIn = () => {
       warn(loggingLevel, "fetchRecentMeasurements called with no current user ID.");
       return;
     }
-
 
     try {
       const data = await fetchRecentMeasurementsService();
@@ -130,10 +170,19 @@ const CheckIn = () => {
       const data = await loadExistingCheckInMeasurements(selectedDate);
       if (data) {
         info(loggingLevel, "Existing check-in data loaded:", data);
-        setWeight(data.weight?.toString() || "");
-        setNeck(data.neck?.toString() || "");
-        setWaist(data.waist?.toString() || "");
-        setHips(data.hips?.toString() || "");
+        // Set internal state in canonical units (kg, cm)
+        // Values are loaded in canonical units, then converted for display
+        const convertedWeight = data.weight !== undefined && data.weight !== null ? convertWeight(data.weight, 'kg', displayWeightUnit) : NaN;
+        setWeight(typeof convertedWeight === 'number' && !isNaN(convertedWeight) ? convertedWeight.toFixed(1) : "");
+
+        const convertedNeck = data.neck !== undefined && data.neck !== null ? convertMeasurement(data.neck, 'cm', displayMeasurementUnit) : NaN;
+        setNeck(typeof convertedNeck === 'number' && !isNaN(convertedNeck) ? convertedNeck.toFixed(1) : "");
+
+        const convertedWaist = data.waist !== undefined && data.waist !== null ? convertMeasurement(data.waist, 'cm', displayMeasurementUnit) : NaN;
+        setWaist(typeof convertedWaist === 'number' && !isNaN(convertedWaist) ? convertedWaist.toFixed(1) : "");
+
+        const convertedHips = data.hips !== undefined && data.hips !== null ? convertMeasurement(data.hips, 'cm', displayMeasurementUnit) : NaN;
+        setHips(typeof convertedHips === 'number' && !isNaN(convertedHips) ? convertedHips.toFixed(1) : "");
         setSteps(data.steps?.toString() || "");
       } else {
         info(loggingLevel, "No existing check-in data for this date, clearing form.");
@@ -149,7 +198,13 @@ const CheckIn = () => {
       const newCustomValues: {[key: string]: string} = {};
       if (customData) {
         customData.forEach((measurement) => {
-          newCustomValues[measurement.category_id] = measurement.value.toString();
+          const isConvertible = shouldConvertCustomMeasurement(measurement.custom_categories.measurement_type);
+          newCustomValues[measurement.category_id] = isConvertible
+            ? (() => {
+                const converted = convertMeasurement(measurement.value, 'cm', displayMeasurementUnit);
+                return typeof converted === 'number' && !isNaN(converted) ? converted.toFixed(1) : "";
+              })()
+            : measurement.value.toString();
         });
       }
       setCustomValues(newCustomValues);
@@ -158,43 +213,6 @@ const CheckIn = () => {
     }
   };
 
-  const handleWeightUnitChange = async (unit: string) => {
-    try {
-      await updateWeightUnit(unit as 'kg' | 'lbs');
-
-      info(loggingLevel, `Weight unit updated to ${unit}`);
-      toast({
-        title: "Success",
-        description: `Weight unit updated to ${unit}`,
-      });
-    } catch (err) {
-      error(loggingLevel, 'Error updating weight unit preference:', err);
-      toast({
-        title: "Error",
-        description: "Failed to update weight unit preference",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleMeasurementUnitChange = async (unit: string) => {
-    try {
-      await updateMeasurementUnit(unit as 'cm' | 'inches');
-
-      info(loggingLevel, `Measurement unit updated to ${unit}`);
-      toast({
-        title: "Success",
-        description: `Measurement unit updated to ${unit}`,
-      });
-    } catch (err) {
-      error(loggingLevel, 'Error updating measurement unit preference:', err);
-      toast({
-        title: "Error",
-        description: "Failed to update measurement unit preference",
-        variant: "destructive",
-      });
-    }
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -218,11 +236,11 @@ const CheckIn = () => {
         entry_date: selectedDate, // Use selectedDate directly
       };
 
-      // Only include fields that have values
-      if (weight) measurementData.weight = parseFloat(weight);
-      if (neck) measurementData.neck = parseFloat(neck);
-      if (waist) measurementData.waist = parseFloat(waist);
-      if (hips) measurementData.hips = parseFloat(hips);
+      // Convert values to canonical units (kg, cm) before saving
+      if (weight) measurementData.weight = convertWeight(parseFloat(weight), displayWeightUnit, 'kg');
+      if (neck) measurementData.neck = convertMeasurement(parseFloat(neck), displayMeasurementUnit, 'cm');
+      if (waist) measurementData.waist = convertMeasurement(parseFloat(waist), displayMeasurementUnit, 'cm');
+      if (hips) measurementData.hips = convertMeasurement(parseFloat(hips), displayMeasurementUnit, 'cm');
       if (steps) measurementData.steps = parseInt(steps);
 
       await saveCheckInMeasurements(measurementData);
@@ -232,6 +250,7 @@ const CheckIn = () => {
         if (value && parseFloat(value) > 0) {
           const category = customCategories.find(c => c.id === categoryId);
           if (category) {
+            const isConvertible = shouldConvertCustomMeasurement(category.measurement_type); // Recalculate here
             const currentTime = new Date();
             let entryHour: number | null = null;
             let entryTimestamp: string;
@@ -248,7 +267,9 @@ const CheckIn = () => {
             const customMeasurementData = {
               user_id: currentUserId,
               category_id: categoryId,
-              value: parseFloat(value),
+              value: isConvertible && !isNaN(parseFloat(value))
+                ? convertMeasurement(parseFloat(value), displayMeasurementUnit, 'cm')
+                : parseFloat(value), // No conversion if not convertible, or if value is not a number
               entry_date: selectedDate,
               entry_hour: entryHour,
               entry_timestamp: entryTimestamp,
@@ -286,11 +307,11 @@ const CheckIn = () => {
     <div className="container mx-auto p-6 space-y-6">
       {/* Preferences Section */}
       <CheckInPreferences
-        weightUnit={weightUnit}
-        measurementUnit={measurementUnit}
-        selectedDate={selectedDate} // Use selectedDate
-        onWeightUnitChange={handleWeightUnitChange}
-        onMeasurementUnitChange={handleMeasurementUnitChange}
+        weightUnit={displayWeightUnit}
+        measurementUnit={displayMeasurementUnit}
+        setWeightUnit={setDisplayWeightUnit}
+        setMeasurementUnit={setDisplayMeasurementUnit}
+        selectedDate={selectedDate}
         onDateChange={(dateString) => {
           setSelectedDate(dateString);
           // When date changes, reload existing data for the new date
@@ -307,7 +328,7 @@ const CheckIn = () => {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="weight">Weight ({weightUnit})</Label>
+                <Label htmlFor="weight">Weight ({displayWeightUnit})</Label>
                 <Input
                   id="weight"
                   type="number"
@@ -316,7 +337,7 @@ const CheckIn = () => {
                   onChange={(e) => {
                     setWeight(e.target.value);
                   }}
-                  placeholder={`Enter weight in ${weightUnit}`}
+                  placeholder={`Enter weight in ${displayWeightUnit}`}
                 />
               </div>
 
@@ -334,7 +355,7 @@ const CheckIn = () => {
               </div>
 
               <div>
-                <Label htmlFor="neck">Neck ({measurementUnit})</Label>
+                <Label htmlFor="neck">Neck ({displayMeasurementUnit})</Label>
                 <Input
                   id="neck"
                   type="number"
@@ -343,12 +364,12 @@ const CheckIn = () => {
                   onChange={(e) => {
                     setNeck(e.target.value);
                   }}
-                  placeholder={`Enter neck measurement in ${measurementUnit}`}
+                  placeholder={`Enter neck measurement in ${displayMeasurementUnit}`}
                 />
               </div>
 
               <div>
-                <Label htmlFor="waist">Waist ({measurementUnit})</Label>
+                <Label htmlFor="waist">Waist ({displayMeasurementUnit})</Label>
                 <Input
                   id="waist"
                   type="number"
@@ -357,12 +378,12 @@ const CheckIn = () => {
                   onChange={(e) => {
                     setWaist(e.target.value);
                   }}
-                  placeholder={`Enter waist measurement in ${measurementUnit}`}
+                  placeholder={`Enter waist measurement in ${displayMeasurementUnit}`}
                 />
               </div>
 
               <div>
-                <Label htmlFor="hips">Hips ({measurementUnit})</Label>
+                <Label htmlFor="hips">Hips ({displayMeasurementUnit})</Label>
                 <Input
                   id="hips"
                   type="number"
@@ -371,30 +392,34 @@ const CheckIn = () => {
                   onChange={(e) => {
                     setHips(e.target.value);
                   }}
-                  placeholder={`Enter hips measurement in ${measurementUnit}`}
+                  placeholder={`Enter hips measurement in ${displayMeasurementUnit}`}
                 />
               </div>
 
               {/* Custom Categories */}
-              {customCategories.map((category) => (
-                <div key={category.id}>
-                  <Label htmlFor={`custom-${category.id}`}>
-                    {category.name} ({category.measurement_type})
-                  </Label>
-                  <Input
-                    id={`custom-${category.id}`}
-                    type="number"
-                    step="0.01"
-                    value={customValues[category.id] || ''}
-                    onChange={(e) => {
-                      setCustomValues(prev => ({
-                      ...prev,
-                      [category.id]: e.target.value
-                    }))}}
-                    placeholder={`Enter ${category.name.toLowerCase()} in ${category.measurement_type}`}
-                  />
-                </div>
-              ))}
+              {customCategories.map((category) => {
+                const isConvertible = shouldConvertCustomMeasurement(category.measurement_type);
+                return (
+                  <div key={category.id}>
+                    <Label htmlFor={`custom-${category.id}`}>
+                      {category.name} ({isConvertible ? displayMeasurementUnit : category.measurement_type})
+                    </Label>
+                    <Input
+                      id={`custom-${category.id}`}
+                      type="number"
+                      step="0.01"
+                      value={customValues[category.id] || ''}
+                      onChange={(e) => {
+                        setCustomValues(prev => ({
+                          ...prev,
+                          [category.id]: e.target.value
+                        }));
+                      }}
+                      placeholder={`Enter ${category.name.toLowerCase()} in ${isConvertible ? displayMeasurementUnit : category.measurement_type}`}
+                    />
+                  </div>
+                );
+              })}
             </div>
 
             <div className="flex justify-center">
@@ -416,33 +441,41 @@ const CheckIn = () => {
             {recentMeasurements.length === 0 ? (
               <p className="text-muted-foreground">No measurements recorded yet</p>
             ) : (
-              recentMeasurements.map((measurement) => (
-                <div
-                  key={measurement.id}
-                  className="flex items-center justify-between p-3 border rounded-lg"
-                >
-                  <div>
-                    <div className="font-medium">
-                      {measurement.custom_categories.name}: {measurement.value} {measurement.custom_categories.measurement_type}
-                    </div>
-                    <div className="text-sm text-muted-foreground">
-                      {formatDateInUserTimezone(measurement.entry_date, 'PPP')} {/* Format date for display */}
-                      {measurement.entry_hour !== null && (
-                        <span> at {measurement.entry_hour.toString().padStart(2, '0')}:00</span>
-                      )}
-                    </div>
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      handleDeleteMeasurementClick(measurement.id);
-                    }}
+              recentMeasurements.map((measurement) => {
+                const isConvertible = shouldConvertCustomMeasurement(measurement.custom_categories.measurement_type);
+                const displayValue = isConvertible
+                  ? convertMeasurement(measurement.value, 'cm', displayMeasurementUnit).toFixed(1)
+                  : measurement.value;
+                const displayUnit = isConvertible ? displayMeasurementUnit : measurement.custom_categories.measurement_type;
+
+                return (
+                  <div
+                    key={measurement.id}
+                    className="flex items-center justify-between p-3 border rounded-lg"
                   >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              ))
+                    <div>
+                      <div className="font-medium">
+                        {measurement.custom_categories.name}: {displayValue} {displayUnit}
+                      </div>
+                      <div className="text-sm text-muted-foreground">
+                        {formatDateInUserTimezone(measurement.entry_date, 'PPP')}
+                        {measurement.entry_hour !== null && (
+                          <span> at {measurement.entry_hour.toString().padStart(2, '0')}:00</span>
+                        )}
+                      </div>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        handleDeleteMeasurementClick(measurement.id);
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                );
+              })
             )}
           </div>
         </CardContent>

@@ -7,7 +7,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { usePreferences } from "@/contexts/PreferencesContext"; // Import usePreferences
 import { debug, info, warn, error } from '@/utils/logging'; // Import logging utility
-import { loadFoodVariants, FoodVariant, Food } from '@/services/foodUnitService';
+import { loadFoodVariants } from '@/services/foodUnitService';
+import { Food, FoodVariant } from '@/types/food';
 
 
 interface FoodUnitSelectorProps {
@@ -15,9 +16,10 @@ interface FoodUnitSelectorProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSelect: (food: Food, quantity: number, unit: string, variantId?: string) => void;
+  showUnitSelector?: boolean; // New prop to control visibility
 }
 
-const FoodUnitSelector = ({ food, open, onOpenChange, onSelect }: FoodUnitSelectorProps) => {
+const FoodUnitSelector = ({ food, open, onOpenChange, onSelect, showUnitSelector }: FoodUnitSelectorProps) => {
   const { loggingLevel } = usePreferences(); // Get logging level
   debug(loggingLevel, "FoodUnitSelector component rendered.", { food, open });
   const [variants, setVariants] = useState<FoodVariant[]>([]);
@@ -27,11 +29,11 @@ const FoodUnitSelector = ({ food, open, onOpenChange, onSelect }: FoodUnitSelect
 
   useEffect(() => {
     debug(loggingLevel, "FoodUnitSelector open/food useEffect triggered.", { open, food });
-    if (open && food) {
+    if (open && food && food.id) { // Ensure food.id exists before loading variants
       loadVariantsData();
       // Set quantity to the serving_size of the initially selected variant (primary unit)
       // The food object passed here already contains the default variant's data
-      setQuantity(food.serving_size || 1);
+      setQuantity(food.default_variant?.serving_size || 1);
     }
   }, [open, food]);
 
@@ -43,26 +45,26 @@ const FoodUnitSelector = ({ food, open, onOpenChange, onSelect }: FoodUnitSelect
 
       // The food object passed to this component already contains the default variant's data
       const primaryUnit: FoodVariant = {
-        id: food.id, // This is the food ID, not the variant ID. We need the default_variant_id.
-        serving_size: food.serving_size || 100,
-        serving_unit: food.serving_unit || 'g',
-        calories: food.calories || 0,
-        protein: food.protein || 0,
-        carbs: food.carbs || 0,
-        fat: food.fat || 0,
-        saturated_fat: food.saturated_fat || 0,
-        polyunsaturated_fat: food.polyunsaturated_fat || 0,
-        monounsaturated_fat: food.monounsaturated_fat || 0,
-        trans_fat: food.trans_fat || 0,
-        cholesterol: food.cholesterol || 0,
-        sodium: food.sodium || 0,
-        potassium: food.potassium || 0,
-        dietary_fiber: food.dietary_fiber || 0,
-        sugars: food.sugars || 0,
-        vitamin_a: food.vitamin_a || 0,
-        vitamin_c: food.vitamin_c || 0,
-        calcium: food.calcium || 0,
-        iron: food.iron || 0,
+        id: food.default_variant?.id || food.id, // Use default_variant.id if available, otherwise food.id
+        serving_size: food.default_variant?.serving_size || 100,
+        serving_unit: food.default_variant?.serving_unit || 'g',
+        calories: food.default_variant?.calories || 0,
+        protein: food.default_variant?.protein || 0,
+        carbs: food.default_variant?.carbs || 0,
+        fat: food.default_variant?.fat || 0,
+        saturated_fat: food.default_variant?.saturated_fat || 0,
+        polyunsaturated_fat: food.default_variant?.polyunsaturated_fat || 0,
+        monounsaturated_fat: food.default_variant?.monounsaturated_fat || 0,
+        trans_fat: food.default_variant?.trans_fat || 0,
+        cholesterol: food.default_variant?.cholesterol || 0,
+        sodium: food.default_variant?.sodium || 0,
+        potassium: food.default_variant?.potassium || 0,
+        dietary_fiber: food.default_variant?.dietary_fiber || 0,
+        sugars: food.default_variant?.sugars || 0,
+        vitamin_a: food.default_variant?.vitamin_a || 0,
+        vitamin_c: food.default_variant?.vitamin_c || 0,
+        calcium: food.default_variant?.calcium || 0,
+        iron: food.default_variant?.iron || 0,
       };
 
       let combinedVariants: FoodVariant[] = [primaryUnit];
@@ -108,26 +110,26 @@ const FoodUnitSelector = ({ food, open, onOpenChange, onSelect }: FoodUnitSelect
       error(loggingLevel, 'Error loading variants:', err);
       // Fallback to primary food unit on error
       const primaryUnit: FoodVariant = {
-        id: food.id, // This is the food ID, not the variant ID. We need the default_variant_id.
-        serving_size: food.serving_size || 100,
-        serving_unit: food.serving_unit || 'g',
-        calories: food.calories || 0,
-        protein: food.protein || 0,
-        carbs: food.carbs || 0,
-        fat: food.fat || 0,
-        saturated_fat: food.saturated_fat || 0,
-        polyunsaturated_fat: food.polyunsaturated_fat || 0,
-        monounsaturated_fat: food.monounsaturated_fat || 0,
-        trans_fat: food.trans_fat || 0,
-        cholesterol: food.cholesterol || 0,
-        sodium: food.sodium || 0,
-        potassium: food.potassium || 0,
-        dietary_fiber: food.dietary_fiber || 0,
-        sugars: food.sugars || 0,
-        vitamin_a: food.vitamin_a || 0,
-        vitamin_c: food.vitamin_c || 0,
-        calcium: food.calcium || 0,
-        iron: food.iron || 0,
+        id: food.default_variant?.id || food.id, // Use default_variant.id if available, otherwise food.id
+        serving_size: food.default_variant?.serving_size || 100,
+        serving_unit: food.default_variant?.serving_unit || 'g',
+        calories: food.default_variant?.calories || 0,
+        protein: food.default_variant?.protein || 0,
+        carbs: food.default_variant?.carbs || 0,
+        fat: food.default_variant?.fat || 0,
+        saturated_fat: food.default_variant?.saturated_fat || 0,
+        polyunsaturated_fat: food.default_variant?.polyunsaturated_fat || 0,
+        monounsaturated_fat: food.default_variant?.monounsaturated_fat || 0,
+        trans_fat: food.default_variant?.trans_fat || 0,
+        cholesterol: food.default_variant?.cholesterol || 0,
+        sodium: food.default_variant?.sodium || 0,
+        potassium: food.default_variant?.potassium || 0,
+        dietary_fiber: food.default_variant?.dietary_fiber || 0,
+        sugars: food.default_variant?.sugars || 0,
+        vitamin_a: food.default_variant?.vitamin_a || 0,
+        vitamin_c: food.default_variant?.vitamin_c || 0,
+        calcium: food.default_variant?.calcium || 0,
+        iron: food.default_variant?.iron || 0,
       };
       setVariants([primaryUnit]);
       setSelectedVariant(primaryUnit);
@@ -207,7 +209,7 @@ const FoodUnitSelector = ({ food, open, onOpenChange, onSelect }: FoodUnitSelect
   const nutrition = calculateNutrition();
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open && (showUnitSelector ?? true)} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Add {food?.name} to Meal</DialogTitle>

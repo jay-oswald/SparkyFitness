@@ -22,11 +22,9 @@ import {
   loadGoals,
   addFoodEntry,
   removeFoodEntry,
-  Food,
-  FoodVariant,
-  FoodEntry,
   Goal,
 } from '@/services/foodDiaryService';
+import { Food, FoodVariant, FoodEntry } from '@/types/food';
 
 
 interface Meal {
@@ -245,8 +243,10 @@ const FoodDiary = ({ selectedDate, onDateChange }: FoodDiaryProps) => {
     setEditingEntry(entry);
   }, [debug, loggingLevel, setEditingEntry]);
 
-  const handleEditFood = useCallback(() => {
-    debug(loggingLevel, "Handling edit food, triggering data change.");
+  const handleEditFood = useCallback((food: Food) => {
+    debug(loggingLevel, "Handling edit food, triggering data change for food:", food);
+    // This function is called when a food item's details are edited from within MealCard.
+    // It triggers a data refresh for the entire diary.
     handleDataChange();
   }, [debug, loggingLevel, handleDataChange]);
 
@@ -387,6 +387,7 @@ const FoodDiary = ({ selectedDate, onDateChange }: FoodDiaryProps) => {
           open={isUnitSelectorOpen}
           onOpenChange={setIsUnitSelectorOpen}
           onSelect={handleFoodUnitSelect}
+          showUnitSelector={true}
         />
       )}
 

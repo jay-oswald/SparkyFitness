@@ -289,18 +289,38 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
     setLoggingLevelState(level);
   };
 
-  const convertWeight = (value: number, from: 'kg' | 'lbs', to: 'kg' | 'lbs') => {
-    if (from === to) return value;
-    if (from === 'kg' && to === 'lbs') return value * 2.20462;
-    if (from === 'lbs' && to === 'kg') return value / 2.20462;
-    return value;
+  const convertWeight = (value: number | string | null | undefined, from: 'kg' | 'lbs', to: 'kg' | 'lbs') => {
+    let numValue: number;
+    if (typeof value === 'string') {
+      numValue = parseFloat(value);
+    } else if (value === null || value === undefined) {
+      return NaN;
+    } else {
+      numValue = value;
+    }
+
+    if (isNaN(numValue)) return NaN;
+    if (from === to) return numValue;
+    if (from === 'kg' && to === 'lbs') return numValue * 2.20462;
+    if (from === 'lbs' && to === 'kg') return numValue / 2.20462;
+    return numValue;
   };
 
-  const convertMeasurement = (value: number, from: 'cm' | 'inches', to: 'cm' | 'inches') => {
-    if (from === to) return value;
-    if (from === 'cm' && to === 'inches') return value / 2.54;
-    if (from === 'inches' && to === 'cm') return value * 2.54;
-    return value;
+  const convertMeasurement = (value: number | string | null | undefined, from: 'cm' | 'inches', to: 'cm' | 'inches') => {
+    let numValue: number;
+    if (typeof value === 'string') {
+      numValue = parseFloat(value);
+    } else if (value === null || value === undefined) {
+      return NaN;
+    } else {
+      numValue = value;
+    }
+
+    if (isNaN(numValue)) return NaN;
+    if (from === to) return numValue;
+    if (from === 'cm' && to === 'inches') return numValue / 2.54;
+    if (from === 'inches' && to === 'cm') return numValue * 2.54;
+    return numValue;
   };
 
   const setTimezone = (newTimezone: string) => {

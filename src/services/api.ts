@@ -1,5 +1,5 @@
 import { toast } from "@/hooks/use-toast";
-import { warn, error } from "@/utils/logging";
+import { warn, error, debug } from "@/utils/logging";
 import { getUserLoggingLevel } from "@/utils/userPreferences";
 
 interface ApiCallOptions extends RequestInit {
@@ -49,20 +49,20 @@ export async function apiCall(endpoint: string, options?: ApiCallOptions): Promi
 
       // Suppress toast for 404 errors if suppress404Toast is true
       if (response.status === 404 && options?.suppress404Toast) {
-        warn(userLoggingLevel, `API call returned 404 for ${endpoint}, toast suppressed. Returning empty array.`);
+        debug(userLoggingLevel, `API call returned 404 for ${endpoint}, toast suppressed. Returning empty array.`);
         return []; // Return empty array for 404 with suppression
+      } else {
+        toast({
+          title: "API Error",
+          description: errorMessage,
+          variant: "destructive",
+        });
+        if (errorMessage.includes('Authentication: Invalid or expired token.')) {
+          localStorage.removeItem('token');
+          window.location.reload();
+        }
+        throw new Error(errorMessage);
       }
-
-      toast({
-        title: "API Error",
-        description: errorMessage,
-        variant: "destructive",
-      });
-      if (errorMessage.includes('Authentication: Invalid or expired token.')) {
-        localStorage.removeItem('token');
-        window.location.reload();
-      }
-      throw new Error(errorMessage);
     }
 
     // Handle cases where the response might be empty (e.g., DELETE requests)

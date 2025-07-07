@@ -214,9 +214,31 @@ async function searchFoods(name, userId, exactMatch, broadMatch, checkCustom) {
     let query = `
       SELECT
         f.id, f.name, f.brand, f.is_custom, f.user_id, f.shared_with_public,
-        fv.serving_unit, fv.serving_size, fv.calories, fv.protein, fv.carbs, fv.fat
+        json_build_object(
+          'id', fv.id,
+          'serving_size', fv.serving_size,
+          'serving_unit', fv.serving_unit,
+          'calories', fv.calories,
+          'protein', fv.protein,
+          'carbs', fv.carbs,
+          'fat', fv.fat,
+          'saturated_fat', fv.saturated_fat,
+          'polyunsaturated_fat', fv.polyunsaturated_fat,
+          'monounsaturated_fat', fv.monounsaturated_fat,
+          'trans_fat', fv.trans_fat,
+          'cholesterol', fv.cholesterol,
+          'sodium', fv.sodium,
+          'potassium', fv.potassium,
+          'dietary_fiber', fv.dietary_fiber,
+          'sugars', fv.sugars,
+          'vitamin_a', fv.vitamin_a,
+          'vitamin_c', fv.vitamin_c,
+          'calcium', fv.calcium,
+          'iron', fv.iron,
+          'is_default', fv.is_default
+        ) AS default_variant
       FROM foods f
-      JOIN food_variants fv ON f.default_variant_id = fv.id
+      LEFT JOIN food_variants fv ON f.id = fv.food_id AND fv.is_default = TRUE
       WHERE `;
     const queryParams = [];
     let paramIndex = 1;
@@ -245,15 +267,68 @@ async function searchFoods(name, userId, exactMatch, broadMatch, checkCustom) {
 async function createFood(foodData) {
   const client = await pool.connect();
   try {
-    const result = await client.query(
+    await client.query('BEGIN'); // Start transaction
+
+    // 1. Create the food entry
+    const foodResult = await client.query(
       `INSERT INTO foods (
-        name, is_custom, user_id, brand, barcode, provider_external_id, shared_with_public, provider_type, default_variant_id, created_at, updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, now(), now()) RETURNING *`,
+        name, is_custom, user_id, brand, barcode, provider_external_id, shared_with_public, provider_type, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, now(), now()) RETURNING id, name, brand, is_custom, user_id, shared_with_public`,
       [
-        foodData.name, foodData.is_custom, foodData.user_id, foodData.brand, foodData.barcode, foodData.provider_external_id, foodData.shared_with_public, foodData.provider_type, foodData.default_variant_id
+        foodData.name, foodData.is_custom, foodData.user_id, foodData.brand, foodData.barcode, foodData.provider_external_id, foodData.shared_with_public, foodData.provider_type
       ]
     );
-    return result.rows[0]; // Return the full row
+    const newFood = foodResult.rows[0];
+
+    // 2. Create the primary food variant and mark it as default
+    const variantResult = await client.query(
+      `INSERT INTO food_variants (
+        food_id, serving_size, serving_unit, calories, protein, carbs, fat,
+        saturated_fat, polyunsaturated_fat, monounsaturated_fat, trans_fat,
+        cholesterol, sodium, potassium, dietary_fiber, sugars,
+        vitamin_a, vitamin_c, calcium, iron, is_default, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, TRUE, now(), now()) RETURNING id`,
+      [
+        newFood.id, foodData.serving_size, foodData.serving_unit, foodData.calories, foodData.protein, foodData.carbs, foodData.fat,
+        foodData.saturated_fat, foodData.polyunsaturated_fat, foodData.monounsaturated_fat, foodData.trans_fat,
+        foodData.cholesterol, foodData.sodium, foodData.potassium, foodData.dietary_fiber, foodData.sugars,
+        foodData.vitamin_a, foodData.vitamin_c, foodData.calcium, foodData.iron
+      ]
+    );
+    const newVariantId = variantResult.rows[0].id;
+
+    await client.query('COMMIT'); // Commit transaction
+
+    // Return the new food with its default variant details
+    return {
+      ...newFood,
+      default_variant: {
+        id: newVariantId,
+        serving_size: foodData.serving_size,
+        serving_unit: foodData.serving_unit,
+        calories: foodData.calories,
+        protein: foodData.protein,
+        carbs: foodData.carbs,
+        fat: foodData.fat,
+        saturated_fat: foodData.saturated_fat,
+        polyunsaturated_fat: foodData.polyunsaturated_fat,
+        monounsaturated_fat: foodData.monounsaturated_fat,
+        trans_fat: foodData.trans_fat,
+        cholesterol: foodData.cholesterol,
+        sodium: foodData.sodium,
+        potassium: foodData.potassium,
+        dietary_fiber: foodData.dietary_fiber,
+        sugars: foodData.sugars,
+        vitamin_a: foodData.vitamin_a,
+        vitamin_c: foodData.vitamin_c,
+        calcium: foodData.calcium,
+        iron: foodData.iron,
+        is_default: true,
+      }
+    };
+  } catch (error) {
+    await client.query('ROLLBACK'); // Rollback transaction on error
+    throw error;
   } finally {
     client.release();
   }
@@ -265,12 +340,31 @@ async function getFoodById(foodId) {
     const result = await client.query(
       `SELECT
         f.id, f.name, f.brand, f.is_custom, f.user_id, f.shared_with_public,
-        fv.serving_size, fv.serving_unit, fv.calories, fv.protein, fv.carbs, fv.fat,
-        fv.saturated_fat, fv.polyunsaturated_fat, fv.monounsaturated_fat, fv.trans_fat,
-        fv.cholesterol, fv.sodium, fv.potassium, fv.dietary_fiber, fv.sugars,
-        fv.vitamin_a, fv.vitamin_c, fv.calcium, fv.iron
+        json_build_object(
+          'id', fv.id,
+          'serving_size', fv.serving_size,
+          'serving_unit', fv.serving_unit,
+          'calories', fv.calories,
+          'protein', fv.protein,
+          'carbs', fv.carbs,
+          'fat', fv.fat,
+          'saturated_fat', fv.saturated_fat,
+          'polyunsaturated_fat', fv.polyunsaturated_fat,
+          'monounsaturated_fat', fv.monounsaturated_fat,
+          'trans_fat', fv.trans_fat,
+          'cholesterol', fv.cholesterol,
+          'sodium', fv.sodium,
+          'potassium', fv.potassium,
+          'dietary_fiber', fv.dietary_fiber,
+          'sugars', fv.sugars,
+          'vitamin_a', fv.vitamin_a,
+          'vitamin_c', fv.vitamin_c,
+          'calcium', fv.calcium,
+          'iron', fv.iron,
+          'is_default', fv.is_default
+        ) AS default_variant
       FROM foods f
-      JOIN food_variants fv ON f.default_variant_id = fv.id
+      LEFT JOIN food_variants fv ON f.id = fv.food_id AND fv.is_default = TRUE
       WHERE f.id = $1`,
       [foodId]
     );
@@ -287,7 +381,9 @@ async function getFoodOwnerId(foodId) {
       'SELECT user_id FROM foods WHERE id = $1',
       [foodId]
     );
-    return foodResult.rows[0]?.user_id;
+    const ownerId = foodResult.rows[0]?.user_id;
+    log('info', `getFoodOwnerId: Food ID ${foodId} owner: ${ownerId}`);
+    return ownerId;
   } finally {
     client.release();
   }
@@ -305,13 +401,12 @@ async function updateFood(id, userId, foodData) {
         provider_external_id = COALESCE($5, provider_external_id),
         shared_with_public = COALESCE($6, shared_with_public),
         provider_type = COALESCE($7, provider_type),
-        default_variant_id = COALESCE($8, default_variant_id),
         updated_at = now()
-      WHERE id = $9 AND user_id = $10
+      WHERE id = $8 AND user_id = $9
       RETURNING *`,
       [
         foodData.name, foodData.is_custom, foodData.brand, foodData.barcode,
-        foodData.provider_external_id, foodData.shared_with_public, foodData.provider_type, foodData.default_variant_id, id, userId
+        foodData.provider_external_id, foodData.shared_with_public, foodData.provider_type, id, userId
       ]
     );
     return result.rows[0];
@@ -368,9 +463,31 @@ async function getFoodsWithPagination(searchTerm, foodFilter, authenticatedUserI
     let query = `
       SELECT
         f.id, f.name, f.brand, f.is_custom, f.user_id, f.shared_with_public,
-        fv.serving_size, fv.serving_unit, fv.calories, fv.protein, fv.carbs, fv.fat
+        json_build_object(
+          'id', fv.id,
+          'serving_size', fv.serving_size,
+          'serving_unit', fv.serving_unit,
+          'calories', fv.calories,
+          'protein', fv.protein,
+          'carbs', fv.carbs,
+          'fat', fv.fat,
+          'saturated_fat', fv.saturated_fat,
+          'polyunsaturated_fat', fv.polyunsaturated_fat,
+          'monounsaturated_fat', fv.monounsaturated_fat,
+          'trans_fat', fv.trans_fat,
+          'cholesterol', fv.cholesterol,
+          'sodium', fv.sodium,
+          'potassium', fv.potassium,
+          'dietary_fiber', fv.dietary_fiber,
+          'sugars', fv.sugars,
+          'vitamin_a', fv.vitamin_a,
+          'vitamin_c', fv.vitamin_c,
+          'calcium', fv.calcium,
+          'iron', fv.iron,
+          'is_default', fv.is_default
+        ) AS default_variant
       FROM foods f
-      JOIN food_variants fv ON f.default_variant_id = fv.id
+      LEFT JOIN food_variants fv ON f.id = fv.food_id AND fv.is_default = TRUE
       WHERE ${whereClauses.join(' AND ')}
     `;
 
@@ -450,13 +567,13 @@ async function createFoodVariant(variantData) {
         food_id, serving_size, serving_unit, calories, protein, carbs, fat,
         saturated_fat, polyunsaturated_fat, monounsaturated_fat, trans_fat,
         cholesterol, sodium, potassium, dietary_fiber, sugars,
-        vitamin_a, vitamin_c, calcium, iron, created_at, updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, now(), now()) RETURNING id`,
+        vitamin_a, vitamin_c, calcium, iron, is_default, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, now(), now()) RETURNING id`,
       [
         variantData.food_id, variantData.serving_size, variantData.serving_unit, variantData.calories, variantData.protein, variantData.carbs, variantData.fat,
         variantData.saturated_fat, variantData.polyunsaturated_fat, variantData.monounsaturated_fat, variantData.trans_fat,
         variantData.cholesterol, variantData.sodium, variantData.potassium, variantData.dietary_fiber, variantData.sugars,
-        variantData.vitamin_a, variantData.vitamin_c, variantData.calcium, variantData.iron
+        variantData.vitamin_a, variantData.vitamin_c, variantData.calcium, variantData.iron, variantData.is_default || false
       ]
     );
     return result.rows[0];
@@ -477,12 +594,29 @@ async function getFoodVariantById(id) {
     client.release();
   }
 }
+async function getFoodVariantOwnerId(variantId) {
+  const client = await pool.connect();
+  try {
+    const result = await client.query(
+      `SELECT f.user_id
+       FROM food_variants fv
+       JOIN foods f ON fv.food_id = f.id
+       WHERE fv.id = $1`,
+      [variantId]
+    );
+    const ownerId = result.rows[0]?.user_id;
+    log('info', `getFoodVariantOwnerId: Variant ID ${variantId} owner: ${ownerId}`);
+    return ownerId;
+  } finally {
+    client.release();
+  }
+}
 
 async function getFoodVariantsByFoodId(foodId) {
   const client = await pool.connect();
   try {
     const result = await client.query(
-      'SELECT id FROM food_variants WHERE food_id = $1',
+      'SELECT * FROM food_variants WHERE food_id = $1',
       [foodId]
     );
     return result.rows;
@@ -516,16 +650,26 @@ async function updateFoodVariant(id, variantData) {
         vitamin_c = COALESCE($18, vitamin_c),
         calcium = COALESCE($19, calcium),
         iron = COALESCE($20, iron),
+        is_default = COALESCE($21, is_default),
         updated_at = now()
-      WHERE id = $21
+      WHERE id = $22
       RETURNING *`,
       [
         variantData.food_id, variantData.serving_size, variantData.serving_unit, variantData.calories, variantData.protein, variantData.carbs, variantData.fat,
         variantData.saturated_fat, variantData.polyunsaturated_fat, variantData.monounsaturated_fat, variantData.trans_fat,
         variantData.cholesterol, variantData.sodium, variantData.potassium, variantData.dietary_fiber, variantData.sugars,
-        variantData.vitamin_a, variantData.vitamin_c, variantData.calcium, variantData.iron, id
+        variantData.vitamin_a, variantData.vitamin_c, variantData.calcium, variantData.iron, variantData.is_default, id
       ]
     );
+
+    // If this variant is being set as default, ensure all other variants for this food_id are not default
+    if (variantData.is_default) {
+      await client.query(
+        `UPDATE food_variants SET is_default = FALSE WHERE food_id = $1 AND id != $2`,
+        [variantData.food_id, id]
+      );
+    }
+
     return result.rows[0];
   } finally {
     client.release();
@@ -664,11 +808,31 @@ async function findFoodByNameAndBrand(name, brand, userId) {
       `SELECT
         f.id, f.name, f.brand, f.is_custom, f.user_id, f.shared_with_public,
         fv.serving_size, fv.serving_unit, fv.calories, fv.protein, fv.carbs, fv.fat,
-        fv.saturated_fat, fv.polyunsaturated_fat, fv.monounsaturated_fat, fv.trans_fat,
-        fv.cholesterol, fv.sodium, fv.potassium, fv.dietary_fiber, fv.sugars,
-        fv.vitamin_a, fv.vitamin_c, fv.vitamin_c, fv.calcium, fv.iron
+        json_build_object(
+          'id', fv.id,
+          'serving_size', fv.serving_size,
+          'serving_unit', fv.serving_unit,
+          'calories', fv.calories,
+          'protein', fv.protein,
+          'carbs', fv.carbs,
+          'fat', fv.fat,
+          'saturated_fat', fv.saturated_fat,
+          'polyunsaturated_fat', fv.polyunsaturated_fat,
+          'monounsaturated_fat', fv.monounsaturated_fat,
+          'trans_fat', fv.trans_fat,
+          'cholesterol', fv.cholesterol,
+          'sodium', fv.sodium,
+          'potassium', fv.potassium,
+          'dietary_fiber', fv.dietary_fiber,
+          'sugars', fv.sugars,
+          'vitamin_a', fv.vitamin_a,
+          'vitamin_c', fv.vitamin_c,
+          'calcium', fv.calcium,
+          'iron', fv.iron,
+          'is_default', fv.is_default
+        ) AS default_variant
        FROM foods f
-       JOIN food_variants fv ON f.default_variant_id = fv.id
+       LEFT JOIN food_variants fv ON f.id = fv.food_id AND fv.is_default = TRUE
        WHERE f.name ILIKE $1 AND (f.brand IS NULL OR f.brand ILIKE $2)
          AND (f.user_id = $3 OR f.is_custom = FALSE)`,
       [name, brand || null, userId]
@@ -687,14 +851,14 @@ async function bulkCreateFoodVariants(variantsData) {
         food_id, serving_size, serving_unit, calories, protein, carbs, fat,
         saturated_fat, polyunsaturated_fat, monounsaturated_fat, trans_fat,
         cholesterol, sodium, potassium, dietary_fiber, sugars,
-        vitamin_a, vitamin_c, calcium, iron, created_at, updated_at
+        vitamin_a, vitamin_c, calcium, iron, is_default, created_at, updated_at
       ) VALUES %L RETURNING id`;
 
     const values = variantsData.map(variant => [
       variant.food_id, variant.serving_size, variant.serving_unit, variant.calories, variant.protein, variant.carbs, variant.fat,
       variant.saturated_fat, variant.polyunsaturated_fat, variant.monounsaturated_fat, variant.trans_fat,
       variant.cholesterol, variant.sodium, variant.potassium, variant.dietary_fiber, variant.sugars,
-      variant.vitamin_a, variant.vitamin_c, variant.calcium, variant.iron, 'now()', 'now()'
+      variant.vitamin_a, variant.vitamin_c, variant.calcium, variant.iron, variant.is_default || false, 'now()', 'now()'
     ]);
 
     const formattedQuery = format(query, values);
@@ -722,6 +886,7 @@ module.exports = {
   countFoods,
   createFoodVariant,
   getFoodVariantById,
+  getFoodVariantOwnerId,
   getFoodVariantsByFoodId,
   updateFoodVariant,
   deleteFoodVariant,

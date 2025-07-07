@@ -35,20 +35,8 @@ const ReportsControls = ({
   onWeightUnitToggle,
   onMeasurementUnitToggle,
 }: ReportsControlsProps) => {
-  const { formatDate, parseDateInUserTimezone, formatDateInUserTimezone, weightUnit, measurementUnit, loggingLevel } = usePreferences();
+  const { formatDate, parseDateInUserTimezone, formatDateInUserTimezone, loggingLevel } = usePreferences();
   info(loggingLevel, 'ReportsControls: Rendering component.');
-
-  // Set default units based on user preferences when component mounts
-  useEffect(() => {
-    debug(loggingLevel, 'ReportsControls: Setting default units based on preferences', {
-       weightUnit,
-       measurementUnit,
-       showWeightInKg,
-       showMeasurementsInCm
-     });
-    onWeightUnitToggle(weightUnit === 'kg');
-    onMeasurementUnitToggle(measurementUnit === 'cm');
-  }, [weightUnit, measurementUnit, onWeightUnitToggle, onMeasurementUnitToggle, loggingLevel]);
 
   const handleStartDateSelect = (newDate: Date | undefined) => {
     if (newDate) {
@@ -99,15 +87,17 @@ const ReportsControls = ({
   };
 
   const handleWeightUnitChange = (checked: boolean) => {
-    const newValue = !checked; // checked is true for lbs, we want showWeightInKg
-    debug(loggingLevel, 'ReportsControls: Weight unit toggle changed to:', newValue ? 'kg' : 'lbs');
-    onWeightUnitToggle(newValue);
+    // `checked` is true when the switch is ON (meaning lbs is selected)
+    // `onWeightUnitToggle` expects `true` for kg, `false` for lbs
+    debug(loggingLevel, 'ReportsControls: Weight unit toggle changed. Switch checked:', checked);
+    onWeightUnitToggle(!checked); // Pass true if kg, false if lbs
   };
 
   const handleMeasurementUnitChange = (checked: boolean) => {
-    const newValue = !checked; // checked is true for inches, we want showMeasurementsInCm
-    debug(loggingLevel, 'ReportsControls: Measurement unit toggle changed to:', newValue ? 'cm' : 'inches');
-    onMeasurementUnitToggle(newValue);
+    // `checked` is true when the switch is ON (meaning inches is selected)
+    // `onMeasurementUnitToggle` expects `true` for cm, `false` for inches
+    debug(loggingLevel, 'ReportsControls: Measurement unit toggle changed. Switch checked:', checked);
+    onMeasurementUnitToggle(!checked); // Pass true if cm, false if inches
   };
 
   return (

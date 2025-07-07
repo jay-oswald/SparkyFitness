@@ -113,6 +113,7 @@ create table public.foods (
   barcode character varying(255) null, -- For scanning
   openfoodfacts_id character varying(255) null, -- Link to external databases
   shared_with_public boolean null default false,
+  default_variant_id uuid null, -- Reference to the default food_variant for this food
   saturated_fat numeric null, -- Added for comprehensive nutrition
   polyunsaturated_fat numeric null,
   monounsaturated_unsaturated numeric null,
@@ -127,7 +128,8 @@ create table public.foods (
   calcium numeric null,
   iron numeric null,
   constraint foods_pkey primary key (id),
-  constraint foods_user_id_fkey foreign KEY (user_id) references auth.users (id)
+  constraint foods_user_id_fkey foreign KEY (user_id) references auth.users (id),
+  constraint foods_default_variant_id_fkey foreign KEY (default_variant_id) references food_variants (id)
 ) TABLESPACE pg_default;
 ```
 **RLS**: Users can access public foods and their own custom foods

@@ -1,48 +1,6 @@
 import { apiCall } from './api';
 
-export interface Food {
-  id: string;
-  name: string;
-  brand?: string;
-  user_id?: string;
-  is_custom?: boolean;
-  shared_with_public?: boolean;
-}
-
-export interface FoodVariant {
-  id: string;
-  serving_size: number;
-  serving_unit: string;
-  calories: number;
-  protein: number;
-  carbs: number;
-  fat: number;
-  saturated_fat?: number;
-  polyunsaturated_fat?: number;
-  monounsaturated_fat?: number;
-  trans_fat?: number;
-  cholesterol?: number;
-  sodium?: number;
-  potassium?: number;
-  dietary_fiber?: number;
-  sugars?: number;
-  vitamin_a?: number;
-  vitamin_c?: number;
-  calcium?: number;
-  iron?: number;
-}
-
-export interface FoodEntry {
-  id: string;
-  food_id: string;
-  meal_type: string;
-  quantity: number;
-  unit: string;
-  variant_id?: string;
-  foods: Food;
-  food_variants?: FoodVariant;
-  entry_date: string; // Add entry_date to FoodEntry interface
-}
+import { Food, FoodVariant, FoodEntry } from '@/types/food';
 
 export interface Goal {
   calories: number;

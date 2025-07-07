@@ -31,7 +31,7 @@ const Reports = () => {
   // These console.log statements were moved inside the component to access loggingLevel
   const { user } = useAuth();
   const { activeUserId } = useActiveUser();
-  const { weightUnit, measurementUnit, convertWeight, convertMeasurement, formatDateInUserTimezone, parseDateInUserTimezone, loggingLevel, timezone } = usePreferences();
+  const { weightUnit: defaultWeightUnit, measurementUnit: defaultMeasurementUnit, convertWeight, convertMeasurement, formatDateInUserTimezone, parseDateInUserTimezone, loggingLevel, timezone } = usePreferences();
   const [nutritionData, setNutritionData] = useState<NutritionData[]>([]);
   const [measurementData, setMeasurementData] = useState<ReportsMeasurementData[]>([]);
   const [tabularData, setTabularData] = useState<DailyFoodEntry[]>([]);
@@ -40,8 +40,8 @@ const Reports = () => {
   const [loading, setLoading] = useState(true);
   const [startDate, setStartDate] = useState<string | null>(null);
   const [endDate, setEndDate] = useState<string | null>(null);
-  const [showWeightInKg, setShowWeightInKg] = useState(true);
-  const [showMeasurementsInCm, setShowMeasurementsInCm] = useState(true);
+  const [showWeightInKg, setShowWeightInKg] = useState(defaultWeightUnit === 'kg');
+  const [showMeasurementsInCm, setShowMeasurementsInCm] = useState(defaultMeasurementUnit === 'cm');
 
   // Effect to re-initialize startDate and endDate when timezone preference changes
   useEffect(() => {
@@ -69,8 +69,6 @@ const Reports = () => {
       endDate,
       showWeightInKg,
       showMeasurementsInCm,
-      weightUnit,
-      measurementUnit,
       loggingLevel
     });
     
@@ -91,8 +89,8 @@ const Reports = () => {
     return () => {
       window.removeEventListener('foodDiaryRefresh', handleRefresh);
       window.removeEventListener('measurementsRefresh', handleRefresh);
-    };
-  }, [user, activeUserId, startDate, endDate, loggingLevel, formatDateInUserTimezone, parseDateInUserTimezone, showWeightInKg, showMeasurementsInCm, weightUnit, measurementUnit]); // Added showWeightInKg, showMeasurementsInCm, weightUnit, measurementUnit to dependencies
+      };
+    }, [user, activeUserId, startDate, endDate, loggingLevel, formatDateInUserTimezone, parseDateInUserTimezone, showWeightInKg, showMeasurementsInCm, defaultWeightUnit, defaultMeasurementUnit]); // Added showWeightInKg, showMeasurementsInCm, defaultWeightUnit, defaultMeasurementUnit to dependencies
 
   const loadReports = async () => {
     info(loggingLevel, 'Reports: Loading reports...');
@@ -398,7 +396,7 @@ const Reports = () => {
         const formattedHour = `${hour.toString().padStart(2, '0')}:00`;
         
         return [
-          formatDateInUserTimezone(measurement.entry_date, 'MMM dd, yyyy'), // Format date for display
+          measurement.entry_date && !isNaN(parseISO(measurement.entry_date).getTime()) ? formatDateInUserTimezone(parseISO(measurement.entry_date), 'MMM dd, yyyy') : '', // Format date for display
           formattedHour,
           measurement.value.toString()
         ];
@@ -435,10 +433,20 @@ const Reports = () => {
 
   const formatCustomChartData = (category: CustomCategory, data: CustomMeasurementData[]) => {
     debug(loggingLevel, `Reports: Formatting custom chart data for category: ${category.name} (${category.frequency})`);
+    const isConvertibleMeasurement = ['kg', 'lbs', 'cm', 'inches'].includes(category.measurement_type.toLowerCase());
+
+    const convertValue = (value: number) => {
+      if (isConvertibleMeasurement) {
+        // Assuming custom measurements are stored in 'cm' if they are convertible
+        return convertMeasurement(value, 'cm', showMeasurementsInCm ? 'cm' : 'inches');
+      }
+      return value;
+    };
+
     if (category.frequency === 'Hourly' || category.frequency === 'All') {
       return data.map(d => ({
         date: `${d.entry_date} ${d.hour !== null ? String(d.hour).padStart(2, '0') + ':00' : ''}`,
-        value: d.value
+        value: convertValue(d.value)
       }));
     } else {
       // For daily, group by date and take the latest value
@@ -451,7 +459,7 @@ const Reports = () => {
       
       return Object.values(grouped).map(d => ({
         date: d.entry_date,
-        value: d.value
+        value: convertValue(d.value)
       }));
     }
   };
@@ -460,7 +468,7 @@ const Reports = () => {
     debug(loggingLevel, 'Reports: Weight unit toggle handler called:', {
       showInKg,
       currentShowWeightInKg: showWeightInKg,
-      currentWeightUnit: weightUnit
+      currentWeightUnit: defaultWeightUnit
     });
     setShowWeightInKg(showInKg);
   };
@@ -469,7 +477,7 @@ const Reports = () => {
     debug(loggingLevel, 'Reports: Measurement unit toggle handler called:', {
       showInCm,
       currentShowMeasurementsInCm: showMeasurementsInCm,
-      currentMeasurementUnit: measurementUnit
+      currentMeasurementUnit: defaultMeasurementUnit
     });
     setShowMeasurementsInCm(showInCm);
   };
@@ -551,7 +559,9 @@ const Reports = () => {
                           <CardHeader>
                             <CardTitle className="flex items-center">
                               <Activity className="w-5 h-5 mr-2" />
-                              {category.name} ({category.measurement_type})
+                              {category.measurement_type.toLowerCase() === 'length' || category.measurement_type.toLowerCase() === 'distance'
+                                ? `${category.name} (${showMeasurementsInCm ? 'cm' : 'inches'})`
+                                : `${category.name} (${category.measurement_type})`}
                             </CardTitle>
                           </CardHeader>
                           <CardContent>
@@ -560,8 +570,15 @@ const Reports = () => {
                                 <LineChart data={chartData}>
                                   <CartesianGrid strokeDasharray="3 3" />
                                   <XAxis dataKey="date" />
-                                  <YAxis />
-                                  <Tooltip />
+                                  <YAxis
+                                    label={{
+                                      value: showMeasurementsInCm ? 'cm' : 'inches',
+                                      angle: -90,
+                                      position: 'insideLeft',
+                                      offset: 10
+                                    }}
+                                  />
+                                  <Tooltip formatter={(value: number) => [`${value.toFixed(1)} ${showMeasurementsInCm ? 'cm' : 'inches'}`]} />
                                   <Line type="monotone" dataKey="value" stroke="#8884d8" strokeWidth={2} dot={false} />
                                 </LineChart>
                               </ResponsiveContainer>

@@ -61,6 +61,7 @@ const MeasurementChartsGrid = ({ measurementData, showWeightInKg, showMeasuremen
                     <YAxis fontSize={10} />
                     <Tooltip
                       labelFormatter={(value) => formatDateForChart(value as string)} // Apply formatter
+                      formatter={(value: number) => [`${value.toFixed(1)} ${showWeightInKg ? 'kg' : 'lbs'}`]}
                     />
                     <Line type="monotone" dataKey="weight" stroke="#e74c3c" strokeWidth={2} dot={false} />
                   </LineChart>
@@ -89,6 +90,7 @@ const MeasurementChartsGrid = ({ measurementData, showWeightInKg, showMeasuremen
                     <YAxis fontSize={10} />
                     <Tooltip
                       labelFormatter={(value) => formatDateForChart(value as string)} // Apply formatter
+                      formatter={(value: number) => [`${value.toFixed(1)} ${showMeasurementsInCm ? 'cm' : 'inches'}`]}
                     />
                     <Line type="monotone" dataKey="neck" stroke="#3498db" strokeWidth={2} dot={false} />
                   </LineChart>
@@ -117,6 +119,7 @@ const MeasurementChartsGrid = ({ measurementData, showWeightInKg, showMeasuremen
                     <YAxis fontSize={10} />
                     <Tooltip
                       labelFormatter={(value) => formatDateForChart(value as string)} // Apply formatter
+                      formatter={(value: number) => [`${value.toFixed(1)} ${showMeasurementsInCm ? 'cm' : 'inches'}`]}
                     />
                     <Line type="monotone" dataKey="waist" stroke="#e74c3c" strokeWidth={2} dot={false} />
                   </LineChart>
@@ -145,6 +148,7 @@ const MeasurementChartsGrid = ({ measurementData, showWeightInKg, showMeasuremen
                     <YAxis fontSize={10} />
                     <Tooltip
                       labelFormatter={(value) => formatDateForChart(value as string)} // Apply formatter
+                      formatter={(value: number) => [`${value.toFixed(1)} ${showMeasurementsInCm ? 'cm' : 'inches'}`]}
                     />
                     <Line type="monotone" dataKey="hips" stroke="#f39c12" strokeWidth={2} dot={false} />
                   </LineChart>

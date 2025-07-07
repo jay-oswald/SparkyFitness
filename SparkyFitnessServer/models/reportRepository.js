@@ -75,7 +75,7 @@ async function getCustomMeasurementsData(userId, categoryId, startDate, endDate)
   const client = await pool.connect();
   try {
     const result = await client.query(
-      'SELECT category_id, entry_date AS date, EXTRACT(HOUR FROM entry_timestamp) AS hour, value, entry_timestamp AS timestamp FROM custom_measurements WHERE user_id = $1 AND category_id = $2 AND entry_date BETWEEN $3 AND $4 ORDER BY entry_date, entry_timestamp',
+      'SELECT category_id, entry_date, EXTRACT(HOUR FROM entry_timestamp) AS hour, value, entry_timestamp AS timestamp FROM custom_measurements WHERE user_id = $1 AND category_id = $2 AND entry_date BETWEEN $3 AND $4 ORDER BY entry_date, entry_timestamp',
       [userId, categoryId, startDate, endDate]
     );
     return result.rows;

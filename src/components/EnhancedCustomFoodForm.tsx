@@ -9,17 +9,17 @@ import { Plus, Trash2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "@/hooks/use-toast";
 import {
-  loadFoodVariants,
-  saveFood,
   isUUID,
-  Food,
-  FoodVariant,
+  saveFood,
+  loadFoodVariants, // Also re-add loadFoodVariants as it's used
 } from '@/services/enhancedCustomFoodFormService';
+import { Food, FoodVariant } from '@/types/food';
 
 
 interface EnhancedCustomFoodFormProps {
   onSave: (foodData: any) => void;
   food?: Food;
+  initialVariants?: FoodVariant[]; // New prop for pre-populating variants
 }
 
 const COMMON_UNITS = [
@@ -28,7 +28,7 @@ const COMMON_UNITS = [
   'bowl', 'plate', 'handful', 'scoop', 'bar', 'stick'
 ];
 
-const EnhancedCustomFoodForm = ({ onSave, food }: EnhancedCustomFoodFormProps) => {
+const EnhancedCustomFoodForm = ({ onSave, food, initialVariants }: EnhancedCustomFoodFormProps) => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [variants, setVariants] = useState<FoodVariant[]>([]);
@@ -43,37 +43,25 @@ const EnhancedCustomFoodForm = ({ onSave, food }: EnhancedCustomFoodFormProps) =
         name: food.name || "",
         brand: food.brand || "",
       });
-      
-      // Initialize variants with the primary food unit
-      const primaryFoodUnit: FoodVariant = {
-        id: food.id, // Keep food.id for existing foods
-        serving_size: food.serving_size || 100,
-        serving_unit: food.serving_unit || "g",
-        calories: food.calories || 0,
-        protein: food.protein || 0,
-        carbs: food.carbs || 0,
-        fat: food.fat || 0,
-        saturated_fat: food.saturated_fat || 0,
-        polyunsaturated_fat: food.polyunsaturated_fat || 0,
-        monounsaturated_fat: food.monounsaturated_fat || 0,
-        trans_fat: food.trans_fat || 0,
-        cholesterol: food.cholesterol || 0,
-        sodium: food.sodium || 0,
-        potassium: food.potassium || 0,
-        dietary_fiber: food.dietary_fiber || 0,
-        sugars: food.sugars || 0,
-        vitamin_a: food.vitamin_a || 0,
-        vitamin_c: food.vitamin_c || 0,
-        calcium: food.calcium || 0,
-        iron: food.iron || 0,
-      };
-      setVariants([primaryFoodUnit]);
-
-      if (food.id && isUUID(food.id)) { // Only load variants if food.id is a valid UUID
-        loadExistingVariants();
+      // If food has variants from the API, use them. Otherwise, load existing variants from the backend.
+      if (food.variants && food.variants.length > 0) {
+        setVariants(food.variants);
+      } else {
+        loadExistingVariants(); // Load variants for existing food from DB
       }
+    } else if (initialVariants && initialVariants.length > 0) {
+      // If initialVariants are provided (e.g., from online search), use them
+      setFormData({
+        name: "", // Will be set by the parent component if food is passed
+        brand: "", // Will be set by the parent component if food is passed
+      });
+      setVariants(initialVariants);
     } else {
-      // For completely new foods, initialize with a default empty variant
+      // For completely new foods with no initial variants, initialize with a single default variant
+      setFormData({
+        name: "",
+        brand: "",
+      });
       setVariants([{
         serving_size: 100,
         serving_unit: "g",
@@ -94,54 +82,102 @@ const EnhancedCustomFoodForm = ({ onSave, food }: EnhancedCustomFoodFormProps) =
         vitamin_c: 0,
         calcium: 0,
         iron: 0,
+        is_default: true, // Mark as default
       }]);
     }
-  }, [food]);
+  }, [food, initialVariants]); // Add initialVariants to dependency array
 
   const loadExistingVariants = async () => {
     if (!food?.id || !isUUID(food.id)) return; // Ensure food.id is a valid UUID
 
     try {
       const data = await loadFoodVariants(food.id);
+      
+      let loadedVariants: FoodVariant[] = [];
+      let defaultVariant: FoodVariant | undefined;
 
       if (data && data.length > 0) {
-        // Filter out any variants that are identical to the primary food unit
-        const filteredVariants = data.filter(variant => 
-          !(variant.serving_size === food.serving_size && variant.serving_unit === food.serving_unit)
-        ).map(variant => ({
-          id: variant.id,
-          serving_size: variant.serving_size,
-          serving_unit: variant.serving_unit,
-          calories: variant.calories || 0,
-          protein: variant.protein || 0,
-          carbs: variant.carbs || 0,
-          fat: variant.fat || 0,
-          saturated_fat: variant.saturated_fat || 0,
-          polyunsaturated_fat: variant.polyunsaturated_fat || 0,
-          monounsaturated_fat: variant.monounsaturated_fat || 0,
-          trans_fat: variant.trans_fat || 0,
-          cholesterol: variant.cholesterol || 0,
-          sodium: variant.sodium || 0,
-          potassium: variant.potassium || 0,
-          dietary_fiber: variant.dietary_fiber || 0,
-          sugars: variant.sugars || 0,
-          vitamin_a: variant.vitamin_a || 0,
-          vitamin_c: variant.vitamin_c || 0,
-          calcium: variant.calcium || 0,
-          iron: variant.iron || 0,
-        }));
+        // Find the default variant
+        defaultVariant = data.find(v => v.is_default);
         
-        // Prepend the primary food unit to the variants list
-        setVariants(prevVariants => [prevVariants[0], ...filteredVariants]);
+        // If no explicit default, try to use the one that matches the food's primary details
+        // This might be redundant if the backend always ensures one is_default=true
+        if (!defaultVariant && food.default_variant) {
+          defaultVariant = data.find(v => v.id === food.default_variant?.id);
+        }
+
+        // If still no default, pick the first one or create a new one
+        if (!defaultVariant) {
+          defaultVariant = data[0];
+          if (defaultVariant) {
+            defaultVariant.is_default = true; // Mark it as default for the UI
+          }
+        }
+
+        // Ensure the default variant is always first in the list
+        if (defaultVariant) {
+          loadedVariants.push(defaultVariant);
+          loadedVariants = loadedVariants.concat(data.filter(v => v.id !== defaultVariant?.id));
+        } else {
+          loadedVariants = data; // Fallback if no default is found
+        }
+      } else {
+        // If no variants are returned, initialize with a single default variant
+        loadedVariants = [{
+          serving_size: 100,
+          serving_unit: "g",
+          calories: 0,
+          protein: 0,
+          carbs: 0,
+          fat: 0,
+          saturated_fat: 0,
+          polyunsaturated_fat: 0,
+          monounsaturated_fat: 0,
+          trans_fat: 0,
+          cholesterol: 0,
+          sodium: 0,
+          potassium: 0,
+          dietary_fiber: 0,
+          sugars: 0,
+          vitamin_a: 0,
+          vitamin_c: 0,
+          calcium: 0,
+          iron: 0,
+          is_default: true,
+        }];
       }
+      setVariants(loadedVariants);
     } catch (error) {
-      console.error('Error:', error);
+      console.error('Error loading variants:', error);
+      // Fallback to a single default variant on error
+      setVariants([{
+        serving_size: 100,
+        serving_unit: "g",
+        calories: 0,
+        protein: 0,
+        carbs: 0,
+        fat: 0,
+        saturated_fat: 0,
+        polyunsaturated_fat: 0,
+        monounsaturated_fat: 0,
+        trans_fat: 0,
+        cholesterol: 0,
+        sodium: 0,
+        potassium: 0,
+        dietary_fiber: 0,
+        sugars: 0,
+        vitamin_a: 0,
+        vitamin_c: 0,
+        calcium: 0,
+        iron: 0,
+        is_default: true,
+      }]);
     }
   };
 
   const addVariant = () => {
-    setVariants([...variants, { 
-      serving_size: 1, 
+    setVariants([...variants, {
+      serving_size: 1,
       serving_unit: "g",
       calories: 0,
       protein: 0,
@@ -160,6 +196,7 @@ const EnhancedCustomFoodForm = ({ onSave, food }: EnhancedCustomFoodFormProps) =
       vitamin_c: 0,
       calcium: 0,
       iron: 0,
+      is_default: false, // New variants are not default
     }]);
   };
 
@@ -167,8 +204,8 @@ const EnhancedCustomFoodForm = ({ onSave, food }: EnhancedCustomFoodFormProps) =
     // Prevent removing the primary unit (index 0)
     if (index === 0) {
       toast({
-        title: "Cannot remove primary unit",
-        description: "The first unit represents the food's primary serving and cannot be removed.",
+        title: "Cannot remove default unit",
+        description: "The default unit represents the food's primary serving and cannot be removed.",
         variant: "destructive",
       });
       return;
@@ -176,9 +213,18 @@ const EnhancedCustomFoodForm = ({ onSave, food }: EnhancedCustomFoodFormProps) =
     setVariants(variants.filter((_, i) => i !== index));
   };
 
-  const updateVariant = (index: number, field: keyof FoodVariant, value: string | number) => {
+  const updateVariant = (index: number, field: keyof FoodVariant, value: string | number | boolean) => {
     const updatedVariants = [...variants];
     updatedVariants[index] = { ...updatedVariants[index], [field]: value };
+
+    // If this variant is set to be the default, ensure all others are not
+    if (field === 'is_default' && value === true) {
+      updatedVariants.forEach((v, i) => {
+        if (i !== index) {
+          v.is_default = false;
+        }
+      });
+    }
     setVariants(updatedVariants);
   };
 
@@ -189,7 +235,38 @@ const EnhancedCustomFoodForm = ({ onSave, food }: EnhancedCustomFoodFormProps) =
     setLoading(true);
     try {
       // The first variant in the array is always the primary unit for the food
-      const primaryVariant = variants[0];
+      // Ensure exactly one variant is marked as default
+      const defaultVariantCount = variants.filter(v => v.is_default).length;
+      if (defaultVariantCount === 0) {
+        toast({
+          title: "Validation Error",
+          description: "At least one variant must be marked as the default unit.",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      } else if (defaultVariantCount > 1) {
+        toast({
+          title: "Validation Error",
+          description: "Only one variant can be marked as the default unit. Please correct this.",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+
+      const primaryVariant = variants.find(v => v.is_default);
+      if (!primaryVariant) {
+        // This case should ideally be caught by the validation above, but as a fallback
+        toast({
+          title: "Error",
+          description: "No default variant found. This should not happen.",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+
       const foodData: Food = {
         name: formData.name,
         brand: formData.brand,
@@ -214,6 +291,7 @@ const EnhancedCustomFoodForm = ({ onSave, food }: EnhancedCustomFoodFormProps) =
         iron: primaryVariant.iron,
       };
 
+
       const savedFood = await saveFood(foodData, variants, user.id, food?.id);
 
       toast({
@@ -226,7 +304,7 @@ const EnhancedCustomFoodForm = ({ onSave, food }: EnhancedCustomFoodFormProps) =
           name: "",
           brand: "",
         });
-        // When creating a new food, reset variants to include only the primary unit
+        // When creating a new food, reset variants to include only the default unit
         setVariants([{
           serving_size: 100,
           serving_unit: "g",
@@ -247,6 +325,7 @@ const EnhancedCustomFoodForm = ({ onSave, food }: EnhancedCustomFoodFormProps) =
           vitamin_c: 0,
           calcium: 0,
           iron: 0,
+          is_default: true,
         }]);
       }
       
@@ -335,9 +414,17 @@ const EnhancedCustomFoodForm = ({ onSave, food }: EnhancedCustomFoodFormProps) =
                           ))}
                         </SelectContent>
                       </Select>
-                      {index === 0 && (
-                        <Badge variant="secondary" className="text-xs">Primary Unit</Badge>
-                      )}
+                      <div className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          id={`is-default-${index}`}
+                          checked={variant.is_default || false}
+                          onChange={(e) => updateVariant(index, 'is_default', e.target.checked)}
+                          className="form-checkbox h-4 w-4 text-blue-600"
+                        />
+                        <Label htmlFor={`is-default-${index}`} className="text-sm">Default</Label>
+                      </div>
+                      {/* Removed Primary Unit Badge */}
                       {index > 0 && ( // Only allow removing non-primary units
                         <Button
                           type="button"

@@ -339,64 +339,6 @@ router.get('/foods-paginated', authenticateToken, async (req, res, next) => {
   }
 });
 
-router.get('/:foodId', authenticateToken, authorizeAccess('food_list'), async (req, res, next) => {
-  const { foodId } = req.params;
-  if (!foodId) {
-    return res.status(400).json({ error: 'Food ID is required.' });
-  }
-  try {
-    const food = await foodService.getFoodById(req.userId, foodId);
-    res.status(200).json(food);
-  } catch (error) {
-    if (error.message.startsWith('Forbidden')) {
-      return res.status(403).json({ error: error.message });
-    }
-    if (error.message === 'Food not found.') {
-      return res.status(404).json({ error: error.message });
-    }
-    next(error);
-  }
-});
-
-router.put('/:id', authenticateToken, authorizeAccess('food_list'), async (req, res, next) => {
-  const { id } = req.params;
-  if (!id) {
-    return res.status(400).json({ error: 'Food ID is required.' });
-  }
-  try {
-    const updatedFood = await foodService.updateFood(req.userId, id, req.body);
-    res.status(200).json(updatedFood);
-  } catch (error) {
-    if (error.message.startsWith('Forbidden')) {
-      return res.status(403).json({ error: error.message });
-    }
-    if (error.message === 'Food not found or not authorized to update.') {
-      return res.status(404).json({ error: error.message });
-    }
-    next(error);
-  }
-});
-
-router.delete('/:id', authenticateToken, authorizeAccess('food_list'), async (req, res, next) => {
-  const { id } = req.params;
-  if (!id) {
-    return res.status(400).json({ error: 'Food ID is required.' });
-  }
-  try {
-    await foodService.deleteFood(req.userId, id);
-    res.status(200).json({ message: 'Food deleted successfully.' });
-  } catch (error) {
-    if (error.message.startsWith('Forbidden')) {
-      return res.status(403).json({ error: error.message });
-    }
-    if (error.message === 'Food not found or not authorized to delete.') {
-      return res.status(404).json({ error: error.message });
-    }
-    next(error);
-  }
-});
-
-
 router.post('/food-variants', authenticateToken, authorizeAccess('food_list'), async (req, res, next) => {
   try {
     const newVariant = await foodService.createFoodVariant(req.userId, req.body);
@@ -407,6 +349,33 @@ router.post('/food-variants', authenticateToken, authorizeAccess('food_list'), a
     }
     if (error.message === 'Food not found.') {
       return res.status(404).json({ error: error.message });
+    }
+    next(error);
+  }
+});
+
+router.get('/food-variants', authenticateToken, authorizeAccess('food_list'), async (req, res, next) => {
+  const { food_id } = req.query;
+  if (!food_id) {
+    return res.status(400).json({ error: 'Food ID is required.' });
+  }
+  try {
+    const variants = await foodService.getFoodVariantsByFoodId(req.userId, food_id);
+    res.status(200).json(variants);
+  } catch (error) {
+    // Let the centralized error handler manage the status codes and messages
+    next(error);
+  }
+});
+
+router.post('/food-variants/bulk', authenticateToken, authorizeAccess('food_list'), async (req, res, next) => {
+  try {
+    const variantsData = req.body;
+    const createdVariants = await foodService.bulkCreateFoodVariants(req.userId, variantsData);
+    res.status(201).json(createdVariants);
+  } catch (error) {
+    if (error.message.startsWith('Forbidden')) {
+      return res.status(403).json({ error: error.message });
     }
     next(error);
   }
@@ -470,26 +439,6 @@ router.delete('/food-variants/:id', authenticateToken, authorizeAccess('food_lis
   }
 });
 
-router.get('/food-variants', authenticateToken, authorizeAccess('food_list'), async (req, res, next) => {
-  const { food_id } = req.query;
-  if (!food_id) {
-    return res.status(400).json({ error: 'Food ID is required.' });
-  }
-  try {
-    const variants = await foodService.getFoodVariantsByFoodId(req.userId, food_id);
-    res.status(200).json(variants);
-  } catch (error) {
-    if (error.message.startsWith('Forbidden')) {
-      return res.status(403).json({ error: error.message });
-    }
-    if (error.message === 'Food not found.') {
-      return res.status(404).json({ error: error.message });
-    }
-    next(error);
-  }
-});
-
-
 router.post('/create-or-get', authenticateToken, authorizeAccess('food_list'), async (req, res, next) => {
   try {
     const { foodSuggestion } = req.body;
@@ -503,14 +452,58 @@ router.post('/create-or-get', authenticateToken, authorizeAccess('food_list'), a
   }
 });
 
-router.post('/food-variants/bulk', authenticateToken, authorizeAccess('food_list'), async (req, res, next) => {
+router.get('/:foodId', authenticateToken, authorizeAccess('food_list'), async (req, res, next) => {
+  const { foodId } = req.params;
+  if (!foodId) {
+    return res.status(400).json({ error: 'Food ID is required.' });
+  }
   try {
-    const variantsData = req.body;
-    const createdVariants = await foodService.bulkCreateFoodVariants(req.userId, variantsData);
-    res.status(201).json(createdVariants);
+    const food = await foodService.getFoodById(req.userId, foodId);
+    res.status(200).json(food);
   } catch (error) {
     if (error.message.startsWith('Forbidden')) {
       return res.status(403).json({ error: error.message });
+    }
+    if (error.message === 'Food not found.') {
+      return res.status(404).json({ error: error.message });
+    }
+    next(error);
+  }
+});
+
+router.put('/:id', authenticateToken, authorizeAccess('food_list'), async (req, res, next) => {
+  const { id } = req.params;
+  if (!id) {
+    return res.status(400).json({ error: 'Food ID is required.' });
+  }
+  try {
+    const updatedFood = await foodService.updateFood(req.userId, id, req.body);
+    res.status(200).json(updatedFood);
+  } catch (error) {
+    if (error.message.startsWith('Forbidden')) {
+      return res.status(403).json({ error: error.message });
+    }
+    if (error.message === 'Food not found or not authorized to update.') {
+      return res.status(404).json({ error: error.message });
+    }
+    next(error);
+  }
+});
+
+router.delete('/:id', authenticateToken, authorizeAccess('food_list'), async (req, res, next) => {
+  const { id } = req.params;
+  if (!id) {
+    return res.status(400).json({ error: 'Food ID is required.' });
+  }
+  try {
+    await foodService.deleteFood(req.userId, id);
+    res.status(200).json({ message: 'Food deleted successfully.' });
+  } catch (error) {
+    if (error.message.startsWith('Forbidden')) {
+      return res.status(403).json({ error: error.message });
+    }
+    if (error.message === 'Food not found or not authorized to delete.') {
+      return res.status(404).json({ error: error.message });
     }
     next(error);
   }
