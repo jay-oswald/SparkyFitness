@@ -1,0 +1,33 @@
+# syntax=docker/dockerfile:1.4
+
+# Stage 1: Build React frontend
+FROM node:20-slim AS builder
+
+ARG VITE_SPARKY_FITNESS_SERVER_HOST
+ARG VITE_SPARKY_FITNESS_SERVER_PORT
+
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+RUN npm install
+
+COPY . .
+
+RUN npm run build
+
+# Stage 2: Runtime container
+FROM node:20-slim
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y bash curl nano && rm -rf /var/lib/apt/lists/*
+RUN npm install -g serve
+
+COPY --from=builder /app/dist ./dist
+
+EXPOSE 3000
+
+CMD ["sh", "-c", "\
+  find dist -type f -name '*.js' -print0 | xargs -0 -I {} sed -i \"s|localhost:3010|sparkyfitness-server:3010|g\" {} && \
+  serve -s dist -l 3000\
+"]

@@ -8,7 +8,7 @@ interface ApiCallOptions extends RequestInit {
   externalApi?: boolean;
 }
 
-export const API_BASE_URL = `http://localhost:${import.meta.env.VITE_SPARKY_FITNESS_SERVER_PORT || 3010}`;
+export const API_BASE_URL = `http://${import.meta.env.VITE_SPARKY_FITNESS_SERVER_HOST || 'localhost'}:${import.meta.env.VITE_SPARKY_FITNESS_SERVER_PORT || 3010}`;
 
 export async function apiCall(endpoint: string, options?: ApiCallOptions): Promise<any> {
   const userLoggingLevel = getUserLoggingLevel();

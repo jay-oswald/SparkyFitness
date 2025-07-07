@@ -1,0 +1,29 @@
+# syntax=docker/dockerfile:1.4
+
+# Stage 1: Build backend dependencies
+FROM node:20-slim AS backend_builder
+
+WORKDIR /app/SparkyFitnessServer
+
+# Copy package.json and package-lock.json for dependency installation
+COPY SparkyFitnessServer/package.json SparkyFitnessServer/package-lock.json ./
+
+# Install backend dependencies
+RUN npm install
+
+# Stage 2: Runtime container for backend
+FROM node:20-slim
+
+WORKDIR /app/SparkyFitnessServer
+
+# Copy installed node_modules from the builder stage
+COPY --from=backend_builder /app/SparkyFitnessServer/node_modules ./node_modules
+
+# Copy the rest of the backend application code
+COPY SparkyFitnessServer/ .
+
+# Expose the port your backend server listens on
+EXPOSE 3010
+
+# Command to run the backend server
+CMD ["node", "SparkyFitnessServer.js"]

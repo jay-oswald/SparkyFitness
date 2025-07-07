@@ -1,42 +1,53 @@
 version: "3.9"
 
 services:
+  sparkyfitness-db:
+    image: postgres:15-alpine
+    restart: always
+    environment:
+      POSTGRES_DB: ${SPARKY_FITNESS_DB_NAME}
+      POSTGRES_USER: ${SPARKY_FITNESS_DB_USER}
+      POSTGRES_PASSWORD: ${SPARKY_FITNESS_DB_PASSWORD}
+    volumes:
+      - ./postgresql:/var/lib/postgresql/data
+    networks:
+      - default # Use default bridge network
+
   sparkyfitness-frontend:
-    image: codewithcj/sparkyfitness:latest
+    image: codewithcj/sparkyfitness:latest # Use pre-built image
     ports:
       - "3004:3000" # Frontend port
     environment:
       NODE_ENV: production
-      VITE_SUPABASE_URL: ${VITE_SUPABASE_URL}
-      VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY}
-      SUPABASE_PROJECT_REF: ${SUPABASE_PROJECT_REF}
-      VITE_SUPABASE_DB_PASSWORD: ${VITE_SUPABASE_DB_PASSWORD}
       TZ: America/New_York # Set your timezone
-      #Below variable is optional. needed only to enable ChatBOT
-      SUPABASE_ACCESS_TOKEN: ${SUPABASE_ACCESS_TOKEN}
+      VITE_SPARKY_FITNESS_SERVER_HOST: sparkyfitness-server
+      VITE_SPARKY_FITNESS_SERVER_PORT: $(SPARKY_FITNESS_SERVER_PORT)
     networks:
-      - sparky-fitness-ipv6-net
+      - default # Use default bridge network
     restart: always
+    depends_on:
+      - sparkyfitness-db # Frontend depends on the database being available
 
   sparkyfitness-server:
-    image: codewithcj/sparkyfitness-server:latest 
+    image: codewithcj/sparkyfitness_server:latest # Use pre-built image
     ports:
-      - "3010:3010" # Backend port
+      - "${SPARKY_FITNESS_SERVER_PORT}:${SPARKY_FITNESS_SERVER_PORT}" # Backend port
     environment:
-      SPARKY_FITNESS_SERVER_PORT: 3010
-      LOG_LEVEL: ${LOG_LEVEL} # Use LOG_LEVEL from host .env
-      SUPABASE_URL: ${VITE_SUPABASE_URL}
-      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
-      SUPABASE_ACCESS_TOKEN: ${SUPABASE_ACCESS_TOKEN} # For backend chatbot
+      SPARKY_FITNESS_SERVER_PORT: ${SPARKY_FITNESS_SERVER_PORT}
+      SPARKY_FITNESS_LOG_LEVEL: ${SPARKY_FITNESS_LOG_LEVEL}
+      SPARKY_FITNESS_DB_USER: ${SPARKY_FITNESS_DB_USER}
+      SPARKY_FITNESS_DB_HOST: sparkyfitness-db # Use the service name 'sparkyfitness-db' for inter-container communication
+      SPARKY_FITNESS_DB_NAME: ${SPARKY_FITNESS_DB_NAME}
+      SPARKY_FITNESS_DB_PASSWORD: ${SPARKY_FITNESS_DB_PASSWORD}
+      SPARKY_FITNESS_DB_PORT: 5432
+      SPARKY_FITNESS_API_ENCRYPTION_KEY: ${SPARKY_FITNESS_API_ENCRYPTION_KEY}
+      JWT_SECRET: ${JWT_SECRET}
     networks:
-      - sparky-fitness-ipv6-net
+      - default # Use default bridge network
     restart: always
+    depends_on:
+      - sparkyfitness-db # Backend depends on the database being available
 
 networks:
-  sparky-fitness-ipv6-net:
+  default:
     driver: bridge
-    enable_ipv6: true
-    ipam:
-      driver: default
-      config:
-        - subnet: "2001:db8:3::/64"  
