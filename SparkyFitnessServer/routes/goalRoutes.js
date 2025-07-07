@@ -11,7 +11,7 @@ router.get('/', authenticateToken, authorizeAccess('goals', (req) => req.userId)
   }
  
   try {
-    const goals = await goalService.getUserGoals(req.userId, req.userId, selectedDate);
+    const goals = await goalService.getUserGoals(req.userId, selectedDate);
     res.status(200).json(goals);
   } catch (error) {
     if (error.message.startsWith('Forbidden')) {
@@ -29,7 +29,7 @@ router.get('/for-date', authenticateToken, authorizeAccess('goals', (req) => req
   }
  
   try {
-    const goals = await goalService.getUserGoals(req.userId, req.userId, date);
+    const goals = await goalService.getUserGoals(req.userId, date);
     res.status(200).json(goals);
   } catch (error) {
     if (error.message.startsWith('Forbidden')) {

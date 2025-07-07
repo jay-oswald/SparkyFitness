@@ -51,7 +51,7 @@ const EditGoals = ({ selectedDate, onGoalsUpdated }: EditGoalsProps) => {
     try {
       setLoading(true);
       
-      const goalData = await loadGoals(selectedDate); // This now correctly calls the imported loadGoals
+      const goalData = await loadGoals(selectedDate);
       setGoals(goalData);
     } catch (error) {
       console.error('Error loading goals:', error);
@@ -66,7 +66,7 @@ const EditGoals = ({ selectedDate, onGoalsUpdated }: EditGoalsProps) => {
     try {
       setSaving(true);
       
-      await saveGoals(selectedDate, goals); // This now correctly calls the imported saveGoals
+      await saveGoals(selectedDate, goals);
 
       toast({
         title: "Success",

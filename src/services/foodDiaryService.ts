@@ -23,14 +23,13 @@ export const loadFoodEntries = async (userId: string, selectedDate: string): Pro
 
 export const loadGoals = async (userId: string, selectedDate: string): Promise<Goal> => {
   const params = new URLSearchParams({
-    userId,
-    selectedDate,
+    date: selectedDate,
   });
-  const data = await apiCall(`/goals?${params.toString()}`, {
+  const data = await apiCall(`/goals/for-date?${params.toString()}`, {
     method: 'GET',
     suppress404Toast: true, // Suppress toast for 404
   });
-  return data[0] || { calories: 2000, protein: 150, carbs: 250, fat: 67 }; // Return default if no goals found
+  return data || { calories: 2000, protein: 150, carbs: 250, fat: 67 }; // Return default if no goals found
 };
 
 export const addFoodEntry = async (payload: {

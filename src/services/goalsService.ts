@@ -21,12 +21,12 @@ export interface ExpandedGoals {
   iron: number;
 }
 
-export const loadGoals = async (userId: string, selectedDate: string): Promise<ExpandedGoals> => {
-  const params = new URLSearchParams({ userId, selectedDate });
-  const data = await apiCall(`/goals?${params.toString()}`, {
+export const loadGoals = async (selectedDate: string): Promise<ExpandedGoals> => {
+  const params = new URLSearchParams({ date: selectedDate });
+  const data = await apiCall(`/goals/for-date?${params.toString()}`, {
     method: 'GET',
   });
-  return data[0] || {
+  return data || {
     calories: 2000,
     protein: 150,
     carbs: 250,
@@ -48,11 +48,10 @@ export const loadGoals = async (userId: string, selectedDate: string): Promise<E
   };
 };
 
-export const saveGoals = async (userId: string, selectedDate: string, goals: ExpandedGoals): Promise<void> => {
-  await apiCall('/goals', {
+export const saveGoals = async (selectedDate: string, goals: ExpandedGoals): Promise<void> => {
+  await apiCall('/goals/manage-timeline', {
     method: 'POST',
     body: {
-      p_user_id: userId,
       p_start_date: selectedDate,
       p_calories: goals.calories,
       p_protein: goals.protein,

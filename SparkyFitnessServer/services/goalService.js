@@ -3,7 +3,7 @@ const userRepository = require('../models/userRepository');
 const { log } = require('../config/logging');
 const { format } = require('date-fns');
 
-async function getUserGoals(authenticatedUserId, targetUserId, selectedDate) {
+async function getUserGoals(targetUserId, selectedDate) {
   try {
     if (!targetUserId) {
       log('error', 'getUserGoals: targetUserId is undefined. Returning default goals.');
@@ -31,7 +31,7 @@ async function getUserGoals(authenticatedUserId, targetUserId, selectedDate) {
     }
     return goals;
   } catch (error) {
-    log('error', `Error fetching goals for user ${targetUserId} by ${authenticatedUserId} on ${selectedDate}:`, error);
+    log('error', `Error fetching goals for user ${targetUserId} on ${selectedDate}:`, error);
     throw error;
   }
 }
