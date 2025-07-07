@@ -15,13 +15,10 @@ services:
 
   sparkyfitness-frontend:
     image: codewithcj/sparkyfitness:latest # Use pre-built image
+    environment:
+      SPARKY_FITNESS_SERVER_URL: ${SPARKY_FITNESS_SERVER_URL}
     ports:
       - "3004:3000" # Frontend port
-    environment:
-      NODE_ENV: production
-      TZ: America/New_York # Set your timezone
-      VITE_SPARKY_FITNESS_SERVER_HOST: sparkyfitness-server
-      VITE_SPARKY_FITNESS_SERVER_PORT: $(SPARKY_FITNESS_SERVER_PORT)
     networks:
       - default # Use default bridge network
     restart: always
@@ -42,6 +39,7 @@ services:
       SPARKY_FITNESS_DB_PORT: 5432
       SPARKY_FITNESS_API_ENCRYPTION_KEY: ${SPARKY_FITNESS_API_ENCRYPTION_KEY}
       JWT_SECRET: ${JWT_SECRET}
+      SPARKY_FITNESS_FRONTEND_URL: ${SPARKY_FITNESS_FRONTEND_URL}
     networks:
       - default # Use default bridge network
     restart: always

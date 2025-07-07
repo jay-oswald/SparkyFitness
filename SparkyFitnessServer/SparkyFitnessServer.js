@@ -26,7 +26,7 @@ const PORT = process.env.SPARKY_FITNESS_SERVER_PORT || 3010;
 
 // Use cors middleware to allow requests from your frontend
 app.use(cors({
-  origin: 'http://localhost:8080', // Allow requests from your frontend's origin
+  origin: process.env.SPARKY_FITNESS_FRONTEND_URL || 'http://localhost:8080', // Allow requests from your frontend's origin, fallback to localhost
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], // Explicitly allow common methods
   allowedHeaders: ['Content-Type', 'Authorization', 'x-provider-id', 'x-api-key'], // Explicitly allow headers, including custom ones
 }));

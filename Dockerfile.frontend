@@ -3,8 +3,7 @@
 # Stage 1: Build React frontend
 FROM node:20-slim AS builder
 
-ARG VITE_SPARKY_FITNESS_SERVER_HOST
-ARG VITE_SPARKY_FITNESS_SERVER_PORT
+ARG SPARKY_FITNESS_SERVER_URL
 
 WORKDIR /app
 
@@ -27,7 +26,4 @@ COPY --from=builder /app/dist ./dist
 
 EXPOSE 3000
 
-CMD ["sh", "-c", "\
-  find dist -type f -name '*.js' -print0 | xargs -0 -I {} sed -i \"s|localhost:3010|sparkyfitness-server:3010|g\" {} && \
-  serve -s dist -l 3000\
-"]
+CMD ["sh", "-c", "find dist -type f -name '*.js' -print0 | xargs -0 -I {} sed -i \"s|__SPARKY_FITNESS_SERVER_URL__|$SPARKY_FITNESS_SERVER_URL|g\" {} && serve -s dist -l 3000"]
