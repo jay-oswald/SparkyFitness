@@ -100,7 +100,12 @@ To get the SparkyFitness application running on your local machine, follow these
 
 4.  **AI Chatbot - Optional Configuration:**
     To enable the AI Chatbot's full functionality, you will need to configure the necessary API keys within the application's settings after logging in.
-    
+
+5.  **Initial Application Setup:**
+    After logging into the application, navigate to the settings menu to:
+    *   Add your preferred food providers (e.g., OpenFoodFacts is a free option).
+    *   Adjust your preferences and profile settings.
+
 ### ⚠️ Known Issues / Beta Features
 
 The following features are currently in beta and may not have been thoroughly tested. Expect potential bugs or incomplete functionality:
