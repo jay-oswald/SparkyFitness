@@ -415,6 +415,25 @@ async function createFoodEntry(authenticatedUserId, entryData) {
   }
 }
 
+async function updateFoodEntry(authenticatedUserId, entryId, entryData) {
+  try {
+    const entryOwnerId = await foodRepository.getFoodEntryOwnerId(entryId);
+    if (!entryOwnerId) {
+      throw new Error('Food entry not found.');
+    }
+    if (entryOwnerId !== authenticatedUserId) {
+      throw new Error('Forbidden: You do not have permission to update this food entry.');
+    }
+    const updatedEntry = await foodRepository.updateFoodEntry(entryId, entryData);
+    if (!updatedEntry) {
+      throw new Error('Food entry not found or not authorized to update.');
+    }
+    return updatedEntry;
+  } catch (error) {
+    log('error', `Error updating food entry ${entryId} by user ${authenticatedUserId} in foodService:`, error);
+    throw error;
+  }
+}
 async function deleteFoodEntry(authenticatedUserId, entryId) {
   try {
     const entryOwnerId = await foodRepository.getFoodEntryOwnerId(entryId);
@@ -564,6 +583,7 @@ module.exports = {
   getFoodVariantsByFoodId,
   createFoodEntry,
   deleteFoodEntry,
+  updateFoodEntry,
   getFoodEntriesByDate,
   getFoodEntriesByDateRange,
   createOrGetFood,

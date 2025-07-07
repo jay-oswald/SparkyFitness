@@ -1,7 +1,7 @@
 import { toast } from "@/hooks/use-toast";
 import { apiCall } from './api'; // Import apiCall
 
-const PROXY_BASE_URL = import.meta.env.VITE_SPARKY_FITNESS_SERVER_URL || "http://localhost:3010/api/fatsecret"; // URL of your Node.js proxy server
+const PROXY_BASE_URL = "/api/foods/fatsecret"; // Base path for FatSecret proxy endpoints
 
 export interface FatSecretFoodItem {
   food_id: string;
@@ -104,7 +104,6 @@ export const searchFatSecretFoods = async (query: string, providerId: string) =>
       headers: {
         'x-provider-id': providerId, // Pass providerId in a custom header
       },
-      externalApi: true, // Mark as external API call
     });
     if (data.foods && data.foods.food) {
       return data.foods.food.map(item => {
@@ -144,7 +143,6 @@ export const getFatSecretNutrients = async (foodId: string, providerId: string) 
       headers: {
         'x-provider-id': providerId, // Pass providerId in a custom header
       },
-      externalApi: true, // Mark as external API call
     });
     // The proxy returns the raw FatSecret response, so we parse it here
     if (data.food && data.food.servings && data.food.servings.serving) {

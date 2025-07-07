@@ -217,22 +217,22 @@ const Reports = () => {
               entry.quantity.toString(),
               entry.unit,
               Math.round(calculatedNutrition.calories).toString(),
-              calculatedNutrition.protein.toFixed(1),
-              calculatedNutrition.carbs.toFixed(1),
-              calculatedNutrition.fat.toFixed(1),
-              (calculatedNutrition.saturated_fat || 0).toFixed(1),
-              (calculatedNutrition.polyunsaturated_fat || 0).toFixed(1),
-              (calculatedNutrition.monounsaturated_fat || 0).toFixed(1),
-              (calculatedNutrition.trans_fat || 0).toFixed(1),
-              (calculatedNutrition.cholesterol || 0).toFixed(1),
-              (calculatedNutrition.sodium || 0).toFixed(1),
-              (calculatedNutrition.potassium || 0).toFixed(1),
-              (calculatedNutrition.dietary_fiber || 0).toFixed(1),
-              (calculatedNutrition.sugars || 0).toFixed(1),
-              (calculatedNutrition.vitamin_a || 0).toFixed(1),
-              (calculatedNutrition.vitamin_c || 0).toFixed(1),
-              (calculatedNutrition.calcium || 0).toFixed(1),
-              (calculatedNutrition.iron || 0).toFixed(1)
+              calculatedNutrition.protein.toFixed(1), // g
+              calculatedNutrition.carbs.toFixed(1), // g
+              calculatedNutrition.fat.toFixed(1), // g
+              (calculatedNutrition.saturated_fat || 0).toFixed(1), // g
+              (calculatedNutrition.polyunsaturated_fat || 0).toFixed(1), // g
+              (calculatedNutrition.monounsaturated_fat || 0).toFixed(1), // g
+              (calculatedNutrition.trans_fat || 0).toFixed(1), // g
+              (calculatedNutrition.cholesterol || 0).toFixed(2), // mg
+              (calculatedNutrition.sodium || 0).toFixed(2), // mg
+              (calculatedNutrition.potassium || 0).toFixed(2), // mg
+              (calculatedNutrition.dietary_fiber || 0).toFixed(1), // g
+              (calculatedNutrition.sugars || 0).toFixed(1), // g
+              Math.round(calculatedNutrition.vitamin_a || 0).toString(), // μg - full number
+              (calculatedNutrition.vitamin_c || 0).toFixed(2), // mg
+              (calculatedNutrition.calcium || 0).toFixed(2), // mg
+              (calculatedNutrition.iron || 0).toFixed(2) // mg
             ]);
           });
           
@@ -246,22 +246,22 @@ const Reports = () => {
             '',
             '',
             Math.round(totals.calories).toString(),
-            totals.protein.toFixed(1),
-            totals.carbs.toFixed(1),
-            totals.fat.toFixed(1),
-            totals.saturated_fat.toFixed(1),
-            totals.polyunsaturated_fat.toFixed(1),
-            totals.monounsaturated_fat.toFixed(1),
-            totals.trans_fat.toFixed(1),
-            totals.cholesterol.toFixed(1),
-            totals.sodium.toFixed(1),
-            totals.potassium.toFixed(1),
-            totals.dietary_fiber.toFixed(1),
-            totals.sugars.toFixed(1),
-            totals.vitamin_a.toFixed(1),
-            totals.vitamin_c.toFixed(1),
-            totals.calcium.toFixed(1),
-            totals.iron.toFixed(1)
+            totals.protein.toFixed(1), // g
+            totals.carbs.toFixed(1), // g
+            totals.fat.toFixed(1), // g
+            totals.saturated_fat.toFixed(1), // g
+            totals.polyunsaturated_fat.toFixed(1), // g
+            totals.monounsaturated_fat.toFixed(1), // g
+            totals.trans_fat.toFixed(1), // g
+            totals.cholesterol.toFixed(2), // mg
+            totals.sodium.toFixed(2), // mg
+            totals.potassium.toFixed(2), // mg
+            totals.dietary_fiber.toFixed(1), // g
+            totals.sugars.toFixed(1), // g
+            Math.round(totals.vitamin_a).toString(), // μg - full number
+            totals.vitamin_c.toFixed(2), // mg
+            totals.calcium.toFixed(2), // mg
+            totals.iron.toFixed(2) // mg
           ]);
         });
 

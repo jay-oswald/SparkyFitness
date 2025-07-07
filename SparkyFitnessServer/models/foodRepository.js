@@ -728,6 +728,32 @@ async function deleteFoodEntry(entryId) {
     client.release();
   }
 }
+async function updateFoodEntry(entryId, entryData) {
+  const client = await pool.connect();
+  try {
+    const result = await client.query(
+      `UPDATE food_entries SET
+        meal_type = COALESCE($1, meal_type),
+        quantity = COALESCE($2, quantity),
+        unit = COALESCE($3, unit),
+        entry_date = COALESCE($4, entry_date),
+        variant_id = COALESCE($5, variant_id)
+      WHERE id = $6
+      RETURNING *`,
+      [
+        entryData.meal_type,
+        entryData.quantity,
+        entryData.unit,
+        entryData.entry_date,
+        entryData.variant_id,
+        entryId
+      ]
+    );
+    return result.rows[0];
+  } finally {
+    client.release();
+  }
+}
 
 async function getFoodEntriesByDate(userId, selectedDate) {
   const client = await pool.connect();
@@ -891,8 +917,9 @@ module.exports = {
   updateFoodVariant,
   deleteFoodVariant,
   createFoodEntry,
-  getFoodEntryOwnerId, // Add this line
-  deleteFoodEntry,    // Add this line
+  getFoodEntryOwnerId,
+  updateFoodEntry,
+  deleteFoodEntry,
   getFoodEntriesByDate,
   getFoodEntriesByDateRange,
   findFoodByNameAndBrand,

@@ -17,7 +17,7 @@ if (!JWT_SECRET) {
 // Utility functions for encryption and decryption
 async function encrypt(text, key) {
   const iv = crypto.randomBytes(12); // GCM recommended IV size is 12 bytes
-  const cipher = crypto.createCipheriv('aes-256-gcm', Buffer.from(key, 'utf8'), iv);
+  const cipher = crypto.createCipheriv('aes-256-gcm', Buffer.from(key, 'hex'), iv);
   let encrypted = cipher.update(text, 'utf8', 'base64');
   encrypted += cipher.final('base64');
   const tag = cipher.getAuthTag().toString('base64');
@@ -27,7 +27,7 @@ async function encrypt(text, key) {
 async function decrypt(encryptedText, ivString, tagString, key) {
   const iv = Buffer.from(ivString, 'base64');
   const tag = Buffer.from(tagString, 'base64');
-  const decipher = crypto.createDecipheriv('aes-256-gcm', Buffer.from(key, 'utf8'), iv);
+  const decipher = crypto.createDecipheriv('aes-256-gcm', Buffer.from(key, 'hex'), iv);
   decipher.setAuthTag(tag);
   let decrypted = decipher.update(encryptedText, 'base64', 'utf8');
   decrypted += decipher.final('utf8');

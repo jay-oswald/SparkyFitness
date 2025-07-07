@@ -100,12 +100,10 @@ const EditFoodEntryDialog = ({ entry, open, onOpenChange, onSave }: EditFoodEntr
           iron: variant.iron || 0
         }));
 
-        // Filter out any variants from DB that are identical to the primary unit
-        const filteredVariants = variantsFromDb.filter(variant =>
-          !(variant.serving_size === primaryUnit.serving_size && variant.serving_unit === primaryUnit.serving_unit)
-        );
-        
-        combinedVariants = [primaryUnit, ...filteredVariants];
+        // Ensure the primary unit is always included and is the first option.
+        // Then, add any other variants from the database that are not the primary unit (based on ID).
+        const otherVariants = variantsFromDb.filter(variant => variant.id !== primaryUnit.id);
+        combinedVariants = [primaryUnit, ...otherVariants];
       } else {
         info(loggingLevel, "No additional variants found, using primary food unit only.");
       }

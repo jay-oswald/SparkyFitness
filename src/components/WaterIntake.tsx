@@ -48,18 +48,15 @@ const WaterIntake = ({ selectedDate }: WaterIntakeProps) => {
 
       // Load water intake for selected date - get all records and sum them
       const waterData = await apiCall(`/api/measurements/water-intake/${selectedDate}`);
-      if (waterData && waterData.glasses_consumed !== undefined) {
-        setWaterGlasses(waterData.glasses_consumed);
-      } else {
-        setWaterGlasses(0);
-      }
-
-
-      if (waterData && waterData.length > 0) {
+      if (Array.isArray(waterData) && waterData.length > 0) {
         // Sum all glasses consumed for the day
         const totalGlasses = waterData.reduce((sum, record) => sum + record.glasses_consumed, 0);
         setWaterGlasses(totalGlasses);
-      } else {
+      } else if (waterData && waterData.glasses_consumed !== undefined) {
+        // If the API returns a single object with glasses_consumed
+        setWaterGlasses(waterData.glasses_consumed);
+      }
+      else {
         setWaterGlasses(0);
       }
     } catch (error) {
@@ -89,6 +86,7 @@ const WaterIntake = ({ selectedDate }: WaterIntakeProps) => {
         title: "Success",
         description: "Water intake updated",
       });
+      window.dispatchEvent(new Event('measurementsRefresh'));
     } catch (error) {
       console.error('Error:', error);
       toast({

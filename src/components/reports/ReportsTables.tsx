@@ -265,15 +265,15 @@ const ReportsTables = ({
                       <TableCell>{((food.polyunsaturated_fat || 0) * multiplier).toFixed(1)}</TableCell>
                       <TableCell>{((food.monounsaturated_fat || 0) * multiplier).toFixed(1)}</TableCell>
                       <TableCell>{((food.trans_fat || 0) * multiplier).toFixed(1)}</TableCell>
-                      <TableCell>{((food.cholesterol || 0) * multiplier).toFixed(1)}</TableCell>
-                      <TableCell>{((food.sodium || 0) * multiplier).toFixed(1)}</TableCell>
-                      <TableCell>{((food.potassium || 0) * multiplier).toFixed(1)}</TableCell>
+                      <TableCell>{((food.cholesterol || 0) * multiplier).toFixed(2)}</TableCell>
+                      <TableCell>{((food.sodium || 0) * multiplier).toFixed(2)}</TableCell>
+                      <TableCell>{((food.potassium || 0) * multiplier).toFixed(2)}</TableCell>
                       <TableCell>{((food.dietary_fiber || 0) * multiplier).toFixed(1)}</TableCell>
                       <TableCell>{((food.sugars || 0) * multiplier).toFixed(1)}</TableCell>
-                      <TableCell>{((food.vitamin_a || 0) * multiplier).toFixed(1)}</TableCell>
-                      <TableCell>{((food.vitamin_c || 0) * multiplier).toFixed(1)}</TableCell>
-                      <TableCell>{((food.calcium || 0) * multiplier).toFixed(1)}</TableCell>
-                      <TableCell>{((food.iron || 0) * multiplier).toFixed(1)}</TableCell>
+                      <TableCell>{Math.round((food.vitamin_a || 0) * multiplier)}</TableCell>
+                      <TableCell>{((food.vitamin_c || 0) * multiplier).toFixed(2)}</TableCell>
+                      <TableCell>{((food.calcium || 0) * multiplier).toFixed(2)}</TableCell>
+                      <TableCell>{((food.iron || 0) * multiplier).toFixed(2)}</TableCell>
                     </TableRow>
                   );
                 })}

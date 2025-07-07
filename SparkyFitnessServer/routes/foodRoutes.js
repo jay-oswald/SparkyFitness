@@ -262,6 +262,24 @@ router.post('/food-entries', authenticateToken, authorizeAccess('food_log'), asy
     next(error);
   }
 });
+router.put('/food-entries/:id', authenticateToken, authorizeAccess('food_log'), async (req, res, next) => {
+  const { id } = req.params;
+  if (!id) {
+    return res.status(400).json({ error: 'Food entry ID is required.' });
+  }
+  try {
+    const updatedEntry = await foodService.updateFoodEntry(req.userId, id, req.body);
+    res.status(200).json(updatedEntry);
+  } catch (error) {
+    if (error.message.startsWith('Forbidden')) {
+      return res.status(403).json({ error: error.message });
+    }
+    if (error.message === 'Food entry not found or not authorized to update.') {
+      return res.status(404).json({ error: error.message });
+    }
+    next(error);
+  }
+});
 
 router.delete('/food-entries/:id', authenticateToken, authorizeAccess('food_log'), async (req, res, next) => {
   const { id } = req.params;
@@ -354,7 +372,7 @@ router.post('/food-variants', authenticateToken, authorizeAccess('food_list'), a
   }
 });
 
-router.get('/food-variants', authenticateToken, authorizeAccess('food_list'), async (req, res, next) => {
+router.get('/food-variants', authenticateToken, authorizeAccess('food_list', (req) => req.userId), async (req, res, next) => {
   const { food_id } = req.query;
   if (!food_id) {
     return res.status(400).json({ error: 'Food ID is required.' });

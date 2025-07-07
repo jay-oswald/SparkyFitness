@@ -77,10 +77,48 @@ const NutritionChartsGrid = ({ nutritionData }: NutritionChartsGridProps) => {
                       fontSize={10}
                       tickFormatter={formatDateForChart} // Apply formatter
                     />
-                    <YAxis fontSize={10} />
+                    <YAxis
+                      fontSize={10}
+                      tickFormatter={(value: number) => {
+                        if (chart.unit === 'g') {
+                          return value.toFixed(1);
+                        } else if (chart.unit === 'mg') {
+                          return value.toFixed(2);
+                        } else if (chart.unit === 'cal' || chart.unit === 'μg') {
+                          return Math.round(value).toString();
+                        } else {
+                          return Math.round(value).toString(); // Default to rounding for other units
+                        }
+                      }}
+                    />
                     <Tooltip
                       labelFormatter={(value) => formatDateForChart(value as string)} // Apply formatter
-                      formatter={(value: number) => [`${value.toFixed(1)} ${chart.unit}`]}
+                      formatter={(value: number | string | null | undefined) => {
+                        if (value === null || value === undefined) {
+                          return ['N/A'];
+                        }
+                        let numValue: number;
+                        if (typeof value === 'string') {
+                          numValue = parseFloat(value); // Parse string to number
+                        } else if (typeof value === 'number') {
+                          numValue = value;
+                        } else {
+                          return ['N/A']; // Should not happen if types are correct
+                        }
+
+                        let formattedValue: string;
+                        if (chart.unit === 'g') {
+                          formattedValue = numValue.toFixed(1);
+                        } else if (chart.unit === 'mg') {
+                          formattedValue = numValue.toFixed(2);
+                        } else if (chart.unit === 'cal' || chart.unit === 'μg') {
+                          formattedValue = Math.round(numValue).toString();
+                        }
+                        else {
+                          formattedValue = Math.round(numValue).toString();
+                        }
+                        return [`${formattedValue} ${chart.unit}`];
+                      }}
                     />
                     <Line
                       type="monotone"

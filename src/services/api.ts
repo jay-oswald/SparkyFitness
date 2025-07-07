@@ -23,6 +23,8 @@ export async function apiCall(endpoint: string, options?: ApiCallOptions): Promi
     const token = localStorage.getItem('token');
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
+    } else {
+      warn(userLoggingLevel, "No authentication token found in localStorage for internal API call.");
     }
   }
 
