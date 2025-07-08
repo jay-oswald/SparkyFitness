@@ -78,14 +78,9 @@ To get the SparkyFitness application running on your local machine, follow these
 ### Installation
 
 1.  **Configure Environment Variables:**
-    Create a `.env` file in the root directory of the project (where `docker-compose.yml` is located).
-    Copy the contents of `.env.example` into your new `.env` file and fill in the appropriate values.
 
-    **Key Environment Variables to Configure:**
-    *   `SPARKY_FITNESS_SERVER_URL`: The full URL to your backend server (e.g., `http://your_backend_ip_or_domain:3010`). This is used by the frontend to connect to the backend.
-    *   `SPARKY_FITNESS_FRONTEND_URL`: The full URL of your frontend application (e.g., `http://your_frontend_ip_or_domain:3004`). This is used by the backend for CORS configuration to allow requests from your frontend.
-    *   `SPARKY_FITNESS_DB_NAME`, `SPARKY_FITNESS_DB_USER`, `SPARKY_FITNESS_DB_PASSWORD`: Database credentials.  Try not to change anything as I didn't test properly. Go with defaults
-    *   `SPARKY_FITNESS_API_ENCRYPTION_KEY`, `JWT_SECRET`: Security keys for the backend. Use the command given in the example env file to generate keys. Otherwise App will fail due to security constraints
+    Create a `.env` file in the root directory. Copy the template from example env file and update it with your settings. Refer WIKI for my existing configuration that I used. Try not to change the port as they may not work properly with intial releases till the project is stable.
+    
 
 2.  **Run with Docker Compose:**
     Pull the Docker images and start the services. If you've made changes to the `.env` file, you should rebuild the images to ensure the new environment variables are picked up.
@@ -101,7 +96,12 @@ To get the SparkyFitness application running on your local machine, follow these
 4.  **AI Chatbot - Optional Configuration:**
     To enable the AI Chatbot's full functionality, you will need to configure the necessary API keys within the application's settings after logging in.
 
-5.  **Initial Application Setup:**
+5.  **Proxy Manager Configuration (Optional):**
+    Use proxy manager (e.g., Nginx Proxy Manager), ensure WebSocket support is enabled and configure your proxy to forward traffic to the frontend server (e.g., `http://localhost:3004`). Setup Custom location for backend server as shown below.
+
+    https://github.com/CodeWithCJ/SparkyFitness/wiki/Sample-Setup
+
+6.  **Initial Application Setup:**
     After logging into the application, navigate to the settings menu to:
     *   Add your preferred food providers (e.g., OpenFoodFacts is a free option).
     *   Adjust your preferences and profile settings.
