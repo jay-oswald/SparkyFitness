@@ -18,6 +18,7 @@ const exerciseRoutes = require('./routes/exerciseRoutes');
 const exerciseEntryRoutes = require('./routes/exerciseEntryRoutes');
 const healthDataRoutes = require('./integrations/healthData/healthDataRoutes');
 const authRoutes = require('./routes/authRoutes');
+const healthRoutes = require('./routes/healthRoutes');
 const { applyMigrations } = require('./utils/dbMigrations');
 const errorHandler = require('./middleware/errorHandler'); // Import the new error handler
 
@@ -42,7 +43,7 @@ app.use((req, res, next) => {
     return next(); // Skip authentication for login and register
   }
   // If the request is for a route that doesn't require authentication, skip
-  const nonAuthRoutes = ['/some/other/public/route']; // Add any other public routes here
+  const nonAuthRoutes = ['/health']; // Add any other public routes here
   if (nonAuthRoutes.some(route => req.path.startsWith(route))) {
       return next();
   }
@@ -62,6 +63,7 @@ app.use('/exercise-entries', exerciseEntryRoutes);
 app.use('/health-data', healthDataRoutes);
 app.use('/auth', authRoutes);
 app.use('/user', authRoutes);
+app.use('/health', healthRoutes);
 
 
 console.log('DEBUG: Attempting to start server...');
