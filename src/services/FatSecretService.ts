@@ -1,7 +1,7 @@
 import { toast } from "@/hooks/use-toast";
 import { apiCall } from './api'; // Import apiCall
 
-const PROXY_BASE_URL = "/api/foods/fatsecret"; // Base path for FatSecret proxy endpoints
+const PROXY_BASE_URL = "/foods/fatsecret"; // Base path for FatSecret proxy endpoints
 
 export interface FatSecretFoodItem {
   food_id: string;
