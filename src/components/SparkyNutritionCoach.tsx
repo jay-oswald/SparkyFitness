@@ -11,7 +11,7 @@ import { processMeasurementInput } from '@/services/Chatbot/Chatbot_MeasurementH
 import { processWaterInput } from '@/services/Chatbot/Chatbot_WaterHandler';
 import { info, error, warn, debug, UserLoggingLevel } from '@/utils/logging';
 
-const SparkyNutritionCoach = forwardRef<any, { userLoggingLevel: UserLoggingLevel; timezone: string; formatDateInUserTimezone: (date: string | Date, formatStr?: string) => string }>(({ userLoggingLevel, timezone, formatDateInUserTimezone }, ref) => {
+const SparkyNutritionCoach = forwardRef<any, { userLoggingLevel: UserLoggingLevel; formatDateInUserTimezone: (date: string | Date, formatStr?: string) => string }>(({ userLoggingLevel, formatDateInUserTimezone }, ref) => {
 
   useImperativeHandle(ref, () => ({
     getTodaysNutrition,

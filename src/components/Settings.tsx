@@ -36,7 +36,6 @@ interface UserPreferences {
   default_weight_unit: string;
   default_measurement_unit: string;
   logging_level: 'DEBUG' | 'INFO' | 'WARN' | 'ERROR' | 'SILENT'; // Add logging level
-  timezone: string; // Add timezone
 }
 
 interface CustomCategory {
@@ -53,7 +52,6 @@ const Settings = () => {
     measurementUnit, setMeasurementUnit,
     dateFormat, setDateFormat,
     loggingLevel, setLoggingLevel,
-    timezone, setTimezone,
     loadPreferences: loadUserPreferencesFromContext, // Rename to avoid conflict
     saveAllPreferences, // Add saveAllPreferences from context
     formatDate // Destructure formatDate
@@ -612,13 +610,6 @@ const Settings = () => {
               </Select>
             </div>
             <div>
-              <Label htmlFor="timezone">Timezone</Label>
-              <Input
-                id="timezone"
-                value={timezone}
-                onChange={(e) => setTimezone(e.target.value)}
-                placeholder="e.g., Etc/UTC or America/New_York"
-              />
             </div>
           </div>
           <Button onClick={handlePreferencesUpdate} disabled={loading}>
