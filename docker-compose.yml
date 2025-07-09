@@ -15,10 +15,7 @@ services:
 
   sparkyfitness-server:
     image: codewithcj/sparkyfitness_server:latest # Use pre-built image
-    ports:
-      - "${SPARKY_FITNESS_SERVER_PORT}:${SPARKY_FITNESS_SERVER_PORT}" # Backend port
     environment:
-      SPARKY_FITNESS_SERVER_PORT: ${SPARKY_FITNESS_SERVER_PORT}
       SPARKY_FITNESS_LOG_LEVEL: ${SPARKY_FITNESS_LOG_LEVEL}
       SPARKY_FITNESS_DB_USER: ${SPARKY_FITNESS_DB_USER}
       SPARKY_FITNESS_DB_HOST: sparkyfitness-db # Use the service name 'sparkyfitness-db' for inter-container communication

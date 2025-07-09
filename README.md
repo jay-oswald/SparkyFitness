@@ -79,7 +79,7 @@ To get the SparkyFitness application running on your local machine, follow these
 
 1.  **Configure Environment Variables:**
 
-    Create a `.env` file in the root directory. Copy the template from example env file and update it with your settings. Refer WIKI for my existing configuration that I used. Try not to change the port as they may not work properly with intial releases till the project is stable.
+    Create a `.env` file in the root directory. Copy the template from the example `.env` file and update it with your settings. Refer to the WIKI for the existing configuration that I used. Try not to change the port as they may not work properly with initial releases until the project is stable.
     
 
 2.  **Run with Docker Compose:**
@@ -88,25 +88,21 @@ To get the SparkyFitness application running on your local machine, follow these
     docker-compose pull # Pull the latest Docker images
     docker-compose up -d # Start the services in detached mode
     ```
-   
+    Refer sample setup as reference
+    https://github.com/CodeWithCJ/SparkyFitness/wiki/Sample-Setup
 
 3.  **Access the Application:**
     Once the services are up and running, access SparkyFitness in your web browser at the URL configured for your frontend (e.g., `http://localhost:3004` or `http://your_frontend_ip_or_domain:3004`).
 
 4.  **AI Chatbot - Optional Configuration:**
     To enable the AI Chatbot's full functionality, you will need to configure the necessary API keys within the application's settings after logging in.
-
-5.  **Proxy Manager Configuration (Optional):**
-    Use proxy manager (e.g., Nginx Proxy Manager), ensure WebSocket support is enabled and configure your proxy to forward traffic to the frontend server (e.g., `http://localhost:3004`). Setup Custom location for backend server as shown below.
-
-    https://github.com/CodeWithCJ/SparkyFitness/wiki/Sample-Setup
-
-6.  **Initial Application Setup:**
+  
+5.  **Initial Application Setup:**
     After logging into the application, navigate to the settings menu to:
     *   Add your preferred food providers (e.g., OpenFoodFacts is a free option).
     *   Adjust your preferences and profile settings.
 
-### ⚠️ Known Issues / Beta Features
+### ⚠️ Known Issues / Beta Features ⚠️
 
 The following features are currently in beta and may not have been thoroughly tested. Expect potential bugs or incomplete functionality:
 
@@ -115,6 +111,7 @@ The following features are currently in beta and may not have been thoroughly te
 *   Family & Friends access
 *   Apple Health Data integration
 
-This application is intended for beta testing purposes.
+This application is under heavy development. Things may not work as expected due to the Supabase to PostgreSQL migration. BREAKING CHANGES might be introduced until the application is stable.
+You might need to change Docker/environment variables for new releases. Therefore, auto-upgrades using Watchtower or similar apps are not recommended. Read release notes for any BREAKING CHANGES.
 
 

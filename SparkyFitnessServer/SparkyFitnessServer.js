@@ -36,27 +36,32 @@ app.use(cors({
 // Middleware to parse JSON bodies for all incoming requests
 app.use(express.json());
 
-// Apply authentication middleware to all /api routes except auth
-app.use('/api', (req, res, next) => {
+// Apply authentication middleware to all routes except auth
+app.use((req, res, next) => {
   if (req.path.startsWith('/auth/login') || req.path.startsWith('/auth/register')) {
     return next(); // Skip authentication for login and register
+  }
+  // If the request is for a route that doesn't require authentication, skip
+  const nonAuthRoutes = ['/some/other/public/route']; // Add any other public routes here
+  if (nonAuthRoutes.some(route => req.path.startsWith(route))) {
+      return next();
   }
   authenticateToken(req, res, next);
 });
 
 // Link all routes
-app.use('/api/chat', chatRoutes);
-app.use('/api/foods', foodRoutes);
-app.use('/api/reports', reportRoutes);
-app.use('/api/user-preferences', preferenceRoutes);
-app.use('/api/measurements', measurementRoutes);
-app.use('/api/goals', goalRoutes);
-app.use('/api/user-goals', goalRoutes);
-app.use('/api/exercises', exerciseRoutes);
-app.use('/api/exercise-entries', exerciseEntryRoutes);
-app.use('/api/health-data', healthDataRoutes);
-app.use('/api/auth', authRoutes);
-app.use('/api/user', authRoutes);
+app.use('/chat', chatRoutes);
+app.use('/foods', foodRoutes);
+app.use('/reports', reportRoutes);
+app.use('/user-preferences', preferenceRoutes);
+app.use('/measurements', measurementRoutes);
+app.use('/goals', goalRoutes);
+app.use('/user-goals', goalRoutes);
+app.use('/exercises', exerciseRoutes);
+app.use('/exercise-entries', exerciseEntryRoutes);
+app.use('/health-data', healthDataRoutes);
+app.use('/auth', authRoutes);
+app.use('/user', authRoutes);
 
 
 console.log('DEBUG: Attempting to start server...');
