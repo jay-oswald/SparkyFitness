@@ -226,7 +226,7 @@ const ExerciseCard = ({ selectedDate, onExerciseChange }: ExerciseCardProps) => 
   }
   debug(loggingLevel, "ExerciseCard finished loading.");
 
-  const totalExerciseCaloriesBurned = exerciseEntries.reduce((sum, entry) => sum + entry.calories_burned, 0);
+  const totalExerciseCaloriesBurned = exerciseEntries.reduce((sum, entry) => sum + Number(entry.calories_burned), 0);
 
   return (
     <Card>
