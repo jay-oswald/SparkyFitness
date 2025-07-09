@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { format, parseISO } from "date-fns";
+import { formatDateToYYYYMMDD } from "@/lib/utils"; // Import the new utility function
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -193,7 +194,7 @@ const Settings = () => {
       setProfileForm({
         full_name: data.full_name || '',
         phone: data.phone_number || '', // Use phone_number from backend
-        date_of_birth: data.date_of_birth ? formatDate(data.date_of_birth) : '', // Format for display
+        date_of_birth: data.date_of_birth || '', // Store as YYYY-MM-DD string directly
         bio: data.bio || ''
       });
     } catch (error: any) {
@@ -218,7 +219,7 @@ const Settings = () => {
         body: JSON.stringify({
           full_name: profileForm.full_name,
           phone_number: profileForm.phone, // Changed to phone_number
-          date_of_birth: profileForm.date_of_birth ? parse(profileForm.date_of_birth, dateFormat, new Date()).toISOString() : null, // Parse back to ISO string
+          date_of_birth: profileForm.date_of_birth || null, // Send YYYY-MM-DD string directly
           bio: profileForm.bio
         }),
       });
@@ -490,7 +491,7 @@ const Settings = () => {
                   >
                     <CalendarIcon className="mr-2 h-4 w-4" />
                     {profileForm.date_of_birth ? (
-                      <span>{profileForm.date_of_birth}</span>
+                      <span>{formatDate(profileForm.date_of_birth)}</span> // Format for display
                     ) : (
                       <span>Pick a date</span>
                     )}
@@ -499,11 +500,11 @@ const Settings = () => {
                 <PopoverContent className="w-auto p-0">
                   <Calendar
                     mode="single"
-                    selected={profileForm.date_of_birth ? parse(profileForm.date_of_birth, dateFormat, new Date()) : undefined}
+                    selected={profileForm.date_of_birth ? parseISO(profileForm.date_of_birth) : undefined} // Parse YYYY-MM-DD string to Date object
                     onSelect={(date) => {
                       setProfileForm(prev => ({
                         ...prev,
-                        date_of_birth: date ? formatDate(date) : ''
+                        date_of_birth: date ? formatDateToYYYYMMDD(date) : '' // Store as YYYY-MM-DD string
                       }));
                     }}
                     initialFocus

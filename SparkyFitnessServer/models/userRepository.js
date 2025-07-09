@@ -127,7 +127,7 @@ async function getUserProfile(userId) {
   const client = await pool.connect();
   try {
     const result = await client.query(
-      'SELECT id, full_name, phone_number, date_of_birth, bio, avatar_url FROM profiles WHERE id = $1',
+      `SELECT id, full_name, phone_number, TO_CHAR(date_of_birth, 'YYYY-MM-DD') AS date_of_birth, bio, avatar_url FROM profiles WHERE id = $1`,
       [userId]
     );
     return result.rows[0];
