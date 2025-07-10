@@ -457,6 +457,11 @@ const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
           placeholder="Search for foods..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
+          onKeyPress={(e) => {
+            if (e.key === 'Enter' && (activeTab === 'online' || activeTab === 'barcode')) {
+              handleSearch();
+            }
+          }}
           className="flex-1"
         />
         <Button onClick={handleSearch} disabled={loading}>
@@ -522,13 +527,13 @@ const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
                     {food.is_custom && <Badge variant="outline" className="text-xs">Custom</Badge>}
                   </div>
                   <div className="grid grid-cols-4 gap-2 text-sm text-gray-600">
-                    <span><strong>{food.calories}</strong> cal</span>
-                    <span><strong>{food.protein}g</strong> protein</span>
-                    <span><strong>{food.carbs}g</strong> carbs</span>
-                    <span><strong>{food.fat}g</strong> fat</span>
+                    <span><strong>{food.default_variant?.calories || 0}</strong> cal</span>
+                    <span><strong>{food.default_variant?.protein || 0}g</strong> protein</span>
+                    <span><strong>{food.default_variant?.carbs || 0}g</strong> carbs</span>
+                    <span><strong>{food.default_variant?.fat || 0}g</strong> fat</span>
                   </div>
                   <p className="text-xs text-gray-500 mt-1">
-                    Per {food.serving_size}{food.serving_unit}
+                    Per {food.default_variant?.serving_size}{food.default_variant?.serving_unit}
                   </p>
                 </div>
               </div>
