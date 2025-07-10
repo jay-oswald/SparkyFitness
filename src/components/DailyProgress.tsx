@@ -119,7 +119,7 @@ const DailyProgress = ({ selectedDate, refreshTrigger }: { selectedDate: string;
      try {
        const exerciseData = await getExerciseEntriesForDate(selectedDate);
        info(loggingLevel, `DailyProgress: Fetched ${exerciseData.length} exercise entries.`);
-       const totalExerciseCalories = exerciseData.reduce((sum, entry) => sum + entry.calories_burned, 0);
+       const totalExerciseCalories = exerciseData.reduce((sum, entry) => sum + Number(entry.calories_burned), 0);
        info(loggingLevel, "DailyProgress: Total exercise calories burned:", totalExerciseCalories);
        setExerciseCalories(totalExerciseCalories);
      } catch (err: any) {
@@ -134,7 +134,7 @@ const DailyProgress = ({ selectedDate, refreshTrigger }: { selectedDate: string;
        if (stepsData && stepsData.steps) {
          info(loggingLevel, "DailyProgress: Daily steps loaded:", stepsData.steps);
          setDailySteps(stepsData.steps);
-         const stepsCaloriesBurned = convertStepsToCalories(stepsData.steps);
+         const stepsCaloriesBurned = convertStepsToCalories(Number(stepsData.steps));
          info(loggingLevel, "DailyProgress: Calories burned from steps:", stepsCaloriesBurned);
          setStepsCalories(stepsCaloriesBurned);
        } else {
@@ -162,7 +162,7 @@ const DailyProgress = ({ selectedDate, refreshTrigger }: { selectedDate: string;
  }
 
  // Calculate net calories (food calories - exercise calories - steps calories)
- const totalCaloriesBurned = Math.round(exerciseCalories) + stepsCalories;
+ const totalCaloriesBurned = Math.round(Number(exerciseCalories)) + Number(stepsCalories);
  const netCalories = Math.round(dailyIntake.calories) - totalCaloriesBurned;
  const caloriesRemaining = dailyGoals.calories - netCalories;
  const calorieProgress = Math.max(0, (netCalories / dailyGoals.calories) * 100);
