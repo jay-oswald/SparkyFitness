@@ -36,6 +36,7 @@ export interface FoodVariant {
   serving_size: number;
   serving_unit: string;
   is_default?: boolean; // New field
+  is_locked?: boolean; // New field for locking nutrient details
   calories: number;
   protein: number;
   carbs: number;
