@@ -42,7 +42,7 @@ app.use((req, res, next) => {
     return next(); // Skip authentication for login and register
   }
   // If the request is for a route that doesn't require authentication, skip
-  const nonAuthRoutes = ['/some/other/public/route']; // Add any other public routes here
+  const nonAuthRoutes = ['/some/other/public/route', '/health-data']; // Add any other public routes here
   if (nonAuthRoutes.some(route => req.path.startsWith(route))) {
       return next();
   }

@@ -162,7 +162,16 @@ const DailyProgress = ({ selectedDate, refreshTrigger }: { selectedDate: string;
  }
 
  // Calculate net calories (food calories - exercise calories - steps calories)
- const totalCaloriesBurned = Math.round(Number(exerciseCalories)) + Number(stepsCalories);
+ // Calculate total calories burned: prioritize exerciseCalories if present, otherwise use stepsCalories.
+ // This prevents double-counting when both active calories and steps are recorded.
+ let totalCaloriesBurned = 0;
+ if (exerciseCalories > 0) {
+   totalCaloriesBurned = Math.round(Number(exerciseCalories));
+   info(loggingLevel, "DailyProgress: Prioritizing Active Calories for total burned:", totalCaloriesBurned);
+ } else {
+   totalCaloriesBurned = Math.round(Number(stepsCalories));
+   info(loggingLevel, "DailyProgress: No Active Calories, using Step Calories for total burned:", totalCaloriesBurned);
+ }
  const netCalories = Math.round(dailyIntake.calories) - totalCaloriesBurned;
  const caloriesRemaining = dailyGoals.calories - netCalories;
  const calorieProgress = Math.max(0, (netCalories / dailyGoals.calories) * 100);

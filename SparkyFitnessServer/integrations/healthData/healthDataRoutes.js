@@ -41,35 +41,17 @@ router.use('/', async (req, res, next) => {
 });
 
 // Endpoint for receiving health data
-router.post('/', express.text({ type: '*/*' }), async (req, res, next) => {
-  const rawBody = req.body;
+router.post('/', async (req, res, next) => {
   let healthDataArray = [];
 
-  if (rawBody.startsWith('[') && rawBody.endsWith(']')) {
-    try {
-      healthDataArray = JSON.parse(rawBody);
-    } catch (e) {
-      return res.status(400).json({ error: "Invalid JSON array format." });
-    }
-  } else if (rawBody.includes('}{')) {
-    const jsonStrings = rawBody.split('}{').map((part, index, arr) => {
-      if (index === 0) return part + '}';
-      if (index === arr.length - 1) return '{' + part;
-      return '{' + part + '}';
-    });
-    for (const jsonStr of jsonStrings) {
-      try {
-        healthDataArray.push(JSON.parse(jsonStr));
-      } catch (parseError) {
-        log('error', "Error parsing individual concatenated JSON string:", jsonStr, parseError);
-      }
-    }
+  // req.body should already be parsed as JSON by express.json() middleware in SparkyFitnessServer.js
+  if (Array.isArray(req.body)) {
+    healthDataArray = req.body;
+  } else if (typeof req.body === 'object' && req.body !== null) {
+    healthDataArray.push(req.body);
   } else {
-    try {
-      healthDataArray.push(JSON.parse(rawBody));
-    } catch (e) {
-      return res.status(400).json({ error: "Invalid single JSON format." });
-    }
+    log('error', "Received unexpected body format:", req.body);
+    return res.status(400).json({ error: "Invalid request body format. Expected JSON object or array." });
   }
 
   try {
