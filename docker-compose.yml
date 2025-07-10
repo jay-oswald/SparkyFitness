@@ -11,7 +11,7 @@ services:
     volumes:
       - ./postgresql:/var/lib/postgresql/data
     networks:
-      - default # Use default bridge network
+      - sparkyfitness-network # Use the new named network
 
   sparkyfitness-server:
     image: codewithcj/sparkyfitness_server:latest # Use pre-built image
@@ -25,26 +25,22 @@ services:
       SPARKY_FITNESS_API_ENCRYPTION_KEY: ${SPARKY_FITNESS_API_ENCRYPTION_KEY}
       JWT_SECRET: ${JWT_SECRET}
       SPARKY_FITNESS_FRONTEND_URL: ${SPARKY_FITNESS_FRONTEND_URL}
-      SPARKY_FITNESS_SERVER_HOST: ${SPARKY_FITNESS_SERVER_HOST} # Add this for consistency
     networks:
-      - default # Use default bridge network
+      - sparkyfitness-network # Use the new named network
     restart: always
     depends_on:
       - sparkyfitness-db # Backend depends on the database being available
 
 
   sparkyfitness-frontend:
-    build: . # Build from source to include envsubst changes
-    environment: # Pass environment variables to the frontend container
-      SPARKY_FITNESS_SERVER_HOST: ${SPARKY_FITNESS_SERVER_HOST} # Optional. No need to change anything.
-      SPARKY_FITNESS_SERVER_PORT: ${SPARKY_FITNESS_SERVER_PORT} # Optional. No need to change anything.
+    image: codewithcj/sparkyfitness:latest # Use pre-built image
     ports:
       - "3004:80" # Map host port 8080 to container port 80 (Nginx)
     networks:
-      - default # Use default bridge network
+      - sparkyfitness-network # Use the new named network
     restart: always
     depends_on:
       - sparkyfitness-server # Frontend depends on the server
 networks:
-  default:
+  sparkyfitness-network:
     driver: bridge
