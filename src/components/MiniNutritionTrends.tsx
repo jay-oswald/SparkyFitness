@@ -7,6 +7,7 @@ import { parseISO, subDays, addDays, format } from "date-fns"; // Import date-fn
 import { usePreferences } from "@/contexts/PreferencesContext"; // Import usePreferences
 import { calculateFoodEntryNutrition } from '@/utils/nutritionCalculations'; // Import the new utility function
 import { loadMiniNutritionTrendData, DayData } from '@/services/miniNutritionTrendsService';
+import { formatNutrientValue } from '@/lib/utils'; // Import formatNutrientValue
 
 
 interface MiniNutritionTrendsProps {
@@ -54,7 +55,6 @@ const MiniNutritionTrends = ({ selectedDate, refreshTrigger }: MiniNutritionTren
       const data = payload[0].payload;
       const nutrientName = payload[0].dataKey;
       const nutrientValue = payload[0].value;
-      const unit = nutrientName === 'calories' ? 'cal' : 'g';
       
       return (
         <div className="bg-white dark:bg-gray-800 p-2 border border-gray-200 dark:border-gray-700 rounded shadow-lg">
@@ -62,7 +62,7 @@ const MiniNutritionTrends = ({ selectedDate, refreshTrigger }: MiniNutritionTren
             {formatDateInUserTimezone(parseISO(label), 'MMM dd')}
           </p>
           <p className="text-xs text-gray-600 dark:text-gray-400">
-            {nutrientName}: {nutrientValue}{unit}
+            {nutrientName}: {formatNutrientValue(nutrientValue, nutrientName)}
           </p>
         </div>
       );
@@ -89,7 +89,7 @@ const MiniNutritionTrends = ({ selectedDate, refreshTrigger }: MiniNutritionTren
         <div className="flex justify-between items-center">
           <span className="text-xs font-medium text-gray-600 dark:text-gray-400">Calories</span>
           <span className="text-xs text-green-600 font-medium">
-            {chartData[chartData.length - 1]?.calories || 0} cal
+            {formatNutrientValue(chartData[chartData.length - 1]?.calories || 0, 'calories')}
           </span>
         </div>
         <div className="h-6 bg-gray-100 dark:bg-gray-800 rounded">
@@ -115,7 +115,7 @@ const MiniNutritionTrends = ({ selectedDate, refreshTrigger }: MiniNutritionTren
         <div className="flex justify-between items-center">
           <span className="text-xs font-medium text-gray-600 dark:text-gray-400">Protein</span>
           <span className="text-xs text-blue-600 font-medium">
-            {chartData[chartData.length - 1]?.protein || 0}g
+            {formatNutrientValue(chartData[chartData.length - 1]?.protein || 0, 'protein')}
           </span>
         </div>
         <div className="h-6 bg-gray-100 dark:bg-gray-800 rounded">
@@ -141,7 +141,7 @@ const MiniNutritionTrends = ({ selectedDate, refreshTrigger }: MiniNutritionTren
         <div className="flex justify-between items-center">
           <span className="text-xs font-medium text-gray-600 dark:text-gray-400">Carbs</span>
           <span className="text-xs text-orange-600 font-medium">
-            {chartData[chartData.length - 1]?.carbs || 0}g
+            {formatNutrientValue(chartData[chartData.length - 1]?.carbs || 0, 'carbs')}
           </span>
         </div>
         <div className="h-6 bg-gray-100 dark:bg-gray-800 rounded">
@@ -167,7 +167,7 @@ const MiniNutritionTrends = ({ selectedDate, refreshTrigger }: MiniNutritionTren
         <div className="flex justify-between items-center">
           <span className="text-xs font-medium text-gray-600 dark:text-gray-400">Fat</span>
           <span className="text-xs text-yellow-600 font-medium">
-            {chartData[chartData.length - 1]?.fat || 0}g
+            {formatNutrientValue(chartData[chartData.length - 1]?.fat || 0, 'fat')}
           </span>
         </div>
         <div className="h-6 bg-gray-100 dark:bg-gray-800 rounded">
