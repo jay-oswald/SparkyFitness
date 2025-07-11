@@ -1,25 +1,6 @@
 import { apiCall } from './api';
+import { ExpandedGoals } from '@/types/goals';
 
-export interface ExpandedGoals {
-  calories: number;
-  protein: number;
-  carbs: number;
-  fat: number;
-  water_goal: number;
-  saturated_fat: number;
-  polyunsaturated_fat: number;
-  monounsaturated_fat: number;
-  trans_fat: number;
-  cholesterol: number;
-  sodium: number;
-  potassium: number;
-  dietary_fiber: number;
-  sugars: number;
-  vitamin_a: number;
-  vitamin_c: number;
-  calcium: number;
-  iron: number;
-}
 
 export const loadGoals = async (selectedDate: string): Promise<ExpandedGoals> => {
   const params = new URLSearchParams({ date: selectedDate });

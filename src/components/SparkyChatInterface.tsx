@@ -21,7 +21,7 @@ import {
 
 
 const SparkyChatInterface = () => {
-  const { timezone, formatDateInUserTimezone } = usePreferences(); // Get timezone and formatter from context
+  const { formatDateInUserTimezone } = usePreferences(); // Get timezone and formatter from context
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -398,7 +398,6 @@ const SparkyChatInterface = () => {
       <SparkyNutritionCoach
         ref={coachRef}
         userLoggingLevel={userPreferences?.logging_level || 'ERROR'} // Pass logging level, default to ERROR
-        timezone={timezone} // Pass timezone
         formatDateInUserTimezone={formatDateInUserTimezone} // Pass formatter
       />
       

@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { debug, info, warn, error } from '@/utils/logging';
-import { formatInTimeZone, toZonedTime } from 'date-fns-tz'; // Import formatInTimeZone and toZonedTime
 import { format, parseISO, startOfDay } from 'date-fns'; // Import format, parseISO and startOfDay
 
 import { API_BASE_URL } from "@/services/api";
@@ -49,14 +48,12 @@ interface PreferencesContextType {
   dateFormat: string;
   autoClearHistory: string; // Add auto_clear_history
   loggingLevel: 'DEBUG' | 'INFO' | 'WARN' | 'ERROR' | 'SILENT'; // Add logging level
-  timezone: string; // Add timezone
   defaultFoodDataProviderId: string | null; // Add default food data provider ID
   setWeightUnit: (unit: 'kg' | 'lbs') => void;
   setMeasurementUnit: (unit: 'cm' | 'inches') => void;
   setDateFormat: (format: string) => void;
   setAutoClearHistory: (value: string) => void; // Add setter for auto_clear_history
   setLoggingLevel: (level: 'DEBUG' | 'INFO' | 'WARN' | 'ERROR' | 'SILENT') => void; // Add setter for logging level
-  setTimezone: (timezone: string) => void; // Add setter for timezone
   setDefaultFoodDataProviderId: (id: string | null) => void; // Add setter for default food data provider ID
   convertWeight: (value: number, from: 'kg' | 'lbs', to: 'kg' | 'lbs') => number;
   convertMeasurement: (value: number, from: 'cm' | 'inches', to: 'cm' | 'inches') => number;
@@ -84,13 +81,12 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const [dateFormat, setDateFormatState] = useState<string>('MM/dd/yyyy');
   const [autoClearHistory, setAutoClearHistoryState] = useState<string>('never'); // Add state for auto_clear_history
   const [loggingLevel, setLoggingLevelState] = useState<'DEBUG' | 'INFO' | 'WARN' | 'ERROR' | 'SILENT'>('ERROR'); // Change default to ERROR
-  const [timezone, setTimezoneState] = useState<string>(Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'); // Add state for timezone, default to browser's timezone
   const [defaultFoodDataProviderId, setDefaultFoodDataProviderIdState] = useState<string | null>(null); // Default food data provider ID
 
   // Log initial state
   useEffect(() => {
     info(loggingLevel, "PreferencesProvider: Initializing PreferencesProvider.");
-    debug(loggingLevel, "PreferencesProvider: Initial state - weightUnit:", weightUnit, "measurementUnit:", measurementUnit, "dateFormat:", dateFormat, "autoClearHistory:", autoClearHistory, "loggingLevel:", loggingLevel, "timezone:", timezone);
+    debug(loggingLevel, "PreferencesProvider: Initial state - weightUnit:", weightUnit, "measurementUnit:", measurementUnit, "dateFormat:", dateFormat, "autoClearHistory:", autoClearHistory, "loggingLevel:", loggingLevel);
   }, []);
 
   useEffect(() => {
@@ -104,7 +100,6 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
         const savedWeightUnit = localStorage.getItem('weightUnit') as 'kg' | 'lbs';
         const savedMeasurementUnit = localStorage.getItem('measurementUnit') as 'cm' | 'inches';
         const savedDateFormat = localStorage.getItem('dateFormat');
-        const savedTimezone = localStorage.getItem('timezone');
         // auto_clear_history and loggingLevel are not stored in localStorage, defaults to 'never' and 'INFO' respectively
 
         if (savedWeightUnit) {
@@ -118,10 +113,6 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
         if (savedDateFormat) {
           setDateFormatState(savedDateFormat);
           debug(loggingLevel, "PreferencesProvider: Loaded dateFormat from localStorage:", savedDateFormat);
-        }
-        if (savedTimezone) {
-          setTimezoneState(savedTimezone);
-          debug(loggingLevel, "PreferencesProvider: Loaded timezone from localStorage:", savedTimezone);
         }
       }
     }
@@ -144,7 +135,6 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
         setDateFormatState(data.date_format.replace(/DD/g, 'dd').replace(/YYYY/g, 'yyyy'));
         setAutoClearHistoryState(data.auto_clear_history || 'never'); // Set auto_clear_history state
         setLoggingLevelState((data.logging_level || 'INFO') as 'DEBUG' | 'INFO' | 'WARN' | 'ERROR' | 'SILENT'); // Set logging level state
-        setTimezoneState(data.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'); // Set timezone state
         setDefaultFoodDataProviderIdState(data.default_food_data_provider_id || null); // Set default food data provider ID state
         info(loggingLevel, 'PreferencesContext: Preferences states updated from database.');
       } else {
@@ -173,7 +163,6 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
         system_prompt: 'You are Sparky, a helpful AI assistant for health and fitness tracking. Be friendly, encouraging, and provide accurate information about nutrition, exercise, and wellness.',
         auto_clear_history: 'never',
         logging_level: 'ERROR' as 'DEBUG' | 'INFO' | 'WARN' | 'ERROR' | 'SILENT', // Add default logging level with type assertion
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC', // Add default timezone
         default_food_data_provider_id: null, // Default to no specific food data provider
       };
 
@@ -204,7 +193,6 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
     system_prompt: string;
     auto_clear_history: string;
     logging_level: 'DEBUG' | 'INFO' | 'WARN' | 'ERROR' | 'SILENT'; // Add logging level to updates type
-    timezone: string; // Add timezone to updates type
     default_food_data_provider_id: string | null; // Add default food data provider ID to updates type
   }>) => {
     debug(loggingLevel, "PreferencesProvider: Attempting to update preferences with:", updates);
@@ -222,10 +210,6 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
       if (updates.date_format) {
         localStorage.setItem('dateFormat', updates.date_format);
         debug(loggingLevel, "PreferencesProvider: Saved dateFormat to localStorage:", updates.date_format);
-      }
-      if (updates.timezone) {
-        localStorage.setItem('timezone', updates.timezone);
-        debug(loggingLevel, "PreferencesProvider: Saved timezone to localStorage:", updates.timezone);
       }
       // default_food_data_provider_id and logging_level are not stored in localStorage
       return;
@@ -322,10 +306,6 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
     return numValue;
   };
 
-  const setTimezone = (newTimezone: string) => {
-    info(loggingLevel, "PreferencesProvider: Setting timezone to:", newTimezone);
-    setTimezoneState(newTimezone);
-  };
 
   const formatDate = (date: string | Date) => {
     debug(loggingLevel, "PreferencesProvider: Formatting date using user's timezone preference:", date);
@@ -335,7 +315,7 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
   };
 
   const formatDateInUserTimezone = (date: string | Date, formatStr?: string) => {
-    debug(loggingLevel, `PreferencesProvider: Formatting date in user timezone (${timezone}):`, date);
+    debug(loggingLevel, `PreferencesProvider: Formatting date:`, date);
     let dateToFormat: Date;
 
     if (typeof date === 'string') {
@@ -350,36 +330,15 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
     }
 
     const formatString = formatStr || 'yyyy-MM-dd'; // Default to yyyy-MM-dd for consistency with DB date type
-
-    let effectiveTimezone = timezone;
-    try {
-      // Validate timezone string
-      new Intl.DateTimeFormat(undefined, { timeZone: effectiveTimezone });
-    } catch (e) {
-      warn(loggingLevel, `PreferencesProvider: Invalid timezone string "${effectiveTimezone}" detected. Falling back to UTC.`, e);
-      effectiveTimezone = 'UTC';
-    }
-
-    try {
-      return formatInTimeZone(dateToFormat, effectiveTimezone, formatString);
-    } catch (e) {
-      error(loggingLevel, `PreferencesProvider: Error formatting date in timezone ${effectiveTimezone}:`, e);
-      // Fallback to a standard format using date-fns's format, ignoring timezone issues for display
-      warn(loggingLevel, `PreferencesProvider: Falling back to local date format for display due to timezone error.`);
-      return format(dateToFormat, formatString); // Use format from date-fns
-    }
+    return format(dateToFormat, formatString);
   };
 
   const parseDateInUserTimezone = (dateString: string): Date => {
-    debug(loggingLevel, `PreferencesProvider: Parsing date string "${dateString}" in user timezone (${timezone}).`);
-    // Parse the date string as an ISO date (which is treated as UTC by default by parseISO for YYYY-MM-DD)
-    const utcDate = parseISO(dateString);
-
-    // Convert this UTC date to the user's timezone
-    const zonedDate = toZonedTime(utcDate, timezone);
-
-    // Get the start of the day in the user's timezone
-    return startOfDay(zonedDate);
+    debug(loggingLevel, `PreferencesProvider: Parsing date string "${dateString}".`);
+    // Parse the date string as an ISO date. This will be treated as local time.
+    const parsedDate = parseISO(dateString);
+    // Get the start of the day in local time
+    return startOfDay(parsedDate);
   };
 
   const setDefaultFoodDataProviderId = (id: string | null) => {
@@ -396,7 +355,6 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
         date_format: dateFormat,
         auto_clear_history: autoClearHistory,
         logging_level: loggingLevel,
-        timezone: timezone,
         default_food_data_provider_id: defaultFoodDataProviderId,
       });
       info(loggingLevel, "PreferencesProvider: All preferences saved successfully.");
@@ -413,14 +371,12 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
       dateFormat,
       autoClearHistory, // Expose autoClearHistory
       loggingLevel, // Expose loggingLevel
-      timezone, // Expose timezone
       defaultFoodDataProviderId, // Expose defaultFoodDataProviderId
       setWeightUnit,
       setMeasurementUnit,
       setDateFormat,
       setAutoClearHistory, // Expose setAutoClearHistory
       setLoggingLevel, // Expose setLoggingLevel
-      setTimezone, // Expose setTimezone
       setDefaultFoodDataProviderId, // Expose setDefaultFoodDataProviderId
       convertWeight,
       convertMeasurement,

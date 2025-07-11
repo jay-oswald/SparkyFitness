@@ -14,6 +14,8 @@ const preferenceRoutes = require('./routes/preferenceRoutes');
 const chatRoutes = require('./routes/chatRoutes');
 const measurementRoutes = require('./routes/measurementRoutes');
 const goalRoutes = require('./routes/goalRoutes');
+const goalPresetRoutes = require('./routes/goalPresetRoutes');
+const weeklyGoalPlanRoutes = require('./routes/weeklyGoalPlanRoutes');
 const exerciseRoutes = require('./routes/exerciseRoutes');
 const exerciseEntryRoutes = require('./routes/exerciseEntryRoutes');
 const healthDataRoutes = require('./integrations/healthData/healthDataRoutes');
@@ -43,7 +45,7 @@ app.use((req, res, next) => {
     return next(); // Skip authentication for login and register
   }
   // If the request is for a route that doesn't require authentication, skip
-  const nonAuthRoutes = ['/health']; // Add any other public routes here
+  const nonAuthRoutes = ['/some/other/public/route', '/health-data', '/health']; // Add any other public routes here
   if (nonAuthRoutes.some(route => req.path.startsWith(route))) {
       return next();
   }
@@ -58,6 +60,8 @@ app.use('/user-preferences', preferenceRoutes);
 app.use('/measurements', measurementRoutes);
 app.use('/goals', goalRoutes);
 app.use('/user-goals', goalRoutes);
+app.use('/goal-presets', goalPresetRoutes);
+app.use('/weekly-goal-plans', weeklyGoalPlanRoutes);
 app.use('/exercises', exerciseRoutes);
 app.use('/exercise-entries', exerciseEntryRoutes);
 app.use('/health-data', healthDataRoutes);

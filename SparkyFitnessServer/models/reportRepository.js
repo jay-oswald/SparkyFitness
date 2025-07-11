@@ -5,7 +5,7 @@ async function getNutritionData(userId, startDate, endDate) {
   try {
     const result = await client.query(
       `SELECT
-         fe.entry_date AS date,
+         TO_CHAR(fe.entry_date, 'YYYY-MM-DD') AS date,
          SUM(fv.calories * fe.quantity / fv.serving_size) AS calories,
          SUM(fv.protein * fe.quantity / fv.serving_size) AS protein,
          SUM(fv.carbs * fe.quantity / fv.serving_size) AS carbs,
@@ -40,7 +40,7 @@ async function getTabularFoodData(userId, startDate, endDate) {
   const client = await pool.connect();
   try {
     const result = await client.query(
-      `SELECT fe.*, f.name AS food_name, f.brand,
+      `SELECT TO_CHAR(fe.entry_date, 'YYYY-MM-DD') AS entry_date, fe.meal_type, fe.quantity, fe.unit, fe.food_id, fe.variant_id, fe.user_id, f.name AS food_name, f.brand,
               fv.calories, fv.protein, fv.carbs, fv.fat,
               fv.saturated_fat, fv.polyunsaturated_fat, fv.monounsaturated_fat, fv.trans_fat,
               fv.cholesterol, fv.sodium, fv.potassium, fv.dietary_fiber, fv.sugars,
@@ -62,7 +62,7 @@ async function getMeasurementData(userId, startDate, endDate) {
   const client = await pool.connect();
   try {
     const result = await client.query(
-      'SELECT entry_date, weight, neck, waist, hips, steps FROM check_in_measurements WHERE user_id = $1 AND entry_date BETWEEN $2 AND $3 ORDER BY entry_date',
+       `SELECT TO_CHAR(entry_date, 'YYYY-MM-DD') AS entry_date, weight, neck, waist, hips, steps FROM check_in_measurements WHERE user_id = $1 AND entry_date BETWEEN $2 AND $3 ORDER BY entry_date`,
       [userId, startDate, endDate]
     );
     return result.rows;
@@ -75,7 +75,7 @@ async function getCustomMeasurementsData(userId, categoryId, startDate, endDate)
   const client = await pool.connect();
   try {
     const result = await client.query(
-      'SELECT category_id, entry_date, EXTRACT(HOUR FROM entry_timestamp) AS hour, value, entry_timestamp AS timestamp FROM custom_measurements WHERE user_id = $1 AND category_id = $2 AND entry_date BETWEEN $3 AND $4 ORDER BY entry_date, entry_timestamp',
+       `SELECT category_id, TO_CHAR(entry_date, 'YYYY-MM-DD') AS entry_date, EXTRACT(HOUR FROM entry_timestamp) AS hour, value, entry_timestamp AS timestamp FROM custom_measurements WHERE user_id = $1 AND category_id = $2 AND entry_date BETWEEN $3 AND $4 ORDER BY entry_date, entry_timestamp`,
       [userId, categoryId, startDate, endDate]
     );
     return result.rows;
@@ -89,7 +89,7 @@ async function getMiniNutritionTrends(userId, startDate, endDate) {
   try {
     const result = await client.query(
       `SELECT
-         fe.entry_date,
+         TO_CHAR(fe.entry_date, 'YYYY-MM-DD') AS entry_date,
          SUM(fv.calories * fe.quantity / fv.serving_size) AS total_calories,
          SUM(fv.protein * fe.quantity / fv.serving_size) AS total_protein,
          SUM(fv.carbs * fe.quantity / fv.serving_size) AS total_carbs,

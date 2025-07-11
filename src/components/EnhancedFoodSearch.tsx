@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -55,6 +55,7 @@ const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
   const [showBarcodeScanner, setShowBarcodeScanner] = useState(false);
   const [foodDataProviders, setFoodDataProviders] = useState<any[]>([]); // To store configured food data providers
   const [selectedFoodDataProvider, setSelectedFoodDataProvider] = useState<string | null>(null); // To store the ID of the selected provider
+  const [hasOnlineSearchBeenPerformed, setHasOnlineSearchBeenPerformed] = useState(false);
 
   // Load food data providers and set default
   useEffect(() => {
@@ -83,11 +84,14 @@ const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
     loadFoodDataProviders();
   }, [user, defaultFoodDataProviderId]);
 
-  const searchDatabase = async () => {
-    if (!searchTerm.trim()) return;
+  const searchDatabase = useCallback(async (term: string) => {
+    if (!term.trim()) {
+      setFoods([]); // Clear results if search term is empty
+      return;
+    }
     
     setLoading(true);
-    const data = await apiCall(`/foods?name=${encodeURIComponent(searchTerm)}&broadMatch=true`);
+    const data = await apiCall(`/foods?name=${encodeURIComponent(term)}&broadMatch=true`);
     const error = null; // apiCall handles errors internally with toast, so we can assume data is valid if no error is thrown
 
     if (error) {
@@ -100,7 +104,20 @@ const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
       setFoods(data || []);
     }
     setLoading(false);
-  };
+  }, []); // Empty dependency array means this function is created once
+
+  // Debounce effect for database search
+  useEffect(() => {
+    if (activeTab === 'database') {
+      const handler = setTimeout(() => {
+        searchDatabase(searchTerm);
+      }, 500); // 500ms debounce delay
+
+      return () => {
+        clearTimeout(handler);
+      };
+    }
+  }, [searchTerm, activeTab, searchDatabase]);
 
   const searchOpenFoodFacts = async () => {
     if (!searchTerm.trim()) return;
@@ -243,8 +260,9 @@ const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
     }
 
     if (activeTab === 'database') {
-      await searchDatabase();
+      await searchDatabase(searchTerm); // Call with current searchTerm
     } else if (activeTab === 'online') {
+      setHasOnlineSearchBeenPerformed(true); // Set to true when an online search is initiated
       if (!selectedFoodDataProvider) {
         toast({
           title: "Error",
@@ -439,7 +457,11 @@ const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
           placeholder="Search for foods..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+          onKeyPress={(e) => {
+            if (e.key === 'Enter' && (activeTab === 'online' || activeTab === 'barcode')) {
+              handleSearch();
+            }
+          }}
           className="flex-1"
         />
         <Button onClick={handleSearch} disabled={loading}>
@@ -482,14 +504,20 @@ const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
           </div>
         )}
 
-        {!loading && activeTab === 'online' && openFoodFactsResults.length === 0 && nutritionixResults.length === 0 && fatSecretResults.length === 0 && searchTerm.trim() && (
+        {!loading && activeTab === 'online' && !hasOnlineSearchBeenPerformed && (
+          <div className="text-center py-8 text-gray-500">
+            Click the search icon to search online.
+          </div>
+        )}
+
+        {!loading && activeTab === 'online' && hasOnlineSearchBeenPerformed && openFoodFactsResults.length === 0 && nutritionixResults.length === 0 && fatSecretResults.length === 0 && (
           <div className="text-center py-8 text-gray-500">
             No foods found from the selected online provider.
           </div>
         )}
 
         {activeTab === 'database' && foods.map((food) => (
-          <Card key={food.id} className="cursor-pointer hover:bg-gray-50" onClick={() => onFoodSelect(food)}>
+          <Card key={food.id} className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700" onClick={() => onFoodSelect(food)}>
             <CardContent className="p-4">
               <div className="flex justify-between items-start">
                 <div className="flex-1">
@@ -499,13 +527,13 @@ const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
                     {food.is_custom && <Badge variant="outline" className="text-xs">Custom</Badge>}
                   </div>
                   <div className="grid grid-cols-4 gap-2 text-sm text-gray-600">
-                    <span><strong>{food.calories}</strong> cal</span>
-                    <span><strong>{food.protein}g</strong> protein</span>
-                    <span><strong>{food.carbs}g</strong> carbs</span>
-                    <span><strong>{food.fat}g</strong> fat</span>
+                    <span><strong>{food.default_variant?.calories || 0}</strong> cal</span>
+                    <span><strong>{food.default_variant?.protein || 0}g</strong> protein</span>
+                    <span><strong>{food.default_variant?.carbs || 0}g</strong> carbs</span>
+                    <span><strong>{food.default_variant?.fat || 0}g</strong> fat</span>
                   </div>
                   <p className="text-xs text-gray-500 mt-1">
-                    Per {food.serving_size}{food.serving_unit}
+                    Per {food.default_variant?.serving_size}{food.default_variant?.serving_unit}
                   </p>
                 </div>
               </div>
@@ -514,7 +542,7 @@ const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
         ))}
 
         {activeTab === 'online' && openFoodFactsResults.length > 0 && openFoodFactsResults.map((product) => (
-          <Card key={product.code} className="hover:bg-gray-50">
+          <Card key={product.code} className="hover:bg-gray-50 dark:hover:bg-gray-700">
             <CardContent className="p-4">
               <div className="flex justify-between items-start">
                 <div className="flex-1">
@@ -545,7 +573,7 @@ const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
         ))}
 
         {activeTab === 'online' && nutritionixResults.length > 0 && nutritionixResults.map((item) => (
-          <Card key={item.id} className="hover:bg-gray-50">
+          <Card key={item.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
             <CardContent className="p-4">
               <div className="flex justify-between items-start">
                 <div className="flex-1">
@@ -585,7 +613,7 @@ const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
         ))}
 
         {activeTab === 'online' && fatSecretResults.length > 0 && fatSecretResults.map((item) => (
-          <Card key={item.food_id} className="hover:bg-gray-50">
+          <Card key={item.food_id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
             <CardContent className="p-4">
               <div className="flex justify-between items-start">
                 <div className="flex-1">

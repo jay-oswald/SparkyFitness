@@ -15,6 +15,7 @@ import {
 } from '@/services/enhancedCustomFoodFormService';
 import { Food, FoodVariant } from '@/types/food';
 
+type NumericFoodVariantKeys = Exclude<keyof FoodVariant, 'id' | 'serving_unit' | 'is_default' | 'is_locked'>;
 
 interface EnhancedCustomFoodFormProps {
   onSave: (foodData: any) => void;
@@ -45,7 +46,7 @@ const EnhancedCustomFoodForm = ({ onSave, food, initialVariants }: EnhancedCusto
       });
       // If food has variants from the API, use them. Otherwise, load existing variants from the backend.
       if (food.variants && food.variants.length > 0) {
-        setVariants(food.variants);
+        setVariants(food.variants.map(v => ({ ...v, is_locked: false }))); // Initialize is_locked to false for existing food variants
       } else {
         loadExistingVariants(); // Load variants for existing food from DB
       }
@@ -83,6 +84,7 @@ const EnhancedCustomFoodForm = ({ onSave, food, initialVariants }: EnhancedCusto
         calcium: 0,
         iron: 0,
         is_default: true, // Mark as default
+        is_locked: false, // New field for locking nutrient details
       }]);
     }
   }, [food, initialVariants]); // Add initialVariants to dependency array
@@ -116,10 +118,10 @@ const EnhancedCustomFoodForm = ({ onSave, food, initialVariants }: EnhancedCusto
 
         // Ensure the default variant is always first in the list
         if (defaultVariant) {
-          loadedVariants.push(defaultVariant);
-          loadedVariants = loadedVariants.concat(data.filter(v => v.id !== defaultVariant?.id));
+          loadedVariants.push({ ...defaultVariant, is_locked: false }); // Initialize is_locked to false
+          loadedVariants = loadedVariants.concat(data.filter(v => v.id !== defaultVariant?.id).map(v => ({ ...v, is_locked: false }))); // Initialize is_locked to false
         } else {
-          loadedVariants = data; // Fallback if no default is found
+          loadedVariants = data.map(v => ({ ...v, is_locked: false })); // Fallback if no default is found, initialize is_locked to false
         }
       } else {
         // If no variants are returned, initialize with a single default variant
@@ -144,6 +146,7 @@ const EnhancedCustomFoodForm = ({ onSave, food, initialVariants }: EnhancedCusto
           calcium: 0,
           iron: 0,
           is_default: true,
+          is_locked: false, // Initialize as unlocked
         }];
       }
       setVariants(loadedVariants);
@@ -171,6 +174,7 @@ const EnhancedCustomFoodForm = ({ onSave, food, initialVariants }: EnhancedCusto
         calcium: 0,
         iron: 0,
         is_default: true,
+        is_locked: false, // Initialize as unlocked
       }]);
     }
   };
@@ -197,6 +201,7 @@ const EnhancedCustomFoodForm = ({ onSave, food, initialVariants }: EnhancedCusto
       calcium: 0,
       iron: 0,
       is_default: false, // New variants are not default
+      is_locked: false, // New variants are not locked
     }]);
   };
 
@@ -215,7 +220,8 @@ const EnhancedCustomFoodForm = ({ onSave, food, initialVariants }: EnhancedCusto
 
   const updateVariant = (index: number, field: keyof FoodVariant, value: string | number | boolean) => {
     const updatedVariants = [...variants];
-    updatedVariants[index] = { ...updatedVariants[index], [field]: value };
+    const currentVariant = updatedVariants[index];
+    const newVariant = { ...currentVariant, [field]: value };
 
     // If this variant is set to be the default, ensure all others are not
     if (field === 'is_default' && value === true) {
@@ -225,6 +231,30 @@ const EnhancedCustomFoodForm = ({ onSave, food, initialVariants }: EnhancedCusto
         }
       });
     }
+
+    // Handle proportional scaling for locked variants when serving_size changes
+    if (field === 'serving_size' && currentVariant.is_locked) {
+      const oldServingSize = currentVariant.serving_size;
+      const newServingSize = Number(value);
+
+      if (oldServingSize > 0 && newServingSize >= 0) {
+        const ratio = newServingSize / oldServingSize;
+
+        const nutrientFields: NumericFoodVariantKeys[] = [
+          'calories', 'protein', 'carbs', 'fat', 'saturated_fat',
+          'polyunsaturated_fat', 'monounsaturated_fat', 'trans_fat',
+          'cholesterol', 'sodium', 'potassium', 'dietary_fiber',
+          'sugars', 'vitamin_a', 'vitamin_c', 'calcium', 'iron'
+        ];
+
+        nutrientFields.forEach(nutrientField => {
+          // No need for typeof check here, as NumericFoodVariantKeys ensures it's a number type
+          newVariant[nutrientField] = Number(((currentVariant[nutrientField] as number) * ratio).toFixed(2));
+        });
+      }
+    }
+    
+    updatedVariants[index] = newVariant;
     setVariants(updatedVariants);
   };
 
@@ -326,6 +356,7 @@ const EnhancedCustomFoodForm = ({ onSave, food, initialVariants }: EnhancedCusto
           calcium: 0,
           iron: 0,
           is_default: true,
+          is_locked: false, // Reset to unlocked for new food
         }]);
       }
       
@@ -400,6 +431,8 @@ const EnhancedCustomFoodForm = ({ onSave, food, initialVariants }: EnhancedCusto
                         value={variant.serving_size}
                         onChange={(e) => updateVariant(index, 'serving_size', Number(e.target.value))}
                         className="w-24"
+                        // serving_size should always be editable, even if locked, to allow scaling
+                        // disabled={variant.is_locked} // Removed this line
                       />
                       <Select
                         value={variant.serving_unit}
@@ -423,6 +456,16 @@ const EnhancedCustomFoodForm = ({ onSave, food, initialVariants }: EnhancedCusto
                           className="form-checkbox h-4 w-4 text-blue-600"
                         />
                         <Label htmlFor={`is-default-${index}`} className="text-sm">Default</Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          id={`is-locked-${index}`}
+                          checked={variant.is_locked || false}
+                          onChange={(e) => updateVariant(index, 'is_locked', e.target.checked)}
+                          className="form-checkbox h-4 w-4 text-blue-600"
+                        />
+                        <Label htmlFor={`is-locked-${index}`} className="text-sm">Auto-Scale</Label>
                       </div>
                       {/* Removed Primary Unit Badge */}
                       {index > 0 && ( // Only allow removing non-primary units
@@ -453,6 +496,7 @@ const EnhancedCustomFoodForm = ({ onSave, food, initialVariants }: EnhancedCusto
                               type="number"
                               value={variant.calories}
                               onChange={(e) => updateVariant(index, 'calories', Number(e.target.value))}
+                              disabled={variant.is_locked}
                             />
                           </div>
                           <div>
@@ -462,6 +506,7 @@ const EnhancedCustomFoodForm = ({ onSave, food, initialVariants }: EnhancedCusto
                               step="0.1"
                               value={variant.protein}
                               onChange={(e) => updateVariant(index, 'protein', Number(e.target.value))}
+                              disabled={variant.is_locked}
                             />
                           </div>
                           <div>
@@ -471,6 +516,7 @@ const EnhancedCustomFoodForm = ({ onSave, food, initialVariants }: EnhancedCusto
                               step="0.1"
                               value={variant.carbs}
                               onChange={(e) => updateVariant(index, 'carbs', Number(e.target.value))}
+                              disabled={variant.is_locked}
                             />
                           </div>
                           <div>
@@ -480,6 +526,7 @@ const EnhancedCustomFoodForm = ({ onSave, food, initialVariants }: EnhancedCusto
                               step="0.1"
                               value={variant.fat}
                               onChange={(e) => updateVariant(index, 'fat', Number(e.target.value))}
+                              disabled={variant.is_locked}
                             />
                           </div>
                         </div>
@@ -496,6 +543,7 @@ const EnhancedCustomFoodForm = ({ onSave, food, initialVariants }: EnhancedCusto
                               step="0.1"
                               value={variant.saturated_fat}
                               onChange={(e) => updateVariant(index, 'saturated_fat', Number(e.target.value))}
+                              disabled={variant.is_locked}
                             />
                           </div>
                           <div>
@@ -505,6 +553,7 @@ const EnhancedCustomFoodForm = ({ onSave, food, initialVariants }: EnhancedCusto
                               step="0.1"
                               value={variant.polyunsaturated_fat}
                               onChange={(e) => updateVariant(index, 'polyunsaturated_fat', Number(e.target.value))}
+                              disabled={variant.is_locked}
                             />
                           </div>
                           <div>
@@ -514,6 +563,7 @@ const EnhancedCustomFoodForm = ({ onSave, food, initialVariants }: EnhancedCusto
                               step="0.1"
                               value={variant.monounsaturated_fat}
                               onChange={(e) => updateVariant(index, 'monounsaturated_fat', Number(e.target.value))}
+                              disabled={variant.is_locked}
                             />
                           </div>
                           <div>
@@ -523,6 +573,7 @@ const EnhancedCustomFoodForm = ({ onSave, food, initialVariants }: EnhancedCusto
                               step="0.1"
                               value={variant.trans_fat}
                               onChange={(e) => updateVariant(index, 'trans_fat', Number(e.target.value))}
+                              disabled={variant.is_locked}
                             />
                           </div>
                         </div>
@@ -539,6 +590,7 @@ const EnhancedCustomFoodForm = ({ onSave, food, initialVariants }: EnhancedCusto
                               step="0.1"
                               value={variant.cholesterol}
                               onChange={(e) => updateVariant(index, 'cholesterol', Number(e.target.value))}
+                              disabled={variant.is_locked}
                             />
                           </div>
                           <div>
@@ -548,6 +600,7 @@ const EnhancedCustomFoodForm = ({ onSave, food, initialVariants }: EnhancedCusto
                               step="0.1"
                               value={variant.sodium}
                               onChange={(e) => updateVariant(index, 'sodium', Number(e.target.value))}
+                              disabled={variant.is_locked}
                             />
                           </div>
                           <div>
@@ -557,6 +610,7 @@ const EnhancedCustomFoodForm = ({ onSave, food, initialVariants }: EnhancedCusto
                               step="0.1"
                               value={variant.potassium}
                               onChange={(e) => updateVariant(index, 'potassium', Number(e.target.value))}
+                              disabled={variant.is_locked}
                             />
                           </div>
                           <div>
@@ -566,6 +620,7 @@ const EnhancedCustomFoodForm = ({ onSave, food, initialVariants }: EnhancedCusto
                               step="0.1"
                               value={variant.dietary_fiber}
                               onChange={(e) => updateVariant(index, 'dietary_fiber', Number(e.target.value))}
+                              disabled={variant.is_locked}
                             />
                           </div>
                         </div>
@@ -582,6 +637,7 @@ const EnhancedCustomFoodForm = ({ onSave, food, initialVariants }: EnhancedCusto
                               step="0.1"
                               value={variant.sugars}
                               onChange={(e) => updateVariant(index, 'sugars', Number(e.target.value))}
+                              disabled={variant.is_locked}
                             />
                           </div>
                           <div>
@@ -591,6 +647,7 @@ const EnhancedCustomFoodForm = ({ onSave, food, initialVariants }: EnhancedCusto
                               step="0.1"
                               value={variant.vitamin_a}
                               onChange={(e) => updateVariant(index, 'vitamin_a', Number(e.target.value))}
+                              disabled={variant.is_locked}
                             />
                           </div>
                           <div>
@@ -600,6 +657,7 @@ const EnhancedCustomFoodForm = ({ onSave, food, initialVariants }: EnhancedCusto
                               step="0.1"
                               value={variant.vitamin_c}
                               onChange={(e) => updateVariant(index, 'vitamin_c', Number(e.target.value))}
+                              disabled={variant.is_locked}
                             />
                           </div>
                           <div>
@@ -609,6 +667,7 @@ const EnhancedCustomFoodForm = ({ onSave, food, initialVariants }: EnhancedCusto
                               step="0.1"
                               value={variant.calcium}
                               onChange={(e) => updateVariant(index, 'calcium', Number(e.target.value))}
+                              disabled={variant.is_locked}
                             />
                           </div>
                         </div>
@@ -623,6 +682,7 @@ const EnhancedCustomFoodForm = ({ onSave, food, initialVariants }: EnhancedCusto
                               step="0.1"
                               value={variant.iron}
                               onChange={(e) => updateVariant(index, 'iron', Number(e.target.value))}
+                              disabled={variant.is_locked}
                             />
                           </div>
                         </div>
