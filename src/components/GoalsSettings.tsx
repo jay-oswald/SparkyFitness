@@ -8,6 +8,7 @@ import { Target } from "lucide-react";
 import { apiCall } from '@/services/api';
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "@/hooks/use-toast";
+import { usePreferences } from "@/contexts/PreferencesContext"; // Added import
 import { GoalPreset, createGoalPreset, getGoalPresets, updateGoalPreset, deleteGoalPreset } from '@/services/goalPresetService';
 import { WeeklyGoalPlan, createWeeklyGoalPlan, getWeeklyGoalPlans, updateWeeklyGoalPlan, deleteWeeklyGoalPlan } from '@/services/weeklyGoalPlanService';
 import { PlusCircle, Edit, Trash2, CalendarDays } from "lucide-react";
@@ -47,6 +48,7 @@ interface ExpandedGoals {
 
 const GoalsSettings = () => {
   const { user } = useAuth();
+  const { dateFormat, formatDateInUserTimezone, parseDateInUserTimezone } = usePreferences(); // Corrected destructuring
   const [goals, setGoals] = useState<ExpandedGoals>({
     calories: 2000, protein: 150, carbs: 250, fat: 67, water_goal: 8,
     saturated_fat: 20, polyunsaturated_fat: 10, monounsaturated_fat: 25, trans_fat: 0,
@@ -257,7 +259,7 @@ const GoalsSettings = () => {
   const handleCreateWeeklyPlanClick = () => {
     setCurrentWeeklyPlan({
       plan_name: '',
-      start_date: format(new Date(), 'yyyy-MM-dd'),
+      start_date: formatDateInUserTimezone(new Date(), 'yyyy-MM-dd'), // Changed
       end_date: null,
       is_active: true,
       monday_preset_id: null,
@@ -882,7 +884,7 @@ const GoalsSettings = () => {
                   <div>
                     <h4 className="font-semibold">{plan.plan_name} {plan.is_active && <Badge variant="secondary">Active</Badge>}</h4>
                     <p className="text-sm text-gray-600">
-                      {plan.start_date} to {plan.end_date || 'Indefinite'}
+                      {formatDateInUserTimezone(plan.start_date)} to {plan.end_date ? formatDateInUserTimezone(plan.end_date) : 'Indefinite'}
                     </p>
                   </div>
                   <div className="flex space-x-2">
@@ -934,14 +936,14 @@ const GoalsSettings = () => {
                       )}
                     >
                       <CalendarDays className="mr-2 h-4 w-4" />
-                      {currentWeeklyPlan.start_date ? format(new Date(currentWeeklyPlan.start_date), "PPP") : <span>Pick a date</span>}
+                      {currentWeeklyPlan.start_date ? formatDateInUserTimezone(new Date(currentWeeklyPlan.start_date), dateFormat) : <span>Pick a date</span>}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0">
                     <Calendar
                       mode="single"
-                      selected={new Date(currentWeeklyPlan.start_date)}
-                      onSelect={(date) => setCurrentWeeklyPlan({ ...currentWeeklyPlan, start_date: format(date!, 'yyyy-MM-dd') })}
+                      selected={parseDateInUserTimezone(currentWeeklyPlan.start_date)} // Changed
+                      onSelect={(date) => setCurrentWeeklyPlan({ ...currentWeeklyPlan, start_date: formatDateInUserTimezone(date!, 'yyyy-MM-dd') })}
                       initialFocus
                     />
                   </PopoverContent>
@@ -961,14 +963,14 @@ const GoalsSettings = () => {
                       )}
                     >
                       <CalendarDays className="mr-2 h-4 w-4" />
-                      {currentWeeklyPlan.end_date ? format(new Date(currentWeeklyPlan.end_date), "PPP") : <span>Pick a date</span>}
+                      {currentWeeklyPlan.end_date ? formatDateInUserTimezone(parseDateInUserTimezone(currentWeeklyPlan.end_date), dateFormat) : <span>Pick a date</span>} // Changed
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0">
                     <Calendar
                       mode="single"
-                      selected={currentWeeklyPlan.end_date ? new Date(currentWeeklyPlan.end_date) : undefined}
-                      onSelect={(date) => setCurrentWeeklyPlan({ ...currentWeeklyPlan, end_date: date ? format(date, 'yyyy-MM-dd') : null })}
+                      selected={currentWeeklyPlan.end_date ? parseDateInUserTimezone(currentWeeklyPlan.end_date) : undefined} // Changed
+                      onSelect={(date) => setCurrentWeeklyPlan({ ...currentWeeklyPlan, end_date: date ? formatDateInUserTimezone(date, 'yyyy-MM-dd') : null })}
                       initialFocus
                     />
                   </PopoverContent>
@@ -1001,14 +1003,13 @@ const GoalsSettings = () => {
                     {day}
                   </Label>
                   <Select
-                    value={(currentWeeklyPlan as any)[`${day}_preset_id`] || ''}
+                    value={(currentWeeklyPlan as any)[`${day}_preset_id`] || undefined}
                     onValueChange={(value) => setCurrentWeeklyPlan({ ...currentWeeklyPlan, [`${day}_preset_id`]: value || null })}
                   >
                     <SelectTrigger className="col-span-3">
                       <SelectValue placeholder={`Select ${day} preset`} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">None</SelectItem>
                       {goalPresets.map((preset) => (
                         <SelectItem key={preset.id} value={preset.id!}>
                           {preset.preset_name}

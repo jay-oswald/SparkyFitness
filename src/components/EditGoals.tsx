@@ -53,11 +53,13 @@ const EditGoals = ({ selectedDate, onGoalsUpdated }: EditGoalsProps) => {
   const [open, setOpen] = useState(false);
   const [goalPresets, setGoalPresets] = useState<GoalPreset[]>([]);
   const [macroInputType, setMacroInputType] = useState<'grams' | 'percentages'>('grams');
+  const [selectedPresetId, setSelectedPresetId] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     if (user && open) {
       fetchGoals();
       loadGoalPresets();
+      setSelectedPresetId(undefined); // Reset selected preset when dialog opens
     }
   }, [user, selectedDate, open]);
 
@@ -272,6 +274,33 @@ const EditGoals = ({ selectedDate, onGoalsUpdated }: EditGoalsProps) => {
           <div>Loading goals...</div>
         ) : (
           <div className="grid gap-4 py-4">
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold">Apply Preset</h3>
+              <Select
+                value={selectedPresetId}
+                onValueChange={(value) => {
+                  setSelectedPresetId(value);
+                  handleApplyPreset(value);
+                }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select a goal preset to apply" />
+                </SelectTrigger>
+                <SelectContent>
+                  {goalPresets
+                    .filter((preset) => preset.id !== undefined && preset.id !== '')
+                    .map((preset) => (
+                      <SelectItem key={preset.id} value={preset.id!}>
+                        {preset.preset_name}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+              <Button variant="outline" onClick={handleClearDateSpecificGoal} className="w-full">
+                Clear Date-Specific Goal
+              </Button>
+            </div>
+
             <div className="grid grid-cols-2 gap-4">
               {/* Primary Macros */}
               <div>
@@ -532,25 +561,6 @@ const EditGoals = ({ selectedDate, onGoalsUpdated }: EditGoalsProps) => {
                     onChange={(e) => setGoals({ ...goals, target_exercise_duration_minutes: isNaN(Number(e.target.value)) ? 0 : Number(e.target.value) })}
                   />
                 </div>
-              </div>
-
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold">Apply Preset</h3>
-                <Select onValueChange={handleApplyPreset}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select a goal preset to apply" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {goalPresets.map((preset) => (
-                      <SelectItem key={preset.id} value={preset.id!}>
-                        {preset.preset_name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Button variant="outline" onClick={handleClearDateSpecificGoal} className="w-full">
-                  Clear Date-Specific Goal
-                </Button>
               </div>
 
             <Button
