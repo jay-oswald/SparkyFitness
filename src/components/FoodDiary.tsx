@@ -22,9 +22,9 @@ import {
   loadGoals,
   addFoodEntry,
   removeFoodEntry,
-  Goal,
 } from '@/services/foodDiaryService';
 import { Food, FoodVariant, FoodEntry } from '@/types/food';
+import { ExpandedGoals } from '@/types/goals'; // Import ExpandedGoals
 
 
 interface Meal {
@@ -54,7 +54,14 @@ const FoodDiary = ({ selectedDate, onDateChange }: FoodDiaryProps) => {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [foodEntries, setFoodEntries] = useState<FoodEntry[]>([]);
   const [editingEntry, setEditingEntry] = useState<FoodEntry | null>(null);
-  const [goals, setGoals] = useState({ calories: 2000, protein: 150, carbs: 250, fat: 67 });
+  const [goals, setGoals] = useState<ExpandedGoals>({
+    calories: 2000, protein: 150, carbs: 250, fat: 67, water_goal: 8,
+    saturated_fat: 20, polyunsaturated_fat: 10, monounsaturated_fat: 25, trans_fat: 0,
+    cholesterol: 300, sodium: 2300, potassium: 3500, dietary_fiber: 25, sugars: 50,
+    vitamin_a: 900, vitamin_c: 90, calcium: 1000, iron: 18,
+    target_exercise_calories_burned: 0, target_exercise_duration_minutes: 0,
+    protein_percentage: null, carbs_percentage: null, fat_percentage: null
+  });
   const [dayTotals, setDayTotals] = useState({ calories: 0, protein: 0, carbs: 0, fat: 0 });
   const [selectedFood, setSelectedFood] = useState<Food | null>(null);
   const [selectedMealType, setSelectedMealType] = useState<string>("");
@@ -103,12 +110,7 @@ const FoodDiary = ({ selectedDate, onDateChange }: FoodDiaryProps) => {
     try {
       const goalData = await loadGoals(currentUserId, selectedDate); // Use imported loadGoals
       info(loggingLevel, 'Goals loaded successfully:', goalData);
-      setGoals({
-        calories: goalData.calories || 2000,
-        protein: goalData.protein || 150,
-        carbs: goalData.carbs || 250,
-        fat: goalData.fat || 67,
-      });
+      setGoals(goalData); // Directly set the ExpandedGoals object
     } catch (err) {
       error(loggingLevel, 'Error loading goals:', err);
     }

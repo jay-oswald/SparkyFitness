@@ -39,48 +39,7 @@ export const roundNutritionValue = (value: number): number => {
   return Math.round(value);
 };
 
-interface Food {
-  id: string;
-  name: string;
-  brand?: string;
-  user_id?: string;
-  is_custom?: boolean;
-  shared_with_public?: boolean;
-}
-
-interface FoodVariant {
-  id: string;
-  serving_size: number;
-  serving_unit: string;
-  calories?: number;
-  protein?: number;
-  carbs?: number;
-  fat?: number;
-  saturated_fat?: number;
-  polyunsaturated_fat?: number;
-  monounsaturated_fat?: number;
-  trans_fat?: number;
-  cholesterol?: number;
-  sodium?: number;
-  potassium?: number;
-  dietary_fiber?: number;
-  sugars?: number;
-  vitamin_a?: number;
-  vitamin_c?: number;
-  calcium?: number;
-  iron?: number;
-}
-
-interface FoodEntry {
-  id: string;
-  food_id: string;
-  meal_type: string;
-  quantity: number;
-  unit: string;
-  variant_id?: string;
-  foods: Food;
-  food_variants?: FoodVariant;
-}
+import { Food, FoodVariant, FoodEntry } from '@/types/food'; // Import from central types file
 
 export const calculateFoodEntryNutrition = (entry: FoodEntry) => {
   const variant = entry.food_variants;
@@ -98,23 +57,23 @@ export const calculateFoodEntryNutrition = (entry: FoodEntry) => {
 
   // All nutrient values are now sourced directly from the food_variants object
   const nutrientValuesPerReferenceSize = {
-    calories: variant.calories || 0,
-    protein: variant.protein || 0,
-    carbs: variant.carbs || 0,
-    fat: variant.fat || 0,
-    saturated_fat: variant.saturated_fat || 0,
-    polyunsaturated_fat: variant.polyunsaturated_fat || 0,
-    monounsaturated_fat: variant.monounsaturated_fat || 0,
-    trans_fat: variant.trans_fat || 0,
-    cholesterol: variant.cholesterol || 0,
-    sodium: variant.sodium || 0,
-    potassium: variant.potassium || 0,
-    dietary_fiber: variant.dietary_fiber || 0,
-    sugars: variant.sugars || 0,
-    vitamin_a: variant.vitamin_a || 0,
-    vitamin_c: variant.vitamin_c || 0,
-    calcium: variant.calcium || 0,
-    iron: variant.iron || 0,
+    calories: isNaN(variant.calories) ? 0 : variant.calories || 0,
+    protein: isNaN(variant.protein) ? 0 : variant.protein || 0,
+    carbs: isNaN(variant.carbs) ? 0 : variant.carbs || 0,
+    fat: isNaN(variant.fat) ? 0 : variant.fat || 0,
+    saturated_fat: isNaN(variant.saturated_fat) ? 0 : variant.saturated_fat || 0,
+    polyunsaturated_fat: isNaN(variant.polyunsaturated_fat) ? 0 : variant.polyunsaturated_fat || 0,
+    monounsaturated_fat: isNaN(variant.monounsaturated_fat) ? 0 : variant.monounsaturated_fat || 0,
+    trans_fat: isNaN(variant.trans_fat) ? 0 : variant.trans_fat || 0,
+    cholesterol: isNaN(variant.cholesterol) ? 0 : variant.cholesterol || 0,
+    sodium: isNaN(variant.sodium) ? 0 : variant.sodium || 0,
+    potassium: isNaN(variant.potassium) ? 0 : variant.potassium || 0,
+    dietary_fiber: isNaN(variant.dietary_fiber) ? 0 : variant.dietary_fiber || 0,
+    sugars: isNaN(variant.sugars) ? 0 : variant.sugars || 0,
+    vitamin_a: isNaN(variant.vitamin_a) ? 0 : variant.vitamin_a || 0,
+    vitamin_c: isNaN(variant.vitamin_c) ? 0 : variant.vitamin_c || 0,
+    calcium: isNaN(variant.calcium) ? 0 : variant.calcium || 0,
+    iron: isNaN(variant.iron) ? 0 : variant.iron || 0,
   };
   const effectiveReferenceSize = variant.serving_size || 100;
 

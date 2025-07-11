@@ -8,7 +8,9 @@ async function getGoalByDate(userId, selectedDate) {
       `SELECT calories, protein, carbs, fat, water_goal,
               saturated_fat, polyunsaturated_fat, monounsaturated_fat, trans_fat,
               cholesterol, sodium, potassium, dietary_fiber, sugars,
-              vitamin_a, vitamin_c, calcium, iron
+              vitamin_a, vitamin_c, calcium, iron,
+              target_exercise_calories_burned, target_exercise_duration_minutes,
+              protein_percentage, carbs_percentage, fat_percentage
        FROM user_goals
        WHERE user_id = $1 AND goal_date = $2
        LIMIT 1`,
@@ -27,7 +29,9 @@ async function getMostRecentGoalBeforeDate(userId, selectedDate) {
       `SELECT calories, protein, carbs, fat, water_goal,
               saturated_fat, polyunsaturated_fat, monounsaturated_fat, trans_fat,
               cholesterol, sodium, potassium, dietary_fiber, sugars,
-              vitamin_a, vitamin_c, calcium, iron
+              vitamin_a, vitamin_c, calcium, iron,
+              target_exercise_calories_burned, target_exercise_duration_minutes,
+              protein_percentage, carbs_percentage, fat_percentage
        FROM user_goals
        WHERE user_id = $1
          AND (goal_date < $2 OR goal_date IS NULL)
@@ -49,9 +53,12 @@ async function upsertGoal(goalData) {
         user_id, goal_date, calories, protein, carbs, fat, water_goal,
         saturated_fat, polyunsaturated_fat, monounsaturated_fat, trans_fat,
         cholesterol, sodium, potassium, dietary_fiber, sugars,
-        vitamin_a, vitamin_c, calcium, iron, created_at, updated_at
+        vitamin_a, vitamin_c, calcium, iron,
+        target_exercise_calories_burned, target_exercise_duration_minutes,
+        protein_percentage, carbs_percentage, fat_percentage,
+        created_at, updated_at
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27)
       ON CONFLICT (user_id, COALESCE(goal_date, '1900-01-01'::date))
       DO UPDATE SET
         calories = EXCLUDED.calories,
@@ -72,6 +79,11 @@ async function upsertGoal(goalData) {
         vitamin_c = EXCLUDED.vitamin_c,
         calcium = EXCLUDED.calcium,
         iron = EXCLUDED.iron,
+        target_exercise_calories_burned = EXCLUDED.target_exercise_calories_burned,
+        target_exercise_duration_minutes = EXCLUDED.target_exercise_duration_minutes,
+        protein_percentage = EXCLUDED.protein_percentage,
+        carbs_percentage = EXCLUDED.carbs_percentage,
+        fat_percentage = EXCLUDED.fat_percentage,
         updated_at = now()
       RETURNING *`,
       [
@@ -79,8 +91,10 @@ async function upsertGoal(goalData) {
         goalData.saturated_fat, goalData.polyunsaturated_fat, goalData.monounsaturated_fat, goalData.trans_fat,
         goalData.cholesterol, goalData.sodium, goalData.potassium, goalData.dietary_fiber, goalData.sugars,
         goalData.vitamin_a, goalData.vitamin_c, goalData.calcium, goalData.iron,
-        new Date(), // for created_at ($20)
-        new Date()  // for updated_at ($21)
+        goalData.target_exercise_calories_burned, goalData.target_exercise_duration_minutes,
+        goalData.protein_percentage, goalData.carbs_percentage, goalData.fat_percentage,
+        new Date(), // for created_at
+        new Date()  // for updated_at
       ]
     );
     return result.rows[0];

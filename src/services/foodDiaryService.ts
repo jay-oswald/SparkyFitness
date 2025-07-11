@@ -1,13 +1,9 @@
 import { apiCall } from './api';
 
 import { Food, FoodVariant, FoodEntry } from '@/types/food';
+import { ExpandedGoals } from '@/types/goals'; // Import ExpandedGoals
 
-export interface Goal {
-  calories: number;
-  protein: number;
-  carbs: number;
-  fat: number;
-}
+export interface Goal extends ExpandedGoals {} // Extend the ExpandedGoals interface
 
 export const loadFoodEntries = async (userId: string, selectedDate: string): Promise<FoodEntry[]> => {
   const params = new URLSearchParams({
@@ -29,7 +25,32 @@ export const loadGoals = async (userId: string, selectedDate: string): Promise<G
     method: 'GET',
     suppress404Toast: true, // Suppress toast for 404
   });
-  return data || { calories: 2000, protein: 150, carbs: 250, fat: 67 }; // Return default if no goals found
+  // Ensure all fields are numbers, providing defaults if null or undefined
+  return {
+    calories: data?.calories || 2000,
+    protein: data?.protein || 150,
+    carbs: data?.carbs || 250,
+    fat: data?.fat || 67,
+    water_goal: data?.water_goal || 8,
+    saturated_fat: data?.saturated_fat || 20,
+    polyunsaturated_fat: data?.polyunsaturated_fat || 10,
+    monounsaturated_fat: data?.monounsaturated_fat || 25,
+    trans_fat: data?.trans_fat || 0,
+    cholesterol: data?.cholesterol || 300,
+    sodium: data?.sodium || 2300,
+    potassium: data?.potassium || 3500,
+    dietary_fiber: data?.dietary_fiber || 25,
+    sugars: data?.sugars || 50,
+    vitamin_a: data?.vitamin_a || 900,
+    vitamin_c: data?.vitamin_c || 90,
+    calcium: data?.calcium || 1000,
+    iron: data?.iron || 18,
+    target_exercise_calories_burned: data?.target_exercise_calories_burned || 0,
+    target_exercise_duration_minutes: data?.target_exercise_duration_minutes || 0,
+    protein_percentage: data?.protein_percentage ?? null,
+    carbs_percentage: data?.carbs_percentage ?? null,
+    fat_percentage: data?.fat_percentage ?? null,
+  };
 };
 
 export const addFoodEntry = async (payload: {

@@ -1,5 +1,5 @@
 export interface Food {
-  id?: string; // Made optional
+  id: string; // Made required
   name: string;
   brand?: string;
   is_custom?: boolean;
@@ -32,7 +32,7 @@ export interface Food {
 }
 
 export interface FoodVariant {
-  id?: string; // Made optional
+  id: string; // Made required
   serving_size: number;
   serving_unit: string;
   is_default?: boolean; // New field

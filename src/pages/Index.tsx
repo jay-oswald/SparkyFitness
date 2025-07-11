@@ -12,11 +12,12 @@ import ExerciseDatabaseManager from "@/components/ExerciseDatabaseManager";
 import Reports from "@/components/Reports";
 import CheckIn from "@/components/CheckIn";
 import Settings from "@/components/Settings";
+import GoalsSettings from "@/components/GoalsSettings"; // Import GoalsSettings
 import ThemeToggle from "@/components/ThemeToggle";
 import ProfileSwitcher from "@/components/ProfileSwitcher";
 import { useAuth } from "@/hooks/useAuth";
 import { useActiveUser } from "@/contexts/ActiveUserContext";
-import { Home, Activity, BarChart3, Utensils, Settings as SettingsIcon, LogOut, Dumbbell } from "lucide-react";
+import { Home, Activity, BarChart3, Utensils, Settings as SettingsIcon, LogOut, Dumbbell, Target } from "lucide-react"; // Import Target icon
 import { toast } from "@/hooks/use-toast";
 
 import { API_BASE_URL } from "@/services/api";
@@ -86,6 +87,7 @@ const Index = () => {
          { value: "reports", label: "Reports", icon: BarChart3, component: Reports },
          { value: "foods", label: "Foods", icon: Utensils, component: FoodDatabaseManager },
          { value: "exercises", label: "Exercises", icon: Dumbbell, component: ExerciseDatabaseManager },
+         { value: "goals", label: "Goals", icon: Target, component: GoalsSettings }, // New Goals tab
          { value: "settings", label: "Settings", icon: SettingsIcon, component: Settings },
        ];
      }
