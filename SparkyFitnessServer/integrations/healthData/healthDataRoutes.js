@@ -54,6 +54,9 @@ router.post('/', async (req, res, next) => {
     return res.status(400).json({ error: "Invalid request body format. Expected JSON object or array." });
   }
 
+  // Log the incoming health data JSON
+  log('info', "Incoming health data JSON:", JSON.stringify(healthDataArray, null, 2));
+
   try {
     const result = await measurementService.processHealthData(healthDataArray, req.userId);
     res.status(200).json(result);
