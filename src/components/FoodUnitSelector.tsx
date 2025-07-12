@@ -15,7 +15,7 @@ interface FoodUnitSelectorProps {
   food: Food;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSelect: (food: Food, quantity: number, unit: string, variantId?: string) => void;
+  onSelect: (food: Food, quantity: number, unit: string, selectedVariant: FoodVariant) => void;
   showUnitSelector?: boolean; // New prop to control visibility
 }
 
@@ -149,9 +149,7 @@ const FoodUnitSelector = ({ food, open, onOpenChange, onSelect, showUnitSelector
       // Pass the user-entered quantity directly, as it now represents the number of servings.
       // If the selected variant is the primary food unit (identified by food.id), pass null for variantId
       // Otherwise, pass the actual variant.id
-      const variantIdToPass = selectedVariant.id === food.id ? null : selectedVariant.id;
-
-      onSelect(food, quantity, selectedVariant.serving_unit, variantIdToPass);
+      onSelect(food, quantity, selectedVariant.serving_unit, selectedVariant);
       onOpenChange(false);
       setQuantity(1);
     } else {

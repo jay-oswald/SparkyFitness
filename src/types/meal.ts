@@ -1,5 +1,3 @@
-import { Food } from './Food';
-
 export interface Meal {
   id: string;
   user_id: string;
@@ -9,25 +7,25 @@ export interface Meal {
   foods: MealFood[];
 }
 
-export interface MealFood extends Food {
-    quantity: number;
-    unit: string;
-    food_name: string;
+export interface MealPayload {
+  name: string;
+  description?: string;
+  is_public: boolean;
+  foods: MealFood[];
 }
-  id?: string;
-  user_id: string;
-  meal_id?: string;
-  food_id?: string;
+
+export interface MealFood {
+  food_id: string;
+  food_name: string;
   variant_id?: string;
-  quantity?: number;
-  unit?: string;
-  plan_date: string;
-  meal_type: 'breakfast' | 'lunch' | 'dinner' | 'snacks';
-  is_template?: boolean;
-  template_name?: string;
-  day_of_week?: number;
-  meal_name?: string;
-  food_name?: string;
+  quantity: number;
+  unit: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  serving_size: number;
+  serving_unit: string;
 }
 
 export interface MealDayPreset {

@@ -10,9 +10,10 @@ import { usePreferences } from '@/contexts/PreferencesContext';
 import { toast } from '@/hooks/use-toast';
 import { debug, info, warn, error } from '@/utils/logging';
 import { Food, FoodVariant } from '@/types/food';
-import { Meal, MealFood } from '@/types/meal'; // Assuming you'll create this type
+import { Meal, MealFood, MealPayload } from '@/types/meal'; // Assuming you'll create this type
 import { createMeal, updateMeal, getMealById } from '@/services/mealService'; // Assuming you'll create this service
-import { searchFoods, getFoodVariantsByFoodId } from '@/services/foodService'; // Existing food service
+import { searchFoods } from '@/services/foodService'; // Existing food service
+import FoodUnitSelector from '@/components/FoodUnitSelector'; // Import FoodUnitSelector
 
 interface MealBuilderProps {
   mealId?: string; // Optional: if editing an existing meal
@@ -29,11 +30,8 @@ const MealBuilder: React.FC<MealBuilderProps> = ({ mealId, onSave, onCancel }) =
   const [mealFoods, setMealFoods] = useState<MealFood[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState<Food[]>([]);
-  const [selectedFoodForQuantity, setSelectedFoodForQuantity] = useState<Food | null>(null);
-  const [quantityInput, setQuantityInput] = useState<number>(1);
-  const [unitInput, setUnitInput] = useState<string>('');
-  const [foodVariants, setFoodVariants] = useState<FoodVariant[]>([]);
-  const [selectedVariantId, setSelectedVariantId] = useState<string | undefined>(undefined);
+  const [isFoodUnitSelectorOpen, setIsFoodUnitSelectorOpen] = useState(false);
+  const [selectedFoodForUnitSelection, setSelectedFoodForUnitSelection] = useState<Food | null>(null);
 
   useEffect(() => {
     if (mealId) {
@@ -77,47 +75,35 @@ const MealBuilder: React.FC<MealBuilderProps> = ({ mealId, onSave, onCancel }) =
     }
   }, [searchTerm, activeUserId, loggingLevel]);
 
-  const handleAddFoodToMeal = useCallback(async (food: Food) => {
-    setSelectedFoodForQuantity(food);
-    setQuantityInput(1); // Default quantity
-    setUnitInput(food.default_variant?.serving_unit || 'g'); // Default unit from food
-    setSelectedVariantId(food.default_variant?.id);
+  const handleAddFoodToMeal = useCallback((food: Food) => {
+    setSelectedFoodForUnitSelection(food);
+    setIsFoodUnitSelectorOpen(true);
+  }, []);
 
-    try {
-      const variants = await getFoodVariantsByFoodId(activeUserId!, food.id);
-      setFoodVariants(variants);
-    } catch (err) {
-      error(loggingLevel, 'Error fetching food variants:', err);
-      setFoodVariants([]);
-    }
-  }, [activeUserId, loggingLevel]);
-
-  const handleConfirmAddFood = useCallback(() => {
-    if (selectedFoodForQuantity && quantityInput > 0 && unitInput.trim()) {
-      const newMealFood: MealFood = {
-        food_id: selectedFoodForQuantity.id,
-        food_name: selectedFoodForQuantity.name,
-        variant_id: selectedVariantId,
-        quantity: quantityInput,
-        unit: unitInput,
-        // Add other nutritional info if needed for display in builder
-      };
-      setMealFoods(prev => [...prev, newMealFood]);
-      setSelectedFoodForQuantity(null); // Close the quantity input
-      setSearchTerm(''); // Clear search term
-      setSearchResults([]); // Clear search results
-      toast({
-        title: 'Success',
-        description: `${selectedFoodForQuantity.name} added to meal.`,
-      });
-    } else {
-      toast({
-        title: 'Warning',
-        description: 'Please enter a valid quantity and unit.',
-        variant: 'destructive',
-      });
-    }
-  }, [selectedFoodForQuantity, quantityInput, unitInput, selectedVariantId, loggingLevel]);
+  const handleFoodUnitSelected = useCallback((food: Food, quantity: number, unit: string, selectedVariant: FoodVariant) => {
+    const newMealFood: MealFood = {
+      food_id: food.id,
+      food_name: food.name,
+      variant_id: selectedVariant.id,
+      quantity: quantity,
+      unit: unit,
+      calories: selectedVariant.calories,
+      protein: selectedVariant.protein,
+      carbs: selectedVariant.carbs,
+      fat: selectedVariant.fat,
+      serving_size: selectedVariant.serving_size,
+      serving_unit: selectedVariant.serving_unit,
+    };
+    setMealFoods(prev => [...prev, newMealFood]);
+    setIsFoodUnitSelectorOpen(false);
+    setSelectedFoodForUnitSelection(null);
+    setSearchTerm('');
+    setSearchResults([]);
+    toast({
+      title: 'Success',
+      description: `${food.name} added to meal.`,
+    });
+  }, []);
 
   const handleRemoveFoodFromMeal = useCallback((index: number) => {
     setMealFoods(prev => prev.filter((_, i) => i !== index));
@@ -145,7 +131,7 @@ const MealBuilder: React.FC<MealBuilderProps> = ({ mealId, onSave, onCancel }) =
       return;
     }
 
-    const mealData = {
+    const mealData: MealPayload = {
       name: mealName,
       description: mealDescription,
       is_public: isPublic,
@@ -190,27 +176,17 @@ const MealBuilder: React.FC<MealBuilderProps> = ({ mealId, onSave, onCancel }) =
     let totalFat = 0;
 
     mealFoods.forEach(mf => {
-      // This is a simplified calculation. In a real app, you'd fetch the full nutrition
-      // for the selected variant and scale it by quantity.
-      // For now, we'll assume mf.food_name is enough to identify and sum up.
-      // A more robust solution would involve storing the nutritional values directly
-      // in meal_foods or fetching them dynamically.
-      const food = searchResults.find(f => f.id === mf.food_id);
-      const variant = foodVariants.find(v => v.id === mf.variant_id) || (food ? food.default_variant : undefined) || { serving_size: 1, calories: 0, protein: 0, carbs: 0, fat: 0 };
+      // Use the nutritional information stored directly in the MealFood object
+      const scale = mf.quantity / (mf.serving_size || 1);
 
-      // Assuming mf.quantity and mf.unit are compatible with variant.serving_size and variant.serving_unit
-      // This part needs careful unit conversion logic in a real application.
-      // For simplicity, let's assume mf.quantity is in terms of variant.serving_size
-      const scale = mf.quantity / (variant.serving_size || 1);
-
-      totalCalories += (variant.calories || 0) * scale;
-      totalProtein += (variant.protein || 0) * scale;
-      totalCarbs += (variant.carbs || 0) * scale;
-      totalFat += (variant.fat || 0) * scale;
+      totalCalories += (mf.calories || 0) * scale;
+      totalProtein += (mf.protein || 0) * scale;
+      totalCarbs += (mf.carbs || 0) * scale;
+      totalFat += (mf.fat || 0) * scale;
     });
 
     return { totalCalories, totalProtein, totalCarbs, totalFat };
-  }, [mealFoods, searchResults, foodVariants]);
+  }, [mealFoods]);
 
   const { totalCalories, totalProtein, totalCarbs, totalFat } = calculateMealNutrition();
 
@@ -296,50 +272,13 @@ const MealBuilder: React.FC<MealBuilderProps> = ({ mealId, onSave, onCancel }) =
             </div>
           )}
 
-          {selectedFoodForQuantity && (
-            <Card className="p-4 space-y-3">
-              <CardTitle className="text-md">Add {selectedFoodForQuantity.name}</CardTitle>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="quantity">Quantity</Label>
-                  <Input
-                    id="quantity"
-                    type="number"
-                    value={quantityInput}
-                    onChange={(e) => setQuantityInput(parseFloat(e.target.value))}
-                    min="0.1"
-                    step="0.1"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="unit">Unit</Label>
-                  <Input
-                    id="unit"
-                    value={unitInput}
-                    onChange={(e) => setUnitInput(e.target.value)}
-                    placeholder="e.g., g, oz, piece"
-                  />
-                </div>
-              </div>
-              {foodVariants.length > 0 && (
-                <div className="space-y-2">
-                  <Label htmlFor="variant">Serving Variant</Label>
-                  <select
-                    id="variant"
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                    value={selectedVariantId}
-                    onChange={(e) => setSelectedVariantId(e.target.value)}
-                  >
-                    {foodVariants.map(variant => (
-                      <option key={variant.id} value={variant.id}>
-                        {variant.serving_size} {variant.serving_unit} ({variant.calories} kcal)
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-              <Button onClick={handleConfirmAddFood} className="w-full">Confirm Add</Button>
-            </Card>
+          {selectedFoodForUnitSelection && (
+            <FoodUnitSelector
+              food={selectedFoodForUnitSelection}
+              open={isFoodUnitSelectorOpen}
+              onOpenChange={setIsFoodUnitSelectorOpen}
+              onSelect={handleFoodUnitSelected}
+            />
           )}
         </div>
 
