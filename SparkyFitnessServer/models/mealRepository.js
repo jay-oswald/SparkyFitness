@@ -159,12 +159,12 @@ async function createMealPlanEntry(planData) {
   const client = await pool.connect();
   try {
     const result = await client.query(
-      `INSERT INTO meal_plans (user_id, meal_id, food_id, variant_id, quantity, unit, plan_date, meal_type, is_template, template_name, day_of_week, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, now(), now()) RETURNING *`,
+      `INSERT INTO meal_plans (user_id, meal_id, food_id, variant_id, quantity, unit, plan_date, meal_type, is_template, template_name, day_of_week, meal_plan_template_id, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, now(), now()) RETURNING *`,
       [
         planData.user_id, planData.meal_id, planData.food_id, planData.variant_id,
         planData.quantity, planData.unit, planData.plan_date, planData.meal_type,
-        planData.is_template, planData.template_name, planData.day_of_week
+        planData.is_template, planData.template_name, planData.day_of_week, planData.meal_plan_template_id
       ]
     );
     return result.rows[0];
@@ -215,14 +215,15 @@ async function updateMealPlanEntry(planId, userId, updateData) {
         is_template = COALESCE($8, is_template),
         template_name = COALESCE($9, template_name),
         day_of_week = COALESCE($10, day_of_week),
+        meal_plan_template_id = COALESCE($11, meal_plan_template_id),
         updated_at = now()
-       WHERE id = $11 AND user_id = $12
+       WHERE id = $12 AND user_id = $13
        RETURNING *`,
       [
         updateData.meal_id, updateData.food_id, updateData.variant_id,
         updateData.quantity, updateData.unit, updateData.plan_date, updateData.meal_type,
         updateData.is_template, updateData.template_name, updateData.day_of_week,
-        planId, userId
+        updateData.meal_plan_template_id, planId, userId
       ]
     );
     return result.rows[0];
@@ -293,6 +294,22 @@ async function createFoodEntryFromMealPlan(entryData) {
   }
 }
 
+async function deleteMealPlanEntriesByTemplateId(templateId, userId) {
+  const client = await pool.connect();
+  try {
+    const result = await client.query(
+      'DELETE FROM meal_plans WHERE meal_plan_template_id = $1 AND user_id = $2 RETURNING id',
+      [templateId, userId]
+    );
+    return result.rowCount;
+  } catch (error) {
+    log('error', `Error deleting meal plan entries for template ${templateId}:`, error);
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 module.exports = {
   createMeal,
   getMeals,
@@ -304,6 +321,7 @@ module.exports = {
   getMealPlanEntryById,
   updateMealPlanEntry,
   deleteMealPlanEntry,
+  deleteMealPlanEntriesByTemplateId,
   createFoodEntryFromMealPlan,
   getMealOwnerId,
   getMealPlanOwnerId,

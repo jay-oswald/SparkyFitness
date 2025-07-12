@@ -20,7 +20,7 @@ import { useActiveUser } from '@/contexts/ActiveUserContext';
 import { usePreferences } from '@/contexts/PreferencesContext';
 import { toast } from '@/hooks/use-toast';
 import { debug, info, warn, error } from '@/utils/logging';
-import { Meal, MealFood } from '@/types/meal'; // Assuming MealFood is defined in types
+import { Meal, MealFood } from '@/types/meal';
 import { getMeals, deleteMeal, getMealById } from '@/services/mealService';
 import MealBuilder from './MealBuilder';
 
@@ -144,7 +144,7 @@ const MealManagement: React.FC = () => {
                   <CardContent className="p-4 flex items-center justify-between">
                     <div>
                       <h3 className="text-lg font-semibold">{meal.name}</h3>
-                      <p className="text-sm text-muted-foreground">{meal.description}</p>
+                      <p className="text-sm text-muted-foreground">{meal.description || 'No description'}</p>
                       {meal.is_public && <span className="text-xs text-blue-500"> (Public)</span>}
                     </div>
                     <div className="flex space-x-2">
@@ -217,7 +217,7 @@ const MealManagement: React.FC = () => {
               <ul className="list-disc pl-5 space-y-1">
                 {viewingMeal.foods.map((food, index) => (
                   <li key={index}>
-                    {food.quantity} {food.unit} - {food.food_name} {/* Assuming food_name is available */}
+                    {food.quantity} {food.unit} - {food.name}
                   </li>
                 ))}
               </ul>

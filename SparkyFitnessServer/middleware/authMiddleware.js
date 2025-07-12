@@ -64,9 +64,9 @@ const authorizeAccess = (permissionType, getTargetUserIdFromRequest = null) => {
             repository = require('../models/mealRepository');
             getOwnerIdFunction = repository.getMealOwnerId;
             break;
-          case 'meal_plan': // For managing meal plan entries
-            repository = require('../models/mealRepository');
-            getOwnerIdFunction = repository.getMealPlanOwnerId;
+          case 'meal_plan':
+            repository = require('../models/mealPlanTemplateRepository');
+            getOwnerIdFunction = repository.getMealPlanTemplateOwnerId;
             break;
           case 'checkin':
             repository = require('../models/measurementRepository');

@@ -690,17 +690,17 @@ async function deleteFoodVariant(id) {
 }
 
 async function createFoodEntry(entryData) {
-  const client = await pool.connect();
-  try {
-    const result = await client.query(
-      `INSERT INTO food_entries (user_id, food_id, meal_type, quantity, unit, entry_date, variant_id, meal_plan_id)
+    const client = await pool.connect();
+    try {
+        const result = await client.query(
+            `INSERT INTO food_entries (user_id, food_id, meal_type, quantity, unit, entry_date, variant_id, meal_plan_template_id)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
-      [entryData.user_id, entryData.food_id, entryData.meal_type, entryData.quantity, entryData.unit, entryData.entry_date, entryData.variant_id, entryData.meal_plan_id]
-    );
-    return result.rows[0];
-  } finally {
-    client.release();
-  }
+            [entryData.user_id, entryData.food_id, entryData.meal_type, entryData.quantity, entryData.unit, entryData.entry_date, entryData.variant_id, entryData.meal_plan_template_id]
+        );
+        return result.rows[0];
+    } finally {
+        client.release();
+    }
 }
  
 async function getFoodEntryOwnerId(entryId) {
@@ -761,7 +761,7 @@ async function getFoodEntriesByDate(userId, selectedDate) {
   try {
     const result = await client.query(
       `SELECT
-        fe.id, fe.food_id, fe.meal_type, fe.quantity, fe.unit, fe.variant_id, fe.entry_date, fe.meal_plan_id,
+        fe.id, fe.food_id, fe.meal_type, fe.quantity, fe.unit, fe.variant_id, fe.entry_date, fe.meal_plan_template_id,
         json_build_object(
           'id', f.id,
           'name', f.name,
@@ -809,7 +809,7 @@ async function getFoodEntriesByDateRange(userId, startDate, endDate) {
   try {
     const result = await client.query(
       `SELECT
-        fe.id, fe.food_id, fe.meal_type, fe.quantity, fe.unit, fe.variant_id, fe.entry_date, fe.meal_plan_id,
+        fe.id, fe.food_id, fe.meal_type, fe.quantity, fe.unit, fe.variant_id, fe.entry_date, fe.meal_plan_template_id,
         f.name AS food_name, f.brand, f.is_custom, f.user_id, f.shared_with_public,
         fv.serving_size, fv.serving_unit, fv.calories, fv.protein, fv.carbs, fv.fat,
         fv.saturated_fat, fv.polyunsaturated_fat, fv.monounsaturated_fat, fv.trans_fat,
@@ -896,6 +896,122 @@ async function bulkCreateFoodVariants(variantsData) {
   }
 }
 
+async function deleteFoodEntriesByMealPlanId(mealPlanId, userId) {
+    const client = await pool.connect();
+    try {
+        const result = await client.query(
+            'DELETE FROM food_entries WHERE meal_plan_template_id = $1 AND user_id = $2 RETURNING id',
+            [mealPlanId, userId]
+        );
+        return result.rowCount;
+    } catch (error) {
+        log('error', `Error deleting food entries for meal plan ${mealPlanId}:`, error);
+        throw error;
+    } finally {
+        client.release();
+    }
+}
+
+async function deleteFoodEntriesByTemplateId(templateId, userId) {
+    const client = await pool.connect();
+    try {
+        const result = await client.query(
+            `DELETE FROM food_entries WHERE meal_plan_template_id = $1 AND user_id = $2`,
+            [templateId, userId]
+        );
+        return result.rowCount;
+    } catch (error) {
+        log('error', `Error deleting food entries for template ${templateId}:`, error);
+        throw error;
+    } finally {
+        client.release();
+    }
+}
+
+async function createFoodEntriesFromTemplate(templateId, userId) {
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+        log('info', `Creating food entries from template ${templateId} for user ${userId}`);
+
+        const templateQuery = `
+            SELECT
+                t.start_date,
+                t.end_date,
+                COALESCE(
+                    (
+                        SELECT json_agg(
+                            json_build_object(
+                                'day_of_week', a.day_of_week,
+                                'meal_type', a.meal_type,
+                                'meal_id', a.meal_id
+                            )
+                        )
+                        FROM meal_plan_template_assignments a
+                        WHERE a.template_id = t.id
+                    ),
+                    '[]'::json
+                ) as assignments
+            FROM meal_plan_templates t
+            WHERE t.id = $1 AND t.user_id = $2
+        `;
+        const templateResult = await client.query(templateQuery, [templateId, userId]);
+        if (templateResult.rows.length === 0) {
+            throw new Error('Meal plan template not found or access denied.');
+        }
+
+        const { start_date, end_date, assignments } = templateResult.rows[0];
+        if (!assignments || assignments.length === 0) {
+            log('info', `No assignments for template ${templateId}, skipping food entry creation.`);
+            await client.query('COMMIT');
+            return;
+        }
+
+        let currentDate = new Date(start_date);
+        const lastDate = new Date(end_date);
+
+        while (currentDate <= lastDate) {
+            const dayOfWeek = currentDate.getDay();
+            const assignmentsForDay = assignments.filter(a => a.day_of_week === dayOfWeek);
+
+            for (const assignment of assignmentsForDay) {
+                const mealFoodsResult = await client.query(
+                    `SELECT food_id, variant_id, quantity, unit FROM meal_foods WHERE meal_id = $1`,
+                    [assignment.meal_id]
+                );
+
+                if (mealFoodsResult.rows.length > 0) {
+                    const foodEntries = mealFoodsResult.rows.map(mf => ([
+                        userId,
+                        mf.food_id,
+                        assignment.meal_type,
+                        mf.quantity,
+                        mf.unit,
+                        currentDate,
+                        mf.variant_id,
+                        templateId
+                    ]));
+
+                    const insertQuery = format(
+                        `INSERT INTO food_entries (user_id, food_id, meal_type, quantity, unit, entry_date, variant_id, meal_plan_template_id) VALUES %L`,
+                        foodEntries
+                    );
+                    await client.query(insertQuery);
+                }
+            }
+            currentDate.setDate(currentDate.getDate() + 1);
+        }
+        await client.query('COMMIT');
+        log('info', `Successfully created food entries from template ${templateId}`);
+    } catch (error) {
+        await client.query('ROLLBACK');
+        log('error', `Error creating food entries from template ${templateId}: ${error.message}`, error);
+        throw error;
+    } finally {
+        client.release();
+    }
+}
+
 module.exports = {
   getFoodDataProviders,
   getFoodDataProvidersByUserId,
@@ -926,4 +1042,6 @@ module.exports = {
   findFoodByNameAndBrand,
   bulkCreateFoodVariants,
   deleteFoodDataProvider,
+  deleteFoodEntriesByTemplateId,
+  createFoodEntriesFromTemplate,
 };

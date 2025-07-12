@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format, parseISO, addDays } from "date-fns"; // Import parseISO and addDays
-import { CalendarIcon, ChevronLeft, ChevronRight, Plus, X } from "lucide-react";
+import { CalendarIcon, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useActiveUser } from "@/contexts/ActiveUserContext";
 import { usePreferences } from "@/contexts/PreferencesContext";
@@ -14,8 +14,6 @@ import ExerciseCard from "./ExerciseCard";
 import EditFoodEntryDialog from "./EditFoodEntryDialog";
 import EnhancedCustomFoodForm from "./EnhancedCustomFoodForm";
 import FoodUnitSelector from "./FoodUnitSelector";
-import MealManagement from "./MealManagement"; // Import MealManagement
-import MealPlanCalendar from "./MealPlanCalendar"; // Import MealPlanCalendar
 import { debug, info, warn, error } from '@/utils/logging'; // Import logging utility
 import { calculateFoodEntryNutrition } from '@/utils/nutritionCalculations'; // Import the new utility function
 import { toast } from "@/hooks/use-toast"; // Import toast
@@ -68,8 +66,6 @@ const FoodDiary = ({ selectedDate, onDateChange }: FoodDiaryProps) => {
   const [selectedFood, setSelectedFood] = useState<Food | null>(null);
   const [selectedMealType, setSelectedMealType] = useState<string>("");
   const [isUnitSelectorOpen, setIsUnitSelectorOpen] = useState(false);
-  const [showMealManagement, setShowMealManagement] = useState(false);
-  const [showMealPlanCalendar, setShowMealPlanCalendar] = useState(false);
 
   const currentUserId = activeUserId;
   debug(loggingLevel, "Current user ID:", currentUserId);
@@ -320,20 +316,6 @@ const FoodDiary = ({ selectedDate, onDateChange }: FoodDiaryProps) => {
               >
                 <ChevronRight className="h-4 w-4" />
               </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowMealManagement(true)}
-              >
-                <Plus className="h-4 w-4 mr-2" /> Add Meal
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowMealPlanCalendar(true)}
-              >
-                <CalendarIcon className="h-4 w-4 mr-2" /> Plan Meals
-              </Button>
             </div>
           </CardTitle>
         </CardHeader>
@@ -421,33 +403,6 @@ const FoodDiary = ({ selectedDate, onDateChange }: FoodDiaryProps) => {
         />
       )}
 
-      {showMealManagement && (
-        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <MealManagement />
-          <Button
-            className="absolute top-4 right-4"
-            variant="ghost"
-            size="icon"
-            onClick={() => setShowMealManagement(false)}
-          >
-            <X className="h-6 w-6" />
-          </Button>
-        </div>
-      )}
-
-      {showMealPlanCalendar && (
-        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <MealPlanCalendar />
-          <Button
-            className="absolute top-4 right-4"
-            variant="ghost"
-            size="icon"
-            onClick={() => setShowMealPlanCalendar(false)}
-          >
-            <X className="h-6 w-6" />
-          </Button>
-        </div>
-      )}
     </div>
   );
 };

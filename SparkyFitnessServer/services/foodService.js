@@ -1,5 +1,6 @@
 const foodRepository = require('../models/foodRepository');
 const userRepository = require('../models/userRepository'); // For authorization checks
+const mealService = require('./mealService');
 const { log } = require('../config/logging');
 const { getFatSecretAccessToken, foodNutrientCache, CACHE_DURATION_MS, FATSECRET_API_BASE_URL } = require('../integrations/fatsecret/fatsecretService');
 
@@ -465,6 +466,10 @@ async function getFoodEntriesByDate(authenticatedUserId, targetUserId, selectedD
       log('error', 'getFoodEntriesByDate: targetUserId is undefined. Returning empty array.');
       return [];
     }
+
+    // Apply active meal plan before fetching entries
+    await mealService.applyActiveMealPlan(targetUserId, selectedDate);
+
     const entries = await foodRepository.getFoodEntriesByDate(targetUserId, selectedDate);
     return entries;
   } catch (error) {

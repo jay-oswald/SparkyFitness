@@ -279,6 +279,75 @@ CREATE TABLE public.meal_plans (
 - `is_template` and `template_name` for creating reusable meal plan segments.
 - `day_of_week` for recurring schedules.
 
+### 10. meal_plan_templates
+**Purpose**: Store user-defined meal plan templates that span multiple days or weeks.
+```sql
+-- meal_plan_templates table
+CREATE TABLE public.meal_plan_templates (
+id uuid NOT NULL DEFAULT gen_random_uuid(),
+user_id uuid NOT NULL,
+plan_name VARCHAR(255) NOT NULL,
+description TEXT,
+start_date DATE NOT NULL,
+end_date DATE,
+is_active BOOLEAN DEFAULT FALSE,
+created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+CONSTRAINT meal_plan_templates_pkey PRIMARY KEY (id),
+CONSTRAINT meal_plan_templates_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users (id) ON DELETE CASCADE
+);
+```
+**RLS**: Handled at the application layer.
+**Special Features**:
+- `is_active` flag to indicate the currently active meal plan.
+- `start_date` and `end_date` for defining the duration of the plan.
+
+### 11. meal_plan_template_assignments
+**Purpose**: Link meals to specific days and meal types within a meal plan template.
+```sql
+-- meal_plan_template_assignments table
+CREATE TABLE public.meal_plan_template_assignments (
+id uuid NOT NULL DEFAULT gen_random_uuid(),
+template_id uuid NOT NULL,
+day_of_week INTEGER NOT NULL,
+meal_type VARCHAR(50) NOT NULL,
+meal_id uuid NOT NULL,
+CONSTRAINT meal_plan_template_assignments_pkey PRIMARY KEY (id),
+CONSTRAINT meal_plan_template_assignments_template_id_fkey FOREIGN KEY (template_id) REFERENCES public.meal_plan_templates (id) ON DELETE CASCADE,
+CONSTRAINT meal_plan_template_assignments_meal_id_fkey FOREIGN KEY (meal_id) REFERENCES public.meals (id) ON DELETE CASCADE
+);
+```
+**RLS**: Handled at the application layer.
+**Relationships**: Links `meal_plan_templates` to `meals`.
+
+### 12. food_entries
+**Purpose**: Daily food consumption log
+```sql
+-- food_entries table
+create table public.food_entries (
+  id uuid not null default gen_random_uuid (),
+  user_id uuid not null,
+  food_id uuid not null,
+  meal_type character varying(50) not null, -- e.g., 'breakfast', 'lunch', 'dinner', 'snack'
+  quantity numeric not null,
+  unit character varying(50) null, -- e.g., 'g', 'oz', 'piece'
+  entry_date date not null,
+  created_at timestamp with time zone not null default now(),
+  variant_id uuid null, -- Link to food_variants if applicable
+  meal_plan_template_id uuid null, -- Link to the meal plan template
+  constraint food_entries_pkey primary key (id),
+  constraint food_entries_food_id_fkey foreign KEY (food_id) references foods (id),
+  constraint food_entries_user_id_fkey foreign KEY (user_id) references auth.users (id),
+  constraint food_entries_variant_id_fkey foreign KEY (variant_id) references food_variants (id),
+  constraint food_entries_meal_plan_template_id_fkey foreign KEY (meal_plan_template_id) references meal_plan_templates (id) on delete set null
+) TABLESPACE pg_default;
+```
+**RLS**: Users can only access their own food entries
+**Special Features**:
+- Links to either base food or specific variant
+- Flexible quantity and unit system
+- Can be linked to a meal plan template
+
 ## Measurement & Tracking Tables
 
 ### 10. check_in_measurements
