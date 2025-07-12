@@ -27,9 +27,16 @@ async function createMealPlanTemplate(planData) {
         const newTemplate = templateResult.rows[0];
 
         if (planData.assignments && planData.assignments.length > 0) {
-            const assignmentValues = planData.assignments.map(a => [newTemplate.id, a.day_of_week, a.meal_type, a.meal_id]);
+            const assignmentValues = planData.assignments.map(a => {
+                if (a.item_type === 'meal') {
+                    return [newTemplate.id, a.day_of_week, a.meal_type, a.item_type, a.meal_id, null, null, null, null];
+                } else if (a.item_type === 'food') {
+                    return [newTemplate.id, a.day_of_week, a.meal_type, a.item_type, null, a.food_id, a.variant_id, a.quantity, a.unit];
+                }
+                return []; // Should not happen
+            });
             const assignmentQuery = format(
-                `INSERT INTO meal_plan_template_assignments (template_id, day_of_week, meal_type, meal_id) VALUES %L`,
+                `INSERT INTO meal_plan_template_assignments (template_id, day_of_week, meal_type, item_type, meal_id, food_id, variant_id, quantity, unit) VALUES %L`,
                 assignmentValues
             );
             log('info', 'createMealPlanTemplate - assignmentQuery:', assignmentQuery);
@@ -49,12 +56,19 @@ async function createMealPlanTemplate(planData) {
                                 'id', a.id,
                                 'day_of_week', a.day_of_week,
                                 'meal_type', a.meal_type,
+                                'item_type', a.item_type,
                                 'meal_id', a.meal_id,
-                                'meal_name', m.name
+                                'meal_name', m.name,
+                                'food_id', a.food_id,
+                                'food_name', f.name,
+                                'variant_id', a.variant_id,
+                                'quantity', a.quantity,
+                                'unit', a.unit
                             )
                         )
                         FROM meal_plan_template_assignments a
-                        JOIN meals m ON a.meal_id = m.id
+                        LEFT JOIN meals m ON a.meal_id = m.id
+                        LEFT JOIN foods f ON a.food_id = f.id
                         WHERE a.template_id = t.id
                     ),
                     '[]'::json
@@ -86,12 +100,19 @@ async function getMealPlanTemplatesByUserId(userId) {
                                 'id', a.id,
                                 'day_of_week', a.day_of_week,
                                 'meal_type', a.meal_type,
+                                'item_type', a.item_type,
                                 'meal_id', a.meal_id,
-                                'meal_name', m.name
+                                'meal_name', m.name,
+                                'food_id', a.food_id,
+                                'food_name', f.name,
+                                'variant_id', a.variant_id,
+                                'quantity', a.quantity,
+                                'unit', a.unit
                             )
                         )
                         FROM meal_plan_template_assignments a
-                        JOIN meals m ON a.meal_id = m.id
+                        LEFT JOIN meals m ON a.meal_id = m.id
+                        LEFT JOIN foods f ON a.food_id = f.id
                         WHERE a.template_id = t.id
                     ),
                     '[]'::json
@@ -131,9 +152,16 @@ async function updateMealPlanTemplate(planId, planData) {
         await client.query('DELETE FROM meal_plan_template_assignments WHERE template_id = $1', [planId]);
 
         if (planData.assignments && planData.assignments.length > 0) {
-            const assignmentValues = planData.assignments.map(a => [planId, a.day_of_week, a.meal_type, a.meal_id]);
+            const assignmentValues = planData.assignments.map(a => {
+                if (a.item_type === 'meal') {
+                    return [planId, a.day_of_week, a.meal_type, a.item_type, a.meal_id, null, null, null, null];
+                } else if (a.item_type === 'food') {
+                    return [planId, a.day_of_week, a.meal_type, a.item_type, null, a.food_id, a.variant_id, a.quantity, a.unit];
+                }
+                return []; // Should not happen
+            });
             const assignmentQuery = format(
-                `INSERT INTO meal_plan_template_assignments (template_id, day_of_week, meal_type, meal_id) VALUES %L`,
+                `INSERT INTO meal_plan_template_assignments (template_id, day_of_week, meal_type, item_type, meal_id, food_id, variant_id, quantity, unit) VALUES %L`,
                 assignmentValues
             );
             await client.query(assignmentQuery);
@@ -150,12 +178,19 @@ async function updateMealPlanTemplate(planId, planData) {
                                 'id', a.id,
                                 'day_of_week', a.day_of_week,
                                 'meal_type', a.meal_type,
+                                'item_type', a.item_type,
                                 'meal_id', a.meal_id,
-                                'meal_name', m.name
+                                'meal_name', m.name,
+                                'food_id', a.food_id,
+                                'food_name', f.name,
+                                'variant_id', a.variant_id,
+                                'quantity', a.quantity,
+                                'unit', a.unit
                             )
                         )
                         FROM meal_plan_template_assignments a
-                        JOIN meals m ON a.meal_id = m.id
+                        LEFT JOIN meals m ON a.meal_id = m.id
+                        LEFT JOIN foods f ON a.food_id = f.id
                         WHERE a.template_id = t.id
                     ),
                     '[]'::json
@@ -230,12 +265,19 @@ async function getActiveMealPlanForDate(userId, date) {
                                 'id', a.id,
                                 'day_of_week', a.day_of_week,
                                 'meal_type', a.meal_type,
+                                'item_type', a.item_type,
                                 'meal_id', a.meal_id,
-                                'meal_name', m.name
+                                'meal_name', m.name,
+                                'food_id', a.food_id,
+                                'food_name', f.name,
+                                'variant_id', a.variant_id,
+                                'quantity', a.quantity,
+                                'unit', a.unit
                             )
                         )
                         FROM meal_plan_template_assignments a
-                        JOIN meals m ON a.meal_id = m.id
+                        LEFT JOIN meals m ON a.meal_id = m.id
+                        LEFT JOIN foods f ON a.food_id = f.id
                         WHERE a.template_id = t.id
                     ),
                     '[]'::json
@@ -268,12 +310,19 @@ async function getMealPlanTemplatesByMealId(mealId) {
                                 'id', a.id,
                                 'day_of_week', a.day_of_week,
                                 'meal_type', a.meal_type,
+                                'item_type', a.item_type,
                                 'meal_id', a.meal_id,
-                                'meal_name', m.name
+                                'meal_name', m.name,
+                                'food_id', a.food_id,
+                                'food_name', f.name,
+                                'variant_id', a.variant_id,
+                                'quantity', a.quantity,
+                                'unit', a.unit
                             )
                         )
                         FROM meal_plan_template_assignments a
-                        JOIN meals m ON a.meal_id = m.id
+                        LEFT JOIN meals m ON a.meal_id = m.id
+                        LEFT JOIN foods f ON a.food_id = f.id
                         WHERE a.template_id = t.id
                     ),
                     '[]'::json

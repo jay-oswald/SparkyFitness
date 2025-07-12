@@ -950,7 +950,12 @@ async function createFoodEntriesFromTemplate(templateId, userId, currentClientDa
                             json_build_object(
                                 'day_of_week', a.day_of_week,
                                 'meal_type', a.meal_type,
-                                'meal_id', a.meal_id
+                                'item_type', a.item_type,
+                                'meal_id', a.meal_id,
+                                'food_id', a.food_id,
+                                'variant_id', a.variant_id,
+                                'quantity', a.quantity,
+                                'unit', a.unit
                             )
                         )
                         FROM meal_plan_template_assignments a
@@ -993,45 +998,55 @@ async function createFoodEntriesFromTemplate(templateId, userId, currentClientDa
             const assignmentsForDay = assignments.filter(a => a.day_of_week === dayOfWeek);
 
             for (const assignment of assignmentsForDay) {
-                const mealFoodsResult = await client.query(
-                    `SELECT food_id, variant_id, quantity, unit FROM meal_foods WHERE meal_id = $1`,
-                    [assignment.meal_id]
-                );
+                let foodsToProcess = [];
 
-                if (mealFoodsResult.rows.length > 0) {
-                    for (const mf of mealFoodsResult.rows) {
-                        // Check for existing entry to prevent duplicates
-                        const existingEntry = await client.query(
-                            `SELECT id FROM food_entries
-                             WHERE user_id = $1
-                               AND food_id = $2
-                               AND meal_type = $3
-                               AND entry_date = $4
-                               AND variant_id = $5`,
-                            [userId, mf.food_id, assignment.meal_type, currentDate, mf.variant_id]
+                if (assignment.item_type === 'meal') {
+                    const mealFoodsResult = await client.query(
+                        `SELECT food_id, variant_id, quantity, unit FROM meal_foods WHERE meal_id = $1`,
+                        [assignment.meal_id]
+                    );
+                    foodsToProcess = mealFoodsResult.rows;
+                } else if (assignment.item_type === 'food') {
+                    foodsToProcess.push({
+                        food_id: assignment.food_id,
+                        variant_id: assignment.variant_id,
+                        quantity: assignment.quantity,
+                        unit: assignment.unit,
+                    });
+                }
+
+                for (const foodItem of foodsToProcess) {
+                    // Check for existing entry to prevent duplicates
+                    const existingEntry = await client.query(
+                        `SELECT id FROM food_entries
+                         WHERE user_id = $1
+                            AND food_id = $2
+                            AND meal_type = $3
+                            AND entry_date = $4
+                            AND variant_id = $5`,
+                        [userId, foodItem.food_id, assignment.meal_type, currentDate, foodItem.variant_id]
+                    );
+
+                    if (existingEntry.rows.length === 0) {
+                        // Only insert if no duplicate exists
+                        const foodEntryData = [
+                            userId,
+                            foodItem.food_id,
+                            assignment.meal_type,
+                            foodItem.quantity,
+                            foodItem.unit,
+                            currentDate,
+                            foodItem.variant_id,
+                            templateId // Still link to the template if it's a template-generated entry
+                        ];
+                        log('info', `Inserting food entry for template ${templateId}, day ${currentDate.toISOString().split('T')[0]}:`, foodEntryData);
+                        await client.query(
+                            `INSERT INTO food_entries (user_id, food_id, meal_type, quantity, unit, entry_date, variant_id, meal_plan_template_id)
+                             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+                            foodEntryData
                         );
-
-                        if (existingEntry.rows.length === 0) {
-                            // Only insert if no duplicate exists
-                            const foodEntryData = [
-                                userId,
-                                mf.food_id,
-                                assignment.meal_type,
-                                mf.quantity,
-                                mf.unit,
-                                currentDate,
-                                mf.variant_id,
-                                templateId // Still link to the template if it's a template-generated entry
-                            ];
-                            log('info', `Inserting food entry for template ${templateId}, day ${currentDate.toISOString().split('T')[0]}:`, foodEntryData);
-                            await client.query(
-                                `INSERT INTO food_entries (user_id, food_id, meal_type, quantity, unit, entry_date, variant_id, meal_plan_template_id)
-                                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-                                foodEntryData
-                            );
-                        } else {
-                            log('info', `Skipping duplicate food entry for template ${templateId}, day ${currentDate.toISOString().split('T')[0]}:`, existingEntry.rows[0].id);
-                        }
+                    } else {
+                        log('info', `Skipping duplicate food entry for template ${templateId}, day ${currentDate.toISOString().split('T')[0]}:`, existingEntry.rows[0].id);
                     }
                 }
             }

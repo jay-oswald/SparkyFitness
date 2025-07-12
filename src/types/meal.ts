@@ -42,8 +42,14 @@ export interface MealPlanTemplateAssignment {
     id?: string;
     day_of_week: number;
     meal_type: string;
-    meal_id: string;
-    meal_name?: string;
+    item_type: 'meal' | 'food'; // 'meal' or 'food'
+    meal_id?: string; // Optional if item_type is 'food'
+    meal_name?: string; // Optional if item_type is 'food'
+    food_id?: string; // Optional if item_type is 'meal'
+    food_name?: string; // Optional if item_type is 'meal'
+    variant_id?: string; // Optional, for specific food variants
+    quantity?: number; // Required if item_type is 'food'
+    unit?: string; // Required if item_type is 'food'
 }
 
 export interface MealPlanTemplate {

@@ -8,9 +8,11 @@ import { useActiveUser } from '@/contexts/ActiveUserContext';
 import { usePreferences } from '@/contexts/PreferencesContext'; // Import usePreferences
 import { debug, error } from '@/utils/logging'; // Import logging functions
 import { toast } from '@/hooks/use-toast';
-import { MealPlanTemplate, Meal } from '@/types/meal';
+import { MealPlanTemplate, Meal, MealPlanTemplateAssignment } from '@/types/meal';
+import { Food, FoodVariant } from '@/types/food';
 import { getMeals } from '@/services/mealService';
 import MealSelection from './MealSelection';
+import FoodPlanSelector from './FoodPlanSelector';
 
 interface MealPlanTemplateFormProps {
     template?: MealPlanTemplate;
@@ -26,8 +28,9 @@ const MealPlanTemplateForm: React.FC<MealPlanTemplateFormProps> = ({ template, o
     const [startDate, setStartDate] = useState(template?.start_date ? new Date(template.start_date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]);
     const [endDate, setEndDate] = useState(template?.end_date ? new Date(template.end_date).toISOString().split('T')[0] : new Date(new Date().setDate(new Date().getDate() + 7)).toISOString().split('T')[0]);
     const [isActive, setIsActive] = useState(template?.is_active || false);
-    const [assignments, setAssignments] = useState(template?.assignments || []);
+    const [assignments, setAssignments] = useState<MealPlanTemplateAssignment[]>(template?.assignments || []);
     const [isMealSelectionOpen, setIsMealSelectionOpen] = useState(false);
+    const [isFoodSelectionOpen, setIsFoodSelectionOpen] = useState(false);
     const [currentDay, setCurrentDay] = useState<number | null>(null);
     const [currentMealType, setCurrentMealType] = useState<string | null>(null);
 
@@ -37,14 +40,35 @@ const MealPlanTemplateForm: React.FC<MealPlanTemplateFormProps> = ({ template, o
         setIsMealSelectionOpen(true);
     };
 
+    const handleAddFood = (day: number, mealType: string) => {
+        setCurrentDay(day);
+        setCurrentMealType(mealType);
+        setIsFoodSelectionOpen(true);
+    };
+
     const handleMealSelected = (meal: Meal) => {
         if (currentDay === null || currentMealType === null) return;
-        setAssignments([...assignments, { day_of_week: currentDay, meal_type: currentMealType, meal_id: meal.id, meal_name: meal.name }]);
+        setAssignments(prev => [...prev, { item_type: 'meal', day_of_week: currentDay, meal_type: currentMealType, meal_id: meal.id, meal_name: meal.name }]);
         setIsMealSelectionOpen(false);
     };
 
-    const handleRemoveMeal = (index: number) => {
-        setAssignments(assignments.filter((_, i) => i !== index));
+    const handleFoodSelected = (food: Food, quantity: number, unit: string, selectedVariant: FoodVariant) => {
+        if (currentDay === null || currentMealType === null) return;
+        setAssignments(prev => [...prev, {
+            item_type: 'food',
+            day_of_week: currentDay,
+            meal_type: currentMealType,
+            food_id: food.id,
+            food_name: food.name,
+            variant_id: selectedVariant.id,
+            quantity: quantity,
+            unit: unit,
+        }]);
+        setIsFoodSelectionOpen(false);
+    };
+
+    const handleRemoveAssignment = (index: number) => {
+        setAssignments(prev => prev.filter((_, i) => i !== index));
     };
 
     const handleSave = () => {
@@ -114,14 +138,19 @@ const MealPlanTemplateForm: React.FC<MealPlanTemplateFormProps> = ({ template, o
                                             <div key={mealType} className="p-4 border rounded-lg">
                                                 <h4 className="font-semibold capitalize">{mealType}</h4>
                                                 <div className="space-y-2 mt-2">
-                                                    {assignments.filter(a => a.day_of_week === dayIndex && a.meal_type === mealType).map((assignment, index) => (
-                                                        <div key={index} className="flex items-center justify-between bg-gray-100 p-2 rounded">
-                                                            <span>{assignment.meal_name}</span>
-                                                            <Button variant="ghost" size="icon" onClick={() => handleRemoveMeal(assignments.indexOf(assignment))}>X</Button>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                                <Button variant="outline" size="sm" className="mt-2" onClick={() => handleAddMeal(dayIndex, mealType)}>Add Meal</Button>
+                                                      {assignments.filter(a => a.day_of_week === dayIndex && a.meal_type === mealType).map((assignment, index) => (
+                                                          <div key={index} className="flex items-center justify-between bg-gray-100 p-2 rounded">
+                                                              <span>
+                                                                  {assignment.item_type === 'meal' ? assignment.meal_name : `${assignment.food_name} (${assignment.quantity} ${assignment.unit})`}
+                                                              </span>
+                                                              <Button variant="ghost" size="icon" onClick={() => handleRemoveAssignment(assignments.indexOf(assignment))}>X</Button>
+                                                          </div>
+                                                      ))}
+                                                  </div>
+                                                  <div className="flex space-x-2 mt-2">
+                                                      <Button variant="outline" size="sm" onClick={() => handleAddMeal(dayIndex, mealType)}>Add Meal</Button>
+                                                      <Button variant="outline" size="sm" onClick={() => handleAddFood(dayIndex, mealType)}>Add Food</Button>
+                                                  </div>
                                             </div>
                                         ))}
                                     </div>
@@ -148,6 +177,14 @@ const MealPlanTemplateForm: React.FC<MealPlanTemplateFormProps> = ({ template, o
                         <MealSelection onMealSelect={handleMealSelected} />
                     </DialogContent>
                 </Dialog>
+            )}
+
+            {isFoodSelectionOpen && (
+                <FoodPlanSelector
+                    open={isFoodSelectionOpen}
+                    onOpenChange={setIsFoodSelectionOpen}
+                    onFoodSelect={handleFoodSelected}
+                />
             )}
         </>
     );
