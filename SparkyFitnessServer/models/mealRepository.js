@@ -59,6 +59,38 @@ async function getMeals(userId, isPublic = false) {
   }
 }
 
+async function searchMeals(searchTerm, userId) {
+  const client = await pool.connect();
+  try {
+    const query = `
+      SELECT id, user_id, name, description, is_public
+      FROM meals
+      WHERE (user_id = $1 OR is_public = TRUE)
+      AND name ILIKE $2
+      ORDER BY name ASC`;
+    const result = await client.query(query, [userId, `%${searchTerm}%`]);
+    const meals = result.rows;
+
+    // For each meal, fetch its associated foods
+    for (const meal of meals) {
+      const mealFoodsResult = await client.query(
+        `SELECT mf.id, mf.food_id, mf.variant_id, mf.quantity, mf.unit,
+                f.name AS food_name, f.brand,
+                fv.serving_size, fv.serving_unit, fv.calories, fv.protein, fv.carbs, fv.fat
+         FROM meal_foods mf
+         JOIN foods f ON mf.food_id = f.id
+         LEFT JOIN food_variants fv ON mf.variant_id = fv.id
+         WHERE mf.meal_id = $1`,
+        [meal.id]
+      );
+      meal.foods = mealFoodsResult.rows;
+    }
+    return meals;
+  } finally {
+    client.release();
+  }
+}
+
 async function getMealById(mealId) {
   const client = await pool.connect();
   try {
@@ -325,6 +357,7 @@ module.exports = {
   createFoodEntryFromMealPlan,
   getMealOwnerId,
   getMealPlanOwnerId,
+  searchMeals,
 };
 
 async function getMealOwnerId(mealId) {

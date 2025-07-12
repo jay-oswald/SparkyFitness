@@ -564,6 +564,34 @@ async function bulkCreateFoodVariants(authenticatedUserId, variantsData) {
     throw error;
   }
 }
+
+async function addMealFoodsToDiary(authenticatedUserId, mealId, mealType, entryDate) {
+  try {
+    const meal = await mealService.getMealById(authenticatedUserId, mealId);
+    if (!meal) {
+      throw new Error('Meal not found.');
+    }
+
+    const createdFoodEntries = [];
+    for (const foodItem of meal.foods) {
+      const newEntry = await foodRepository.createFoodEntry({
+        user_id: authenticatedUserId,
+        food_id: foodItem.food_id,
+        meal_type: mealType,
+        quantity: foodItem.quantity,
+        unit: foodItem.unit,
+        entry_date: entryDate,
+        variant_id: foodItem.variant_id,
+      });
+      createdFoodEntries.push(newEntry);
+    }
+    return createdFoodEntries;
+  } catch (error) {
+    log('error', `Error adding meal foods to diary for user ${authenticatedUserId}, meal ${mealId}:`, error);
+    throw error;
+  }
+}
+
 module.exports = {
   getFoodDataProviders,
   getFoodDataProvidersForUser,
@@ -591,4 +619,5 @@ module.exports = {
   createOrGetFood,
   bulkCreateFoodVariants,
   deleteFoodDataProvider,
+  addMealFoodsToDiary,
 };

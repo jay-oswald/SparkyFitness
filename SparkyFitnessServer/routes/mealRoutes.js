@@ -87,6 +87,21 @@ router.get('/', authenticateToken, authorizeAccess('food_list'), async (req, res
   }
 });
 
+// Search for meal templates
+router.get('/search', authenticateToken, authorizeAccess('food_list'), async (req, res, next) => {
+  try {
+    const { searchTerm } = req.query;
+    if (!searchTerm) {
+      return res.status(400).json({ error: 'Search term is required.' });
+    }
+    const meals = await mealService.searchMeals(req.userId, searchTerm);
+    res.status(200).json(meals);
+  } catch (error) {
+    log('error', `Error searching meals:`, error);
+    next(error);
+  }
+});
+
 // Get a specific meal template by ID
 router.get('/:id', authenticateToken, authorizeAccess('meal'), async (req, res, next) => {
   try {

@@ -66,4 +66,5 @@ export interface FoodEntry {
   foods: Food; // This should be the comprehensive Food type
   food_variants?: FoodVariant;
   entry_date: string;
+  meal_plan_template_id?: string; // Add this line
 }

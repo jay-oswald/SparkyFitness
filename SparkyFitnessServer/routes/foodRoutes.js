@@ -262,6 +262,25 @@ router.post('/food-entries', authenticateToken, authorizeAccess('food_log'), asy
     next(error);
   }
 });
+
+router.post('/food-entries/add-meal', authenticateToken, authorizeAccess('food_log'), async (req, res, next) => {
+  try {
+    const { mealId, mealType, entryDate } = req.body;
+    if (!mealId || !mealType || !entryDate) {
+      return res.status(400).json({ error: 'mealId, mealType, and entryDate are required.' });
+    }
+    const createdEntries = await foodService.addMealFoodsToDiary(req.userId, mealId, mealType, entryDate);
+    res.status(201).json(createdEntries);
+  } catch (error) {
+    if (error.message.startsWith('Forbidden')) {
+      return res.status(403).json({ error: error.message });
+    }
+    if (error.message === 'Meal not found.') {
+      return res.status(404).json({ error: error.message });
+    }
+    next(error);
+  }
+});
 router.put('/food-entries/:id', authenticateToken, authorizeAccess('food_log'), async (req, res, next) => {
   const { id } = req.params;
   if (!id) {

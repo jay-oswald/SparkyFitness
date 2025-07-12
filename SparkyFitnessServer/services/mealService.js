@@ -29,14 +29,19 @@ async function getMeals(userId, isPublic = false) {
 
 async function getMealById(userId, mealId) {
   try {
+    log('info', `Attempting to retrieve meal with ID: ${mealId} for user: ${userId}`);
     const meal = await mealRepository.getMealById(mealId);
     if (!meal) {
+      log('warn', `Meal with ID: ${mealId} not found in repository.`);
       throw new Error('Meal not found.');
     }
+    log('info', `Meal found: ${meal.name}, User ID: ${meal.user_id}, Is Public: ${meal.is_public}`);
     // Authorization check: User can access their own meals or public meals
     if (meal.user_id !== userId && !meal.is_public) {
+      log('warn', `Forbidden: User ${userId} attempted to access meal ${mealId} (owner: ${meal.user_id}, public: ${meal.is_public}).`);
       throw new Error('Forbidden: You do not have permission to access this meal.');
     }
+    log('info', `Access granted for meal ${mealId} to user ${userId}.`);
     return meal;
   } catch (error) {
     log('error', `Error in mealService.getMealById for user ${userId}, meal ${mealId}:`, error);
@@ -226,6 +231,16 @@ async function logDayMealPlanToDiary(userId, planDate, targetDate) {
   }
 }
 
+async function searchMeals(userId, searchTerm) {
+  try {
+    const meals = await mealRepository.searchMeals(searchTerm, userId);
+    return meals;
+  } catch (error) {
+    log('error', `Error in mealService.searchMeals for user ${userId} with term "${searchTerm}":`, error);
+    throw error;
+  }
+}
+
 module.exports = {
   createMeal,
   getMeals,
@@ -238,4 +253,5 @@ module.exports = {
   deleteMealPlanEntry,
   logMealPlanEntryToDiary,
   logDayMealPlanToDiary,
+  searchMeals,
 };

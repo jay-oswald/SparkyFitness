@@ -8,16 +8,19 @@ import { useAuth } from "@/hooks/useAuth";
 import { useState } from "react";
 import EnhancedFoodSearch from "./EnhancedFoodSearch";
 import EnhancedCustomFoodForm from "./EnhancedCustomFoodForm";
+import MealSelectionDialog from "./MealSelectionDialog"; // Import MealSelectionDialog
 import { usePreferences } from "@/contexts/PreferencesContext"; // Import usePreferences
 import { debug, info, warn, error } from '@/utils/logging'; // Import logging utility
 
 import { Food, FoodVariant, FoodEntry } from '@/types/food';
 
-interface Meal {
-  name: string;
+import { Meal as MealType } from '@/types/meal'; // Import MealType from types/meal.d.ts
+
+interface Meal extends MealType { // Extend the imported MealType
   type: string;
   entries: FoodEntry[];
   targetCalories?: number;
+  selectedDate: string; // Add selectedDate to Meal interface
 }
 
 interface MealTotals {
@@ -35,6 +38,7 @@ interface MealCardProps {
   onEditFood: (food: Food) => void;
   onRemoveEntry: (entryId: string) => void;
   getEntryNutrition: (entry: FoodEntry) => MealTotals;
+  onMealAdded: () => void; // Add onMealAdded to MealCardProps
 }
 
 const MealCard = ({
@@ -44,7 +48,8 @@ const MealCard = ({
   onEditEntry,
   onEditFood,
   onRemoveEntry,
-  getEntryNutrition
+  getEntryNutrition,
+  onMealAdded
 }: MealCardProps) => {
   const { user } = useAuth();
   const { loggingLevel } = usePreferences(); // Get logging level
@@ -104,6 +109,11 @@ const MealCard = ({
                   />
                 </DialogContent>
               </Dialog>
+              <MealSelectionDialog
+                mealType={meal.type}
+                selectedDate={meal.selectedDate}
+                onMealAdded={onMealAdded}
+              />
             </div>
           </div>
         </CardHeader>
@@ -117,7 +127,7 @@ const MealCard = ({
               {meal.entries.map((entry) => {
                 const food = entry.foods;
                 const entryNutrition = getEntryNutrition(entry);
-                const isFromMealPlan = !!entry.meal_plan_id;
+                const isFromMealPlan = !!entry.meal_plan_template_id; // Corrected property name
 
                 // Handle case where food data is missing
                 if (!food) {

@@ -36,6 +36,7 @@ export interface Meal {
   created_at?: string;
   updated_at?: string;
   foods?: MealFood[]; // Array of foods included in the meal template
+  selectedDate?: string; // Add selectedDate to Meal interface
 }
 
 export interface MealPlanEntry {

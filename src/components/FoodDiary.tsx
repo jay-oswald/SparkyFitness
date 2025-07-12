@@ -27,7 +27,9 @@ import { Food, FoodVariant, FoodEntry } from '@/types/food';
 import { ExpandedGoals } from '@/types/goals'; // Import ExpandedGoals
 
 
-interface Meal {
+import { Meal as MealType } from '@/types/meal'; // Import MealType from types/meal.d.ts
+
+interface Meal extends MealType { // Extend the imported MealType
   name: string;
   type: string;
   entries: FoodEntry[];
@@ -202,8 +204,8 @@ const FoodDiary = ({ selectedDate, onDateChange }: FoodDiaryProps) => {
     setIsUnitSelectorOpen(true);
   }, [debug, loggingLevel, setSelectedFood, setSelectedMealType, setIsUnitSelectorOpen]);
 
-  const handleFoodUnitSelect = useCallback(async (food: Food, quantity: number, unit: string, variantId?: string) => {
-    debug(loggingLevel, "Handling food unit select:", { food, quantity, unit, variantId });
+  const handleFoodUnitSelect = useCallback(async (food: Food, quantity: number, unit: string, selectedVariant: FoodVariant) => {
+    debug(loggingLevel, "Handling food unit select:", { food, quantity, unit, selectedVariant });
     try {
       await addFoodEntry({
         user_id: currentUserId,
@@ -211,7 +213,7 @@ const FoodDiary = ({ selectedDate, onDateChange }: FoodDiaryProps) => {
         meal_type: selectedMealType,
         quantity: quantity,
         unit: unit,
-        variant_id: variantId,
+        variant_id: selectedVariant.id, // Use selectedVariant.id
         entry_date: formatDateInUserTimezone(parseDateInUserTimezone(selectedDate), 'yyyy-MM-dd'),
       });
       info(loggingLevel, "Food entry added successfully.");
@@ -334,43 +336,47 @@ const FoodDiary = ({ selectedDate, onDateChange }: FoodDiaryProps) => {
       {/* Main Content - Meals and Exercise */}
       <div className="space-y-6">
         <MealCard
-          meal={getMealData("breakfast")}
+          meal={{ ...getMealData("breakfast"), selectedDate: selectedDate }}
           totals={getMealTotals("breakfast")}
           onFoodSelect={handleFoodSelect}
           onEditEntry={handleEditEntry}
           onEditFood={handleEditFood}
           onRemoveEntry={handleRemoveEntry}
           getEntryNutrition={getEntryNutrition}
+          onMealAdded={handleDataChange}
           key={`breakfast-${refreshTrigger}`}
         />
         <MealCard
-          meal={getMealData("lunch")}
+          meal={{ ...getMealData("lunch"), selectedDate: selectedDate }}
           totals={getMealTotals("lunch")}
           onFoodSelect={handleFoodSelect}
           onEditEntry={handleEditEntry}
           onEditFood={handleEditFood}
           onRemoveEntry={handleRemoveEntry}
           getEntryNutrition={getEntryNutrition}
+          onMealAdded={handleDataChange}
           key={`lunch-${refreshTrigger}`}
         />
         <MealCard
-          meal={getMealData("dinner")}
+          meal={{ ...getMealData("dinner"), selectedDate: selectedDate }}
           totals={getMealTotals("dinner")}
           onFoodSelect={handleFoodSelect}
           onEditEntry={handleEditEntry}
           onEditFood={handleEditFood}
           onRemoveEntry={handleRemoveEntry}
           getEntryNutrition={getEntryNutrition}
+          onMealAdded={handleDataChange}
           key={`dinner-${refreshTrigger}`}
         />
         <MealCard
-          meal={getMealData("snacks")}
+          meal={{ ...getMealData("snacks"), selectedDate: selectedDate }}
           totals={getMealTotals("snacks")}
           onFoodSelect={handleFoodSelect}
           onEditEntry={handleEditEntry}
           onEditFood={handleEditFood}
           onRemoveEntry={handleRemoveEntry}
           getEntryNutrition={getEntryNutrition}
+          onMealAdded={handleDataChange}
           key={`snacks-${refreshTrigger}`}
         />
 
