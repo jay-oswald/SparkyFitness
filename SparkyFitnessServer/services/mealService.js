@@ -1,6 +1,7 @@
 const mealRepository = require('../models/mealRepository');
 const foodRepository = require('../models/foodRepository');
 const mealPlanTemplateRepository = require('../models/mealPlanTemplateRepository');
+const mealPlanTemplateService = require('./mealPlanTemplateService'); // Import the service
 const { log } = require('../config/logging');
 
 // --- Meal Template Service Functions ---
@@ -54,6 +55,18 @@ async function updateMeal(userId, mealId, updateData) {
       throw new Error('Forbidden: You do not have permission to update this meal.');
     }
     const updatedMeal = await mealRepository.updateMeal(mealId, userId, updateData);
+
+    // After updating the meal, re-sync any meal plan templates that use this meal
+    const affectedTemplates = await mealPlanTemplateRepository.getMealPlanTemplatesByMealId(mealId);
+    for (const template of affectedTemplates) {
+        // Only re-sync active templates
+        if (template.is_active) {
+            log('info', `Re-syncing meal plan template ${template.id} due to meal update.`);
+            // Pass null for currentClientDate as this is a backend-triggered sync
+            await mealPlanTemplateService.updateMealPlanTemplate(template.id, template.user_id, template, null);
+        }
+    }
+
     return updatedMeal;
   } catch (error) {
     log('error', `Error in mealService.updateMeal for user ${userId}, meal ${mealId}:`, error);
@@ -213,72 +226,6 @@ async function logDayMealPlanToDiary(userId, planDate, targetDate) {
   }
 }
 
-async function applyActiveMealPlan(userId, date) {
-  try {
-    const activeTemplate = await mealPlanTemplateRepository.getActiveMealPlanForDate(userId, date);
-    if (!activeTemplate) {
-      log('info', `No active meal plan template for user ${userId} on ${date}.`);
-      return;
-    }
-
-    const dayOfWeek = new Date(date).getUTCDay();
-    const assignmentsForDay = activeTemplate.assignments.filter(a => a.day_of_week === dayOfWeek);
-    if (assignmentsForDay.length === 0) {
-      return;
-    }
-
-    // For each assignment, create a meal_plan instance and then the food_entries
-    for (const assignment of assignmentsForDay) {
-      // Check if a meal_plan entry for this assignment already exists for the day
-      let mealPlanEntry = (await mealRepository.getMealPlanEntries(userId, date, date))
-        .find(e => e.meal_plan_template_id === activeTemplate.id && e.meal_type === assignment.meal_type);
-
-      // If not, create it
-      if (!mealPlanEntry) {
-        mealPlanEntry = await mealRepository.createMealPlanEntry({
-          user_id: userId,
-          meal_id: assignment.meal_id,
-          plan_date: date,
-          meal_type: assignment.meal_type,
-          is_template: false, // This is an instance, not a template
-          meal_plan_template_id: activeTemplate.id,
-        });
-      }
-
-      // Now, get the foods for the meal and create food_entries if they don't exist
-      const mealDetails = await mealRepository.getMealById(assignment.meal_id);
-      if (!mealDetails || !mealDetails.foods) continue;
-
-      const existingFoodEntries = await foodRepository.getFoodEntriesByDate(userId, date);
-
-      for (const foodItem of mealDetails.foods) {
-        const alreadyLogged = existingFoodEntries.some(entry =>
-          entry.meal_plan_id === mealPlanEntry.id &&
-          entry.food_id === foodItem.food_id &&
-          entry.meal_type === assignment.meal_type
-        );
-
-        if (!alreadyLogged) {
-          await foodRepository.createFoodEntry({
-            user_id: userId,
-            food_id: foodItem.food_id,
-            meal_type: assignment.meal_type,
-            quantity: foodItem.quantity,
-            unit: foodItem.unit,
-            entry_date: date,
-            variant_id: foodItem.variant_id,
-            meal_plan_id: mealPlanEntry.id, // Link to the meal_plan instance
-          });
-          log('info', `Logged food entry from meal plan instance ${mealPlanEntry.id} for user ${userId} on ${date}.`);
-        }
-      }
-    }
-  } catch (error) {
-    log('error', `Error applying active meal plan for user ${userId} on ${date}:`, error);
-    // Do not re-throw the error to prevent the entire diary from failing to load
-  }
-}
-
 module.exports = {
   createMeal,
   getMeals,
@@ -291,5 +238,4 @@ module.exports = {
   deleteMealPlanEntry,
   logMealPlanEntryToDiary,
   logDayMealPlanToDiary,
-  applyActiveMealPlan,
 };

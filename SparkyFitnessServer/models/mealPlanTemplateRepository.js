@@ -255,6 +255,41 @@ async function getActiveMealPlanForDate(userId, date) {
     }
 }
 
+async function getMealPlanTemplatesByMealId(mealId) {
+    const client = await pool.connect();
+    try {
+        const query = `
+            SELECT
+                t.*,
+                COALESCE(
+                    (
+                        SELECT json_agg(
+                            json_build_object(
+                                'id', a.id,
+                                'day_of_week', a.day_of_week,
+                                'meal_type', a.meal_type,
+                                'meal_id', a.meal_id,
+                                'meal_name', m.name
+                            )
+                        )
+                        FROM meal_plan_template_assignments a
+                        JOIN meals m ON a.meal_id = m.id
+                        WHERE a.template_id = t.id
+                    ),
+                    '[]'::json
+                ) as assignments
+            FROM meal_plan_templates t
+            JOIN meal_plan_template_assignments mpta ON t.id = mpta.template_id
+            WHERE mpta.meal_id = $1
+            GROUP BY t.id
+        `;
+        const result = await client.query(query, [mealId]);
+        return result.rows;
+    } finally {
+        client.release();
+    }
+}
+
 module.exports = {
     createMealPlanTemplate,
     getMealPlanTemplatesByUserId,
@@ -263,4 +298,5 @@ module.exports = {
     deactivateAllMealPlanTemplates,
     getMealPlanTemplateOwnerId,
     getActiveMealPlanForDate,
+    getMealPlanTemplatesByMealId,
 };

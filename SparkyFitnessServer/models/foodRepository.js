@@ -912,13 +912,19 @@ async function deleteFoodEntriesByMealPlanId(mealPlanId, userId) {
     }
 }
 
-async function deleteFoodEntriesByTemplateId(templateId, userId) {
+async function deleteFoodEntriesByTemplateId(templateId, userId, currentClientDate = null) {
     const client = await pool.connect();
     try {
-        const result = await client.query(
-            `DELETE FROM food_entries WHERE meal_plan_template_id = $1 AND user_id = $2`,
-            [templateId, userId]
-        );
+        let query = `DELETE FROM food_entries WHERE meal_plan_template_id = $1 AND user_id = $2`;
+        const params = [templateId, userId];
+
+        if (currentClientDate) {
+            // Only delete from currentClientDate onwards
+            query += ` AND entry_date >= $3`;
+            params.push(currentClientDate);
+        }
+
+        const result = await client.query(query, params);
         return result.rowCount;
     } catch (error) {
         log('error', `Error deleting food entries for template ${templateId}:`, error);
@@ -928,7 +934,7 @@ async function deleteFoodEntriesByTemplateId(templateId, userId) {
     }
 }
 
-async function createFoodEntriesFromTemplate(templateId, userId) {
+async function createFoodEntriesFromTemplate(templateId, userId, currentClientDate = null) {
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
@@ -967,8 +973,20 @@ async function createFoodEntriesFromTemplate(templateId, userId) {
             return;
         }
 
+        // Determine the effective "today" based on currentClientDate or server's local date
+        const today = currentClientDate ? new Date(currentClientDate) : new Date();
+        today.setHours(0, 0, 0, 0); // Normalize to start of day
+
         let currentDate = new Date(start_date);
+        currentDate.setHours(0, 0, 0, 0); // Normalize template start_date to start of day
+
+        // Start from today if template start_date is in the past
+        if (currentDate < today) {
+            currentDate = today;
+        }
+
         const lastDate = new Date(end_date);
+        lastDate.setHours(0, 0, 0, 0); // Normalize template end_date to start of day
 
         while (currentDate <= lastDate) {
             const dayOfWeek = currentDate.getDay();
@@ -981,22 +999,40 @@ async function createFoodEntriesFromTemplate(templateId, userId) {
                 );
 
                 if (mealFoodsResult.rows.length > 0) {
-                    const foodEntries = mealFoodsResult.rows.map(mf => ([
-                        userId,
-                        mf.food_id,
-                        assignment.meal_type,
-                        mf.quantity,
-                        mf.unit,
-                        currentDate,
-                        mf.variant_id,
-                        templateId
-                    ]));
+                    for (const mf of mealFoodsResult.rows) {
+                        // Check for existing entry to prevent duplicates
+                        const existingEntry = await client.query(
+                            `SELECT id FROM food_entries
+                             WHERE user_id = $1
+                               AND food_id = $2
+                               AND meal_type = $3
+                               AND entry_date = $4
+                               AND variant_id = $5`,
+                            [userId, mf.food_id, assignment.meal_type, currentDate, mf.variant_id]
+                        );
 
-                    const insertQuery = format(
-                        `INSERT INTO food_entries (user_id, food_id, meal_type, quantity, unit, entry_date, variant_id, meal_plan_template_id) VALUES %L`,
-                        foodEntries
-                    );
-                    await client.query(insertQuery);
+                        if (existingEntry.rows.length === 0) {
+                            // Only insert if no duplicate exists
+                            const foodEntryData = [
+                                userId,
+                                mf.food_id,
+                                assignment.meal_type,
+                                mf.quantity,
+                                mf.unit,
+                                currentDate,
+                                mf.variant_id,
+                                templateId // Still link to the template if it's a template-generated entry
+                            ];
+                            log('info', `Inserting food entry for template ${templateId}, day ${currentDate.toISOString().split('T')[0]}:`, foodEntryData);
+                            await client.query(
+                                `INSERT INTO food_entries (user_id, food_id, meal_type, quantity, unit, entry_date, variant_id, meal_plan_template_id)
+                                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+                                foodEntryData
+                            );
+                        } else {
+                            log('info', `Skipping duplicate food entry for template ${templateId}, day ${currentDate.toISOString().split('T')[0]}:`, existingEntry.rows[0].id);
+                        }
+                    }
                 }
             }
             currentDate.setDate(currentDate.getDate() + 1);

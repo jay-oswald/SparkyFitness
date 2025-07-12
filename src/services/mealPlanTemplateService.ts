@@ -5,12 +5,12 @@ export const getMealPlanTemplates = async (userId: string): Promise<MealPlanTemp
     return await api.get(`/meal-plan-templates?userId=${userId}`);
 };
 
-export const createMealPlanTemplate = async (userId: string, templateData: Partial<MealPlanTemplate>): Promise<MealPlanTemplate> => {
-    return await api.post('/meal-plan-templates', { body: { ...templateData, userId } });
+export const createMealPlanTemplate = async (userId: string, templateData: Partial<MealPlanTemplate>, currentClientDate?: string): Promise<MealPlanTemplate> => {
+    return await api.post('/meal-plan-templates', { body: { ...templateData, userId, currentClientDate } });
 };
 
-export const updateMealPlanTemplate = async (userId: string, templateId: string, templateData: Partial<MealPlanTemplate>): Promise<MealPlanTemplate> => {
-    return await api.put(`/meal-plan-templates/${templateId}`, { body: { ...templateData, userId } });
+export const updateMealPlanTemplate = async (userId: string, templateId: string, templateData: Partial<MealPlanTemplate>, currentClientDate?: string): Promise<MealPlanTemplate> => {
+    return await api.put(`/meal-plan-templates/${templateId}`, { body: { ...templateData, userId, currentClientDate } });
 };
 
 export const deleteMealPlanTemplate = async (userId: string, templateId: string): Promise<void> => {

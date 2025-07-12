@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { useActiveUser } from '@/contexts/ActiveUserContext';
+import { usePreferences } from '@/contexts/PreferencesContext'; // Import usePreferences
+import { debug, info } from '@/utils/logging'; // Import logging functions
 import { toast } from '@/hooks/use-toast';
 import { MealPlanTemplate } from '@/types/meal';
 import { getMealPlanTemplates, createMealPlanTemplate, updateMealPlanTemplate, deleteMealPlanTemplate } from '@/services/mealPlanTemplateService';
@@ -9,6 +11,7 @@ import MealPlanTemplateForm from './MealPlanTemplateForm';
 
 const MealPlanCalendar: React.FC = () => {
     const { activeUserId } = useActiveUser();
+    const { loggingLevel } = usePreferences(); // Get loggingLevel from preferences
     const [templates, setTemplates] = useState<MealPlanTemplate[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [isFormOpen, setIsFormOpen] = useState(false);
@@ -19,7 +22,7 @@ const MealPlanCalendar: React.FC = () => {
         setIsLoading(true);
         try {
             const fetchedTemplates = await getMealPlanTemplates(activeUserId);
-            console.log('Fetched Templates:', fetchedTemplates);
+            debug(loggingLevel, 'MealPlanCalendar: Fetched Templates:', fetchedTemplates); // Use debug
             setTemplates(fetchedTemplates);
         } catch (error) {
             toast({ title: 'Error', description: 'Failed to fetch meal plan templates.', variant: 'destructive' });
@@ -30,9 +33,9 @@ const MealPlanCalendar: React.FC = () => {
     };
 
     useEffect(() => {
-        console.log('Fetching templates for user:', activeUserId);
+        info(loggingLevel, 'MealPlanCalendar: Fetching templates for user:', activeUserId); // Use info
         fetchTemplates();
-    }, [activeUserId]);
+    }, [activeUserId, loggingLevel]); // Add loggingLevel to dependency array
 
     const handleCreate = () => {
         setSelectedTemplate(undefined);
@@ -47,16 +50,18 @@ const MealPlanCalendar: React.FC = () => {
     const handleSave = async (templateData: Partial<MealPlanTemplate>) => {
         if (!activeUserId) return;
         try {
+            const currentClientDate = new Date().toISOString().split('T')[0]; // Get today's date in YYYY-MM-DD format
+
             if (templateData.id) {
-                const updatedTemplate = await updateMealPlanTemplate(activeUserId, templateData.id, templateData);
-                console.log('Updating template in state:', updatedTemplate);
+                const updatedTemplate = await updateMealPlanTemplate(activeUserId, templateData.id, templateData, currentClientDate);
+                debug(loggingLevel, 'MealPlanCalendar: Updating template in state:', updatedTemplate); // Use debug
                 setTemplates(prev => prev.map(t => t.id === updatedTemplate.id ? updatedTemplate : t));
-                toast({ title: 'Success', description: 'Template updated successfully.' });
+                toast({ title: 'Success', description: 'Meal plan updated successfully.' });
             } else {
-                const newTemplate = await createMealPlanTemplate(activeUserId, templateData);
-                console.log('Adding new template to state:', newTemplate);
+                const newTemplate = await createMealPlanTemplate(activeUserId, templateData, currentClientDate);
+                debug(loggingLevel, 'MealPlanCalendar: Adding new template to state:', newTemplate); // Use debug
                 setTemplates(prev => [...prev, newTemplate]);
-                toast({ title: 'Success', description: 'Template created successfully.' });
+                toast({ title: 'Success', description: 'Meal plan created successfully.' });
             }
             setIsFormOpen(false);
             window.dispatchEvent(new CustomEvent('foodDiaryRefresh'));

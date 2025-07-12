@@ -5,6 +5,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useActiveUser } from '@/contexts/ActiveUserContext';
+import { usePreferences } from '@/contexts/PreferencesContext'; // Import usePreferences
+import { debug, error } from '@/utils/logging'; // Import logging functions
 import { toast } from '@/hooks/use-toast';
 import { MealPlanTemplate, Meal } from '@/types/meal';
 import { getMeals } from '@/services/mealService';
@@ -18,6 +20,7 @@ interface MealPlanTemplateFormProps {
 
 const MealPlanTemplateForm: React.FC<MealPlanTemplateFormProps> = ({ template, onSave, onClose }) => {
     const { activeUserId } = useActiveUser();
+    const { loggingLevel } = usePreferences(); // Get loggingLevel from preferences
     const [planName, setPlanName] = useState(template?.plan_name || '');
     const [description, setDescription] = useState(template?.description || '');
     const [startDate, setStartDate] = useState(template?.start_date ? new Date(template.start_date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]);
@@ -62,7 +65,7 @@ const MealPlanTemplateForm: React.FC<MealPlanTemplateFormProps> = ({ template, o
             is_active: isActive,
             assignments,
         };
-        console.log('Saving template data:', dataToSave); // Add this line for debugging
+        debug(loggingLevel, 'MealPlanTemplateForm: Saving template data:', dataToSave); // Use debug
         onSave(dataToSave);
     };
 

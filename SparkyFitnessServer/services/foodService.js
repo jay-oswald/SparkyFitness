@@ -467,9 +467,6 @@ async function getFoodEntriesByDate(authenticatedUserId, targetUserId, selectedD
       return [];
     }
 
-    // Apply active meal plan before fetching entries
-    await mealService.applyActiveMealPlan(targetUserId, selectedDate);
-
     const entries = await foodRepository.getFoodEntriesByDate(targetUserId, selectedDate);
     return entries;
   } catch (error) {
