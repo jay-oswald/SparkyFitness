@@ -9,6 +9,7 @@ const { log } = require('./config/logging');
 const { getDefaultModel } = require('./ai/config');
 const { authenticateToken } = require('./middleware/authMiddleware');
 const foodRoutes = require('./routes/foodRoutes');
+const mealRoutes = require('./routes/mealRoutes');
 const reportRoutes = require('./routes/reportRoutes');
 const preferenceRoutes = require('./routes/preferenceRoutes');
 const chatRoutes = require('./routes/chatRoutes');
@@ -55,6 +56,7 @@ app.use((req, res, next) => {
 // Link all routes
 app.use('/chat', chatRoutes);
 app.use('/foods', foodRoutes);
+app.use('/meals', mealRoutes);
 app.use('/reports', reportRoutes);
 app.use('/user-preferences', preferenceRoutes);
 app.use('/measurements', measurementRoutes);

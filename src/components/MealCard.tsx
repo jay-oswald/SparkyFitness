@@ -117,6 +117,7 @@ const MealCard = ({
               {meal.entries.map((entry) => {
                 const food = entry.foods;
                 const entryNutrition = getEntryNutrition(entry);
+                const isFromMealPlan = !!entry.meal_plan_id;
 
                 // Handle case where food data is missing
                 if (!food) {
@@ -163,6 +164,11 @@ const MealCard = ({
                         <span className="text-sm text-gray-500">
                           {entry.quantity} {entry.unit}
                         </span>
+                        {isFromMealPlan && (
+                          <Badge variant="outline" className="text-xs w-fit">
+                            From Plan
+                          </Badge>
+                        )}
                       </div>
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4 text-xs sm:text-sm text-gray-600 dark:text-gray-400">
                         <div>

@@ -31,6 +31,34 @@ interface FoodPayload {
   iron?: number;
 }
 
+export const searchFoods = async (
+  userId: string,
+  name: string,
+  targetUserId: string,
+  exactMatch: boolean,
+  broadMatch: boolean,
+  checkCustom: boolean
+): Promise<Food[]> => {
+  const params = new URLSearchParams({
+    name,
+    targetUserId,
+    exactMatch: exactMatch.toString(),
+    broadMatch: broadMatch.toString(),
+    checkCustom: checkCustom.toString(),
+  });
+  const response = await apiCall(`/foods?${params.toString()}`, {
+    method: 'GET',
+  });
+  return response;
+};
+
+export const getFoodVariantsByFoodId = async (userId: string, foodId: string): Promise<FoodVariant[]> => {
+  const response = await apiCall(`/foods/food-variants?food_id=${foodId}`, {
+    method: 'GET',
+  });
+  return response;
+};
+
 export const loadFoods = async (
   searchTerm: string,
   foodFilter: FoodFilter,

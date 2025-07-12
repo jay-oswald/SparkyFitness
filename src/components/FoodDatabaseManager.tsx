@@ -1,5 +1,4 @@
-
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,10 +20,11 @@ import {
 } from '@/services/foodService';
 import { createFoodEntry } from '@/services/foodEntryService'; // Import foodEntryService
 import { Food } from '@/types/food';
+import MealManagement from "./MealManagement"; // Import MealManagement
+import MealPlanCalendar from "./MealPlanCalendar"; // Import MealPlanCalendar
 
 
-
-const FoodDatabaseManager = () => {
+const FoodDatabaseManager: React.FC = () => {
   const { user } = useAuth();
   const { activeUserId } = useActiveUser();
   const [foods, setFoods] = useState<Food[]>([]);
@@ -42,10 +42,10 @@ const FoodDatabaseManager = () => {
   const [foodToAddToMeal, setFoodToAddToMeal] = useState<Food | null>(null); // New state
 
   useEffect(() => {
-    if (user && activeUserId) {
+    if (user && activeUserId) { // Always fetch foods when user and activeUserId are available
       fetchFoodsData();
     }
-  }, [user, activeUserId, searchTerm, currentPage, itemsPerPage, foodFilter, sortOrder]); // Add sortOrder to dependencies
+  }, [user, activeUserId, searchTerm, currentPage, itemsPerPage, foodFilter, sortOrder]); // Removed activeTab from dependencies
 
   const fetchFoodsData = async () => {
     try {
@@ -83,7 +83,7 @@ const FoodDatabaseManager = () => {
       });
 
       fetchFoodsData();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error:', error);
     }
   };
@@ -100,7 +100,7 @@ const FoodDatabaseManager = () => {
       });
 
       fetchFoodsData();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error:', error);
     }
   };
@@ -145,7 +145,7 @@ const FoodDatabaseManager = () => {
       });
       setShowFoodUnitSelectorDialog(false);
       setFoodToAddToMeal(null);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error adding food to meal:", error);
       toast({
         title: "Error",
@@ -179,12 +179,10 @@ const FoodDatabaseManager = () => {
       return <Badge variant="secondary" className="text-xs w-fit">Your Food</Badge>;
     }
     
-    // If this food belongs to someone else but we can see it, check why
     if (food.shared_with_public) {
       return <Badge variant="outline" className="text-xs w-fit bg-green-50 text-green-700">Public</Badge>;
     }
     
-    // If we can see this food but it's not public and not ours, it must be family access
     return <Badge variant="outline" className="text-xs w-fit bg-blue-50 text-blue-700">Family</Badge>;
   };
 
@@ -226,70 +224,10 @@ const FoodDatabaseManager = () => {
 
   return (
     <div className="space-y-6">
-      {/* Controls in a single row: Search, Filter, Items per page, Add button */}
-      <div className="flex flex-col gap-4">
-        <div className="flex flex-row flex-wrap items-center gap-4">
-          {/* Search box */}
-          <div className="relative flex-1 min-w-[180px]">
-            <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-            <Input
-              placeholder="Search foods..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-
-          {/* Filter dropdown */}
-          <div className="flex items-center gap-2 whitespace-nowrap">
-            <Filter className="h-4 w-4 text-gray-500" />
-            <Select value={foodFilter} onValueChange={handleFilterChange}>
-              <SelectTrigger className="w-32">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All</SelectItem>
-                <SelectItem value="mine">My Foods</SelectItem>
-                <SelectItem value="family">Family</SelectItem>
-                <SelectItem value="public">Public</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          {/* Sort by dropdown */}
-          <div className="flex items-center gap-2 whitespace-nowrap">
-            <span className="text-sm">Sort by:</span>
-            <Select value={sortOrder} onValueChange={setSortOrder}>
-              <SelectTrigger className="w-32">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="name:asc">Name (A-Z)</SelectItem>
-                <SelectItem value="name:desc">Name (Z-A)</SelectItem>
-                <SelectItem value="calories:asc">Calories (Low to High)</SelectItem>
-                <SelectItem value="calories:desc">Calories (High to Low)</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Items per page selector */}
-          <div className="flex items-center gap-2 whitespace-nowrap">
-            <span className="text-sm">Items per page:</span>
-            <Select value={itemsPerPage.toString()} onValueChange={handleItemsPerPageChange}>
-              <SelectTrigger className="w-20">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="10">10</SelectItem>
-                <SelectItem value="15">15</SelectItem>
-                <SelectItem value="25">25</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Add new food button */}
+      {/* Food Database Section */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-2xl font-bold">Food Database</CardTitle>
           <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
             <DialogTrigger asChild>
               <Button className="whitespace-nowrap">
@@ -307,18 +245,77 @@ const FoodDatabaseManager = () => {
               <EnhancedCustomFoodForm onSave={handleSaveComplete} />
             </DialogContent>
           </Dialog>
-        </div>
-      </div>
+        </CardHeader>
+        <CardContent>
+          {/* Controls in a single row: Search, Filter, Items per page, Add button */}
+          <div className="flex flex-col gap-4 mb-4">
+            <div className="flex flex-row flex-wrap items-center gap-4">
+              {/* Search box */}
+              <div className="relative flex-1 min-w-[180px]">
+                <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                <Input
+                  placeholder="Search foods..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
 
-      {loading ? (
-        <div>Loading foods...</div>
-      ) : (
-        <>
-          <Card>
-            <CardHeader>
-              <CardTitle>{getFilterTitle()}</CardTitle>
-            </CardHeader>
-            <CardContent>
+              {/* Filter dropdown */}
+              <div className="flex items-center gap-2 whitespace-nowrap">
+                <Filter className="h-4 w-4 text-gray-500" />
+                <Select value={foodFilter} onValueChange={handleFilterChange}>
+                  <SelectTrigger className="w-32">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All</SelectItem>
+                    <SelectItem value="mine">My Foods</SelectItem>
+                    <SelectItem value="family">Family</SelectItem>
+                    <SelectItem value="public">Public</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              {/* Sort by dropdown */}
+              <div className="flex items-center gap-2 whitespace-nowrap">
+                <span className="text-sm">Sort by:</span>
+                <Select value={sortOrder} onValueChange={setSortOrder}>
+                  <SelectTrigger className="w-32">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="name:asc">Name (A-Z)</SelectItem>
+                    <SelectItem value="name:desc">Name (Z-A)</SelectItem>
+                    <SelectItem value="calories:asc">Calories (Low to High)</SelectItem>
+                    <SelectItem value="calories:desc">Calories (High to Low)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Items per page selector */}
+              <div className="flex items-center gap-2 whitespace-nowrap">
+                <span className="text-sm">Items per page:</span>
+                <Select value={itemsPerPage.toString()} onValueChange={handleItemsPerPageChange}>
+                  <SelectTrigger className="w-20">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="10">10</SelectItem>
+                    <SelectItem value="15">15</SelectItem>
+                    <SelectItem value="25">25</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+
+          {loading ? (
+            <div>Loading foods...</div>
+          ) : (
+            <>
               {foods.length === 0 ? (
                 <div className="text-center py-8 text-gray-500">
                   {getEmptyMessage()}
@@ -387,46 +384,65 @@ const FoodDatabaseManager = () => {
                   ))}
                 </div>
               )}
-            </CardContent>
-          </Card>
-
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <Pagination>
-              <PaginationContent>
-                <PaginationItem>
-                  <PaginationPrevious 
-                    onClick={() => handlePageChange(Math.max(1, currentPage - 1))}
-                    className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
-                  />
-                </PaginationItem>
-                
-                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                  const pageNumber = i + 1;
-                  return (
-                    <PaginationItem key={pageNumber}>
-                      <PaginationLink
-                        onClick={() => handlePageChange(pageNumber)}
-                        isActive={currentPage === pageNumber}
-                        className="cursor-pointer"
-                      >
-                        {pageNumber}
-                      </PaginationLink>
-                    </PaginationItem>
-                  );
-                })}
-                
-                <PaginationItem>
-                  <PaginationNext 
-                    onClick={() => handlePageChange(Math.min(totalPages, currentPage + 1))}
-                    className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
-                  />
-                </PaginationItem>
-              </PaginationContent>
-            </Pagination>
-          )}
         </>
       )}
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <Pagination>
+          <PaginationContent>
+            <PaginationItem>
+              <PaginationPrevious
+                onClick={() => handlePageChange(Math.max(1, currentPage - 1))}
+                className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+              />
+            </PaginationItem>
+            
+            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+              const pageNumber = i + 1;
+              return (
+                <PaginationItem key={pageNumber}>
+                  <PaginationLink
+                    onClick={() => handlePageChange(pageNumber)}
+                    isActive={currentPage === pageNumber}
+                    className="cursor-pointer"
+                  >
+                    {pageNumber}
+                  </PaginationLink>
+                </PaginationItem>
+              );
+            })}
+            
+            <PaginationItem>
+              <PaginationNext
+                onClick={() => handlePageChange(Math.min(totalPages, currentPage + 1))}
+                className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+              />
+            </PaginationItem>
+          </PaginationContent>
+        </Pagination>
+      )}
+    </CardContent>
+  </Card>
+
+      {/* Meal Management Section */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-2xl font-bold">Meal Management</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <MealManagement />
+        </CardContent>
+      </Card>
+
+      {/* Meal Plan Calendar Section */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-2xl font-bold">Meal Plan Calendar</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <MealPlanCalendar />
+        </CardContent>
+      </Card>
 
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">

@@ -4,17 +4,22 @@ import { getUserLoggingLevel } from "@/utils/userPreferences";
 
 interface ApiCallOptions extends RequestInit {
   body?: any;
+  params?: Record<string, any>;
   suppress404Toast?: boolean; // New option to suppress toast for 404 errors
   externalApi?: boolean;
 }
-
 
 export const API_BASE_URL = "/api";
 //export const API_BASE_URL = 'http://192.168.1.111:3010';
 
 export async function apiCall(endpoint: string, options?: ApiCallOptions): Promise<any> {
   const userLoggingLevel = getUserLoggingLevel();
-  const url = options?.externalApi ? endpoint : `${API_BASE_URL}${endpoint}`;
+  let url = options?.externalApi ? endpoint : `${API_BASE_URL}${endpoint}`;
+
+  if (options?.params) {
+    const queryParams = new URLSearchParams(options.params).toString();
+    url = `${url}?${queryParams}`;
+  }
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
     ...options?.headers,
@@ -82,3 +87,10 @@ export async function apiCall(endpoint: string, options?: ApiCallOptions): Promi
     throw error;
   }
 }
+
+export const api = {
+  get: (endpoint: string, options?: ApiCallOptions) => apiCall(endpoint, { ...options, method: 'GET' }),
+  post: (endpoint: string, options?: ApiCallOptions) => apiCall(endpoint, { ...options, method: 'POST' }),
+  put: (endpoint: string, options?: ApiCallOptions) => apiCall(endpoint, { ...options, method: 'PUT' }),
+  delete: (endpoint: string, options?: ApiCallOptions) => apiCall(endpoint, { ...options, method: 'DELETE' }),
+};

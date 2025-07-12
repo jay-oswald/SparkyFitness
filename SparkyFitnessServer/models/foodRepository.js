@@ -693,9 +693,9 @@ async function createFoodEntry(entryData) {
   const client = await pool.connect();
   try {
     const result = await client.query(
-      `INSERT INTO food_entries (user_id, food_id, meal_type, quantity, unit, entry_date, variant_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-      [entryData.user_id, entryData.food_id, entryData.meal_type, entryData.quantity, entryData.unit, entryData.entry_date, entryData.variant_id]
+      `INSERT INTO food_entries (user_id, food_id, meal_type, quantity, unit, entry_date, variant_id, meal_plan_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+      [entryData.user_id, entryData.food_id, entryData.meal_type, entryData.quantity, entryData.unit, entryData.entry_date, entryData.variant_id, entryData.meal_plan_id]
     );
     return result.rows[0];
   } finally {
@@ -761,7 +761,7 @@ async function getFoodEntriesByDate(userId, selectedDate) {
   try {
     const result = await client.query(
       `SELECT
-        fe.id, fe.food_id, fe.meal_type, fe.quantity, fe.unit, fe.variant_id, fe.entry_date,
+        fe.id, fe.food_id, fe.meal_type, fe.quantity, fe.unit, fe.variant_id, fe.entry_date, fe.meal_plan_id,
         json_build_object(
           'id', f.id,
           'name', f.name,
@@ -809,7 +809,7 @@ async function getFoodEntriesByDateRange(userId, startDate, endDate) {
   try {
     const result = await client.query(
       `SELECT
-        fe.id, fe.food_id, fe.meal_type, fe.quantity, fe.unit, fe.variant_id, fe.entry_date,
+        fe.id, fe.food_id, fe.meal_type, fe.quantity, fe.unit, fe.variant_id, fe.entry_date, fe.meal_plan_id,
         f.name AS food_name, f.brand, f.is_custom, f.user_id, f.shared_with_public,
         fv.serving_size, fv.serving_unit, fv.calories, fv.protein, fv.carbs, fv.fat,
         fv.saturated_fat, fv.polyunsaturated_fat, fv.monounsaturated_fat, fv.trans_fat,

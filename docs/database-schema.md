@@ -198,9 +198,90 @@ create table public.food_entries (
 - Links to either base food or specific variant
 - Flexible quantity and unit system
 
+## Meal Management Tables
+
+### 7. meals
+**Purpose**: Store user-defined meal templates
+```sql
+-- meals table
+CREATE TABLE public.meals (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  name VARCHAR(255) NOT NULL,
+  description TEXT,
+  is_public BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+  updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+  CONSTRAINT meals_pkey PRIMARY KEY (id),
+  CONSTRAINT meals_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users (id) ON DELETE CASCADE
+);
+```
+**RLS**: Handled at application layer. Users can view their own meals and public meals. Users can insert, update, and delete their own meals.
+**Special Features**:
+- Allows users to create reusable meal templates.
+- `is_public` flag for sharing meals.
+
+### 8. meal_foods
+**Purpose**: Link foods to meal templates
+```sql
+-- meal_foods table
+CREATE TABLE public.meal_foods (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  meal_id uuid NOT NULL,
+  food_id uuid NOT NULL,
+  variant_id uuid,
+  quantity NUMERIC NOT NULL,
+  unit VARCHAR(50) NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+  updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+  CONSTRAINT meal_foods_pkey PRIMARY KEY (id),
+  CONSTRAINT meal_foods_meal_id_fkey FOREIGN KEY (meal_id) REFERENCES public.meals (id) ON DELETE CASCADE,
+  CONSTRAINT meal_foods_food_id_fkey FOREIGN KEY (food_id) REFERENCES public.foods (id) ON DELETE CASCADE,
+  CONSTRAINT meal_foods_variant_id_fkey FOREIGN KEY (variant_id) REFERENCES public.food_variants (id) ON DELETE SET NULL
+);
+```
+**RLS**: Handled at application layer. Inherits access from parent meal.
+**Relationships**: Links to `meals`, `foods`, and `food_variants`.
+
+### 9. meal_plans
+**Purpose**: Schedule meals or individual foods for specific dates
+```sql
+-- meal_plans table
+CREATE TABLE public.meal_plans (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  meal_id uuid,
+  food_id uuid,
+  variant_id uuid,
+  quantity NUMERIC,
+  unit VARCHAR(50),
+  plan_date DATE NOT NULL,
+  meal_type VARCHAR(50) NOT NULL,
+  is_template BOOLEAN DEFAULT FALSE,
+  template_name VARCHAR(255),
+  day_of_week INTEGER,
+  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+  updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+  CONSTRAINT meal_plans_pkey PRIMARY KEY (id),
+  CONSTRAINT chk_meal_or_food CHECK (
+    (meal_id IS NOT NULL AND food_id IS NULL AND variant_id IS NULL AND quantity IS NULL AND unit IS NULL) OR
+    (meal_id IS NULL AND food_id IS NOT NULL AND variant_id IS NOT NULL AND quantity IS NOT NULL AND unit IS NOT NULL)
+  ),
+  CONSTRAINT meal_plans_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users (id) ON DELETE CASCADE,
+  CONSTRAINT meal_plans_meal_id_fkey FOREIGN KEY (meal_id) REFERENCES public.meals (id) ON DELETE CASCADE,
+  CONSTRAINT meal_plans_food_id_fkey FOREIGN KEY (food_id) REFERENCES public.foods (id) ON DELETE CASCADE,
+  CONSTRAINT meal_plans_variant_id_fkey FOREIGN KEY (variant_id) REFERENCES public.food_variants (id) ON DELETE SET NULL
+);
+```
+**RLS**: Handled at application layer. Users can view, insert, update, and delete their own meal plans.
+**Special Features**:
+- Can link to a `meal` template or directly to a `food` item.
+- `is_template` and `template_name` for creating reusable meal plan segments.
+- `day_of_week` for recurring schedules.
+
 ## Measurement & Tracking Tables
 
-### 7. check_in_measurements
+### 10. check_in_measurements
 **Purpose**: Standard body measurements tracking
 ```sql
 -- check_in_measurements table
@@ -222,7 +303,7 @@ create table public.check_in_measurements (
 **RLS**: Users can only access their own measurements
 **Use Case**: Standard body metrics tracking
 
-### 8. custom_categories
+### 11. custom_categories
 **Purpose**: User-defined measurement categories
 ```sql
 -- custom_categories table
@@ -246,7 +327,7 @@ create table public.custom_categories (
 **RLS**: Users can only access their own categories
 **Use Case**: Custom metrics like "mood", "energy level", etc.
 
-### 9. custom_measurements
+### 12. custom_measurements
 **Purpose**: Values for custom measurement categories
 ```sql
 -- custom_measurements table
@@ -270,7 +351,7 @@ create table public.custom_measurements (
 - Supports both daily and hourly tracking
 - Links to user-defined categories
 
-### 10. water_intake
+### 13. water_intake
 **Purpose**: Daily water consumption tracking
 ```sql
 -- water_intake table
@@ -291,7 +372,7 @@ create table public.water_intake (
 
 ## Exercise Tables
 
-### 11. exercises
+### 14. exercises
 **Purpose**: Master exercise database
 ```sql
 -- exercises table
@@ -315,7 +396,7 @@ create table public.exercises (
 - Public exercises (user_id is NULL) accessible to all
 - Custom exercises linked to specific users
 
-### 12. exercise_entries
+### 15. exercise_entries
 **Purpose**: Daily exercise log
 ```sql
 -- exercise_entries table
@@ -337,7 +418,7 @@ create table public.exercise_entries (
 
 ## Family & Access Control Tables
 
-### 13. family_access
+### 16. family_access
 **Purpose**: Manage family member access to user data
 ```sql
 -- family_access table
@@ -375,7 +456,7 @@ create table public.family_access (
 
 ## AI & Chat Tables
 
-### 14. ai_service_settings
+### 17. ai_service_settings
 **Purpose**: Store AI service configuration per user
 ```sql
 -- ai_service_settings table
@@ -398,7 +479,7 @@ create table public.ai_service_settings (
 **RLS**: Users can only access their own AI settings
 **Security**: API keys should be encrypted at application level
 
-### 15. sparky_chat_history
+### 18. sparky_chat_history
 **Purpose**: Store AI chat conversation history
 ```sql
 -- sparky_chat_history table
@@ -454,8 +535,11 @@ create table public.sparky_chat_history (
 - Write permissions are explicitly granted, no inheritance for writes
 
 ### Security Principles
-- All tables have RLS enabled
+- All tables have RLS enabled (where applicable and feasible within the migration system)
 - Default deny access model
 - Explicit permission grants only
 - Time-based access control support
 - Audit trail preservation
+
+**Note on RLS for New Meal Tables**:
+Due to the dependency on the `auth.uid()` function, which is not natively available during database migrations in this environment, Row Level Security for the `meals`, `meal_foods`, and `meal_plans` tables is currently handled at the **application layer**. This ensures proper data isolation and access control through backend logic rather than direct database policies. Future enhancements may include implementing a custom `auth.uid()` function or integrating with an authentication service that provides this functionality to enable full database-level RLS for these tables.

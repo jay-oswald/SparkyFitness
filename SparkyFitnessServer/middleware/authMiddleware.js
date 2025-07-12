@@ -60,6 +60,14 @@ const authorizeAccess = (permissionType, getTargetUserIdFromRequest = null) => {
               getOwnerIdFunction = repository.getFoodOwnerId;
             }
             break;
+          case 'meal_list': // For managing meal templates
+            repository = require('../models/mealRepository');
+            getOwnerIdFunction = repository.getMealOwnerId;
+            break;
+          case 'meal_plan': // For managing meal plan entries
+            repository = require('../models/mealRepository');
+            getOwnerIdFunction = repository.getMealPlanOwnerId;
+            break;
           case 'checkin':
             repository = require('../models/measurementRepository');
             // Distinguish between custom categories and custom measurement entries

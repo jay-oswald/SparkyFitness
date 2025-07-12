@@ -45,6 +45,7 @@ const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
   const { defaultFoodDataProviderId, setDefaultFoodDataProviderId } = usePreferences();
   const [searchTerm, setSearchTerm] = useState('');
   const [foods, setFoods] = useState<Food[]>([]);
+  const [meals, setMeals] = useState<Meal[]>([]); // New state for meal results
   const [openFoodFactsResults, setOpenFoodFactsResults] = useState<OpenFoodFactsProduct[]>([]);
   const [nutritionixResults, setNutritionixResults] = useState<any[]>([]); // To store Nutritionix search results
   const [fatSecretResults, setFatSecretResults] = useState<FatSecretFoodItem[]>([]); // To store FatSecret search results
@@ -250,6 +251,7 @@ const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
   const handleSearch = async () => {
     setLoading(true);
     setFoods([]); // Clear previous results
+    setMeals([]); // Clear previous meal results
     setOpenFoodFactsResults([]);
     setNutritionixResults([]);
     setFatSecretResults([]);
@@ -261,6 +263,13 @@ const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
 
     if (activeTab === 'database') {
       await searchDatabase(searchTerm); // Call with current searchTerm
+      // Also search for meals in the database
+      try {
+        const fetchedMeals = await getMeals(activeUserId!, true); // Fetch public meals
+        setMeals(fetchedMeals.filter(meal => meal.name.toLowerCase().includes(searchTerm.toLowerCase())));
+      } catch (err) {
+        error(loggingLevel, 'Error searching meals:', err);
+      }
     } else if (activeTab === 'online') {
       setHasOnlineSearchBeenPerformed(true); // Set to true when an online search is initiated
       if (!selectedFoodDataProvider) {
@@ -515,6 +524,25 @@ const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
             No foods found from the selected online provider.
           </div>
         )}
+
+        {activeTab === 'database' && meals.map((meal) => (
+          <Card key={meal.id} className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700" onClick={() => onFoodSelect(meal as any)}> {/* Cast to any for now, will refine */}
+            <CardContent className="p-4">
+              <div className="flex justify-between items-start">
+                <div className="flex-1">
+                  <div className="flex items-center space-x-2 mb-2">
+                    <h3 className="font-medium">{meal.name}</h3>
+                    {meal.is_public && <Badge variant="outline" className="text-xs">Public Meal</Badge>}
+                  </div>
+                  <p className="text-sm text-gray-600">
+                    {meal.description || 'No description available.'}
+                  </p>
+                  {/* You might want to display total nutrition for the meal here */}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
 
         {activeTab === 'database' && foods.map((food) => (
           <Card key={food.id} className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700" onClick={() => onFoodSelect(food)}>
