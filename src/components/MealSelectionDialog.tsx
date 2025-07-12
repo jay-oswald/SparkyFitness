@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Plus } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useActiveUser } from "@/contexts/ActiveUserContext";
@@ -20,18 +21,30 @@ const MealSelectionDialog: React.FC<MealSelectionDialogProps> = ({ mealType, sel
   const { activeUserId } = useActiveUser();
   const { loggingLevel } = usePreferences();
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState<Meal[]>([]);
   const [selectedMeal, setSelectedMeal] = useState<Meal | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
+  // Debounce searchTerm
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 500); // 500ms delay
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [searchTerm]);
+
   const handleSearch = useCallback(async () => {
-    debug(loggingLevel, `Searching meals for term: ${searchTerm}`);
-    if (!activeUserId) {
-      warn(loggingLevel, "No active user ID found for meal search.");
+    debug(loggingLevel, `Searching meals for term: ${debouncedSearchTerm}`);
+    if (!activeUserId || !debouncedSearchTerm.trim()) { // Only search if there's an active user and a non-empty search term
+      setSearchResults([]); // Clear results if search term is empty
       return;
     }
     try {
-      const results = await api.get('/meals/search', { params: { searchTerm } });
+      const results = await api.get('/meals/search', { params: { searchTerm: debouncedSearchTerm } });
       setSearchResults(results);
       debug(loggingLevel, "Meal search results:", results);
     } catch (err) {
@@ -42,7 +55,12 @@ const MealSelectionDialog: React.FC<MealSelectionDialogProps> = ({ mealType, sel
         variant: "destructive",
       });
     }
-  }, [activeUserId, loggingLevel, searchTerm]);
+  }, [activeUserId, loggingLevel, debouncedSearchTerm]);
+
+  // Trigger search when debouncedSearchTerm changes
+  useEffect(() => {
+    handleSearch();
+  }, [debouncedSearchTerm, handleSearch]);
 
   const handleAddMeal = useCallback(async () => {
     if (!selectedMeal || !activeUserId) {
@@ -76,6 +94,7 @@ const MealSelectionDialog: React.FC<MealSelectionDialogProps> = ({ mealType, sel
     if (!isDialogOpen) {
       // Reset state when dialog closes
       setSearchTerm('');
+      setDebouncedSearchTerm('');
       setSearchResults([]);
       setSelectedMeal(null);
     }
@@ -84,7 +103,10 @@ const MealSelectionDialog: React.FC<MealSelectionDialogProps> = ({ mealType, sel
   return (
     <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm">Add Meal</Button>
+        <Button size="sm">
+          <Plus className="w-4 h-4 mr-1" />
+          Add Meal
+        </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[600px]">
         <DialogHeader>
@@ -99,17 +121,13 @@ const MealSelectionDialog: React.FC<MealSelectionDialogProps> = ({ mealType, sel
               placeholder="Search for a meal..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              onKeyPress={(e) => {
-                if (e.key === 'Enter') {
-                  handleSearch();
-                }
-              }}
             />
-            <Button onClick={handleSearch}>Search</Button>
           </div>
           <ScrollArea className="h-[200px] w-full rounded-md border p-4">
-            {searchResults.length === 0 ? (
-              <p className="text-center text-gray-500">No meals found. Try searching!</p>
+            {searchResults.length === 0 && debouncedSearchTerm.trim() !== '' ? (
+              <p className="text-center text-gray-500">No meals found for "{debouncedSearchTerm}". Try a different search term.</p>
+            ) : searchResults.length === 0 ? (
+              <p className="text-center text-gray-500">Start typing to search for meals.</p>
             ) : (
               <ul>
                 {searchResults.map((meal) => (
@@ -142,7 +160,10 @@ const MealSelectionDialog: React.FC<MealSelectionDialogProps> = ({ mealType, sel
           )}
         </div>
         <DialogFooter>
-          <Button onClick={handleAddMeal} disabled={!selectedMeal}>Add Selected Meal</Button>
+          <Button onClick={handleAddMeal} disabled={!selectedMeal}>
+            <Plus className="w-4 h-4 mr-1" />
+            Add Selected Meal
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
