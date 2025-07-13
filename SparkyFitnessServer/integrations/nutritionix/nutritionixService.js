@@ -133,8 +133,54 @@ async function getNutritionixBrandedNutrients(nixItemId, providerId) {
   }
 }
 
+async function searchNutritionixExercises(query, providerId, userDemographics = {}) {
+  try {
+    const headers = await getNutritionixHeaders(providerId);
+    const body = {
+      query: query,
+      ...userDemographics, // Add user demographics if provided
+    };
+
+    const response = await fetch(`${NUTRITIONIX_API_BASE_URL}/natural/exercise`, {
+      method: "POST",
+      headers: headers,
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      log('error', "Nutritionix Natural Exercise API error:", errorText);
+      throw new Error(`Nutritionix API error: ${errorText}`);
+    }
+
+    const data = await response.json();
+    
+    // Map Nutritionix exercise data to a standardized format
+    if (data.exercises && data.exercises.length > 0) {
+      return data.exercises.map(exercise => {
+        const caloriesPerHour = exercise.duration_min ? (exercise.nf_calories / exercise.duration_min) * 60 : null;
+        return {
+          id: exercise.tag_id, // Using tag_id as a unique identifier for now
+          name: exercise.name || exercise.user_input, // Use user_input as fallback for name
+          category: "External", // Nutritionix doesn't provide categories in the same way as Wger
+          calories_per_hour: caloriesPerHour,
+          description: exercise.description || exercise.user_input,
+          duration_min: exercise.duration_min,
+          external_id: exercise.tag_id, // Store original external ID
+          source: "nutritionix",
+        };
+      });
+    }
+    return [];
+  } catch (error) {
+    log('error', `Error searching Nutritionix exercises with query "${query}" in nutritionixService:`, error);
+    throw error;
+  }
+}
+
 module.exports = {
   searchNutritionixFoods,
   getNutritionixNutrients,
   getNutritionixBrandedNutrients,
+  searchNutritionixExercises,
 };

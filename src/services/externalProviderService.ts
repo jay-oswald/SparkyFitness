@@ -14,15 +14,16 @@ export const getExternalDataProviders = async (): Promise<DataProvider[]> => {
   });
 };
 
-export const getProviderCategory = (provider: DataProvider): 'food' | 'exercise' | 'other' => {
+export const getProviderCategory = (provider: DataProvider): ('food' | 'exercise' | 'other')[] => {
   switch (provider.provider_type.toLowerCase()) { // Use provider.provider_type
     case 'wger':
-      return 'exercise';
+      return ['exercise'];
     case 'fatsecret':
     case 'openfoodfacts':
+      return ['food'];
     case 'nutritionix':
-      return 'food';
+      return ['food', 'exercise']; // Nutritionix supports both
     default:
-      return 'other';
+      return ['other'];
   }
 };

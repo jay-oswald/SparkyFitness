@@ -1,8 +1,10 @@
 const exerciseRepository = require('../models/exerciseRepository');
 const userRepository = require('../models/userRepository');
+const { v4: uuidv4 } = require('uuid'); // New import for UUID generation
 const { log } = require('../config/logging');
-const wgerService = require('../integrations/wger/wgerService'); // New import
-const measurementRepository = require('../models/measurementRepository'); // For fetching user weight
+const wgerService = require('../integrations/wger/wgerService');
+const nutritionixService = require('../integrations/nutritionix/nutritionixService');
+const measurementRepository = require('../models/measurementRepository');
 
 async function getExercisesWithPagination(authenticatedUserId, targetUserId, searchTerm, categoryFilter, ownershipFilter, currentPage, itemsPerPage) {
   try {
@@ -209,24 +211,23 @@ async function upsertExerciseEntryData(userId, exerciseId, caloriesBurned, date)
   }
 }
 
-async function searchExternalExercises(authenticatedUserId, query, provider) {
+async function searchExternalExercises(authenticatedUserId, query, providerId, providerType) {
   try {
     let exercises = [];
-    if (provider === 'wger') {
+    const latestMeasurement = await measurementRepository.getLatestMeasurement(authenticatedUserId);
+    const userWeightKg = (latestMeasurement && latestMeasurement.weight) ? latestMeasurement.weight : 70; // Default to 70kg
+
+    if (providerType === 'wger') {
       const wgerSearchResults = await wgerService.searchWgerExercises(query);
-      // Fetch details for each exercise to get the name and category name
-      const latestMeasurement = await measurementRepository.getLatestMeasurement(authenticatedUserId);
-      const userWeightKg = (latestMeasurement && latestMeasurement.weight) ? latestMeasurement.weight : 70; // Default to 70kg
 
       const detailedExercisesPromises = wgerSearchResults.map(async (wgerExercise) => {
         const details = await wgerService.getWgerExerciseDetails(wgerExercise.id);
 
-        let caloriesPerHour = 0; // Default value
+        let caloriesPerHour = 0;
         if (details.met && details.met > 0) {
           caloriesPerHour = Math.round((details.met * 3.5 * userWeightKg) / 200 * 60);
         }
 
-        // Use the name from translations if available, otherwise fallback to description or ID
         const exerciseName = (details.translations && details.translations.length > 0 && details.translations[0].name)
           ? details.translations[0].name
           : details.description || `Exercise ID: ${details.id}`;
@@ -236,16 +237,20 @@ async function searchExternalExercises(authenticatedUserId, query, provider) {
           name: exerciseName,
           category: details.category ? details.category.name : 'Uncategorized',
           calories_per_hour: caloriesPerHour,
-          description: details.description || exerciseName, // Use the derived exerciseName for description fallback
+          description: details.description || exerciseName,
         };
       });
       exercises = await Promise.all(detailedExercisesPromises);
+    } else if (providerType === 'nutritionix') {
+      // For Nutritionix, we are not using user demographics for now, as per user feedback.
+      const nutritionixSearchResults = await nutritionixService.searchNutritionixExercises(query, providerId);
+      exercises = nutritionixSearchResults;
     } else {
-      throw new Error(`Unsupported external exercise provider: ${provider}`);
+      throw new Error(`Unsupported external exercise provider: ${providerType}`);
     }
     return exercises;
   } catch (error) {
-    log('error', `Error searching external exercises with query "${query}" from provider "${provider}":`, error);
+    log('error', `Error searching external exercises with query "${query}" from provider "${providerType}":`, error);
     throw error;
   }
 }
@@ -299,6 +304,31 @@ async function addExternalExerciseToUserExercises(authenticatedUserId, wgerExerc
   }
 }
 
+async function addNutritionixExerciseToUserExercises(authenticatedUserId, nutritionixExerciseData) {
+  try {
+    const newExerciseId = uuidv4(); // Generate a new UUID for the local exercise
+
+    const exerciseData = {
+      id: newExerciseId,
+      name: nutritionixExerciseData.name,
+      category: nutritionixExerciseData.category || 'External',
+      calories_per_hour: nutritionixExerciseData.calories_per_hour,
+      description: nutritionixExerciseData.description,
+      user_id: authenticatedUserId,
+      is_custom: true, // Mark as custom as it's imported by the user
+      shared_with_public: false, // Imported exercises are private by default
+      source_external_id: nutritionixExerciseData.external_id.toString(), // Store original Nutritionix ID
+      source: 'nutritionix',
+    };
+
+    const newExercise = await exerciseRepository.createExercise(exerciseData);
+    return newExercise;
+  } catch (error) {
+    log('error', `Error adding Nutritionix exercise for user ${authenticatedUserId}:`, error);
+    throw error;
+  }
+}
+
 module.exports = {
   getExercisesWithPagination,
   searchExercises,
@@ -313,6 +343,7 @@ module.exports = {
   getExerciseEntriesByDate,
   getOrCreateActiveCaloriesExercise,
   upsertExerciseEntryData,
-  searchExternalExercises, // New export
-  addExternalExerciseToUserExercises, // New export
+  searchExternalExercises,
+  addExternalExerciseToUserExercises,
+  addNutritionixExerciseToUserExercises, // New export
 };

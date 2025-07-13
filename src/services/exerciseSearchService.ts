@@ -6,6 +6,7 @@ export interface Exercise {
   category: string;
   calories_per_hour: number;
   description?: string;
+  duration_min?: number; // Added duration_min
 }
 
 export const searchExercises = async (query: string): Promise<Exercise[]> => {
@@ -14,8 +15,8 @@ export const searchExercises = async (query: string): Promise<Exercise[]> => {
   });
 };
 
-export const searchExternalExercises = async (query: string, provider: string): Promise<Exercise[]> => {
-  return apiCall(`/exercises/search-external?query=${encodeURIComponent(query)}&provider=${encodeURIComponent(provider)}`, {
+export const searchExternalExercises = async (query: string, providerId: string, providerType: string): Promise<Exercise[]> => {
+  return apiCall(`/exercises/search-external?query=${encodeURIComponent(query)}&providerId=${encodeURIComponent(providerId)}&providerType=${encodeURIComponent(providerType)}`, {
     method: 'GET',
   });
 };
@@ -24,5 +25,12 @@ export const addExternalExerciseToUserExercises = async (wgerExerciseId: string)
   return apiCall(`/exercises/add-external`, {
     method: 'POST',
     body: JSON.stringify({ wgerExerciseId }),
+  });
+};
+
+export const addNutritionixExercise = async (nutritionixExerciseData: Exercise): Promise<Exercise> => {
+  return apiCall(`/exercises/add-nutritionix-exercise`, {
+    method: 'POST',
+    body: JSON.stringify(nutritionixExerciseData),
   });
 };

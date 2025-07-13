@@ -40,15 +40,15 @@ router.get('/search/:name', authenticateToken, authorizeAccess('exercise_list', 
 
 // Endpoint to search for exercises from Wger
 router.get('/search-external', authenticateToken, authorizeAccess('exercise_list', (req) => req.userId), async (req, res, next) => {
-  const { query, provider } = req.query; // Get provider from query
+  const { query, providerId, providerType } = req.query; // Get providerId and providerType from query
   if (!query) {
     return res.status(400).json({ error: 'Search query is required.' });
   }
-  if (!provider) {
-    return res.status(400).json({ error: 'Provider is required for external search.' });
+  if (!providerId || !providerType) {
+    return res.status(400).json({ error: 'Provider ID and Type are required for external search.' });
   }
   try {
-    const exercises = await exerciseService.searchExternalExercises(req.userId, query, provider); // Pass authenticatedUserId, query, and provider
+    const exercises = await exerciseService.searchExternalExercises(req.userId, query, providerId, providerType); // Pass authenticatedUserId, query, providerId, and providerType
     res.status(200).json(exercises);
   } catch (error) {
     next(error);
@@ -63,6 +63,20 @@ router.post('/add-external', authenticateToken, authorizeAccess('exercise_list')
   }
   try {
     const newExercise = await exerciseService.addExternalExerciseToUserExercises(req.userId, wgerExerciseId);
+    res.status(201).json(newExercise);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Endpoint to add a Nutritionix exercise to user's exercises
+router.post('/add-nutritionix-exercise', authenticateToken, authorizeAccess('exercise_list'), async (req, res, next) => {
+  const nutritionixExerciseData = req.body;
+  if (!nutritionixExerciseData) {
+    return res.status(400).json({ error: 'Nutritionix exercise data is required.' });
+  }
+  try {
+    const newExercise = await exerciseService.addNutritionixExerciseToUserExercises(req.userId, nutritionixExerciseData);
     res.status(201).json(newExercise);
   } catch (error) {
     next(error);

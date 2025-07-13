@@ -72,6 +72,32 @@ const ExerciseCard = ({ selectedDate, onExerciseChange }: ExerciseCardProps) => 
     }
   }, [currentUserId, selectedDate, _fetchExerciseEntries]);
 
+  useEffect(() => {
+    const performInternalSearch = async () => {
+      if (!currentUserId) return;
+
+      setSearchLoading(true);
+      try {
+        const results = await searchExercises(searchTerm, filterType);
+        setExercises(results);
+        info(loggingLevel, "Internal exercise search results:", results);
+      } catch (err) {
+        error(loggingLevel, "Error during internal exercise search:", err);
+      } finally {
+        setSearchLoading(false);
+      }
+    };
+
+    // Only perform search if searchMode is 'internal'
+    if (searchMode === 'internal') {
+      const delayDebounceFn = setTimeout(() => {
+        performInternalSearch();
+      }, 300); // Debounce search to avoid excessive API calls
+
+      return () => clearTimeout(delayDebounceFn);
+    }
+  }, [searchTerm, filterType, currentUserId, loggingLevel, searchMode]);
+
   const handleOpenAddDialog = () => {
     debug(loggingLevel, "Opening add exercise dialog.");
     setIsAddDialogOpen(true);
@@ -94,6 +120,11 @@ const ExerciseCard = ({ selectedDate, onExerciseChange }: ExerciseCardProps) => 
     debug(loggingLevel, "Exercise selected in search:", exercise.id);
     setSelectedExerciseId(exercise.id);
     setSelectedExercise(exercise); // Store the full exercise object
+    if (exercise.duration_min) {
+      setDuration(exercise.duration_min); // Pre-fill duration if available from external provider
+    } else {
+      setDuration(30); // Default to 30 minutes if not provided
+    }
   };
 
   const handleSubmit = async () => {
@@ -109,7 +140,7 @@ const ExerciseCard = ({ selectedDate, onExerciseChange }: ExerciseCardProps) => 
     }
 
     const caloriesPerHour = selectedExercise.calories_per_hour || 300;
-    const caloriesBurned = (caloriesPerHour / 60) * duration;
+    const caloriesBurned = Math.round((caloriesPerHour / 60) * duration);
     debug(loggingLevel, "Calculated calories burned:", caloriesBurned);
 
     try {
@@ -277,7 +308,7 @@ const ExerciseCard = ({ selectedDate, onExerciseChange }: ExerciseCardProps) => 
             <Tabs value={searchMode} onValueChange={(value) => setSearchMode(value as 'internal' | 'external')}>
               <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="internal">My Exercises</TabsTrigger>
-                <TabsTrigger value="external">External Database</TabsTrigger>
+                <TabsTrigger value="external">Online</TabsTrigger>
               </TabsList>
               <TabsContent value="internal" className="mt-4 space-y-4">
                 <div className="mb-4">
@@ -339,35 +370,38 @@ const ExerciseCard = ({ selectedDate, onExerciseChange }: ExerciseCardProps) => 
                 <ExerciseSearch onExerciseSelect={handleExerciseSelect} showInternalTab={false} /> {/* Now expects Exercise object */}
               </TabsContent>
             </Tabs>
-
-            <div className="mt-4">
-              <label htmlFor="duration" className="block text-gray-700 text-sm font-bold mb-2">
-                Duration (minutes):
-              </label>
-              <Input
-                type="number"
-                id="duration"
-                value={duration}
-                onChange={(e) => {
-                  debug(loggingLevel, "Exercise duration changed:", e.target.value);
-                  setDuration(Number(e.target.value));
-                }}
-              />
-            </div>
-            <div className="mt-4">
-              <label htmlFor="notes" className="block text-gray-700 text-sm font-bold mb-2">
-                Notes:
-              </label>
-              <textarea
-                id="notes"
-                className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                value={notes}
-                onChange={(e) => {
-                  debug(loggingLevel, "Exercise notes changed:", e.target.value);
-                  setNotes(e.target.value);
-                }}
-              />
-            </div>
+            {searchMode === 'internal' && (
+              <>
+                <div className="mt-4">
+                  <label htmlFor="duration" className="block text-gray-700 text-sm font-bold mb-2">
+                    Duration (minutes):
+                  </label>
+                  <Input
+                    type="number"
+                    id="duration"
+                    value={duration}
+                    onChange={(e) => {
+                      debug(loggingLevel, "Exercise duration changed:", e.target.value);
+                      setDuration(Number(e.target.value));
+                    }}
+                  />
+                </div>
+                <div className="mt-4">
+                  <label htmlFor="notes" className="block text-gray-700 text-sm font-bold mb-2">
+                    Notes:
+                  </label>
+                  <textarea
+                    id="notes"
+                    className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                    value={notes}
+                    onChange={(e) => {
+                      debug(loggingLevel, "Exercise notes changed:", e.target.value);
+                      setNotes(e.target.value);
+                    }}
+                  />
+                </div>
+              </>
+            )}
             <div className="items-center px-4 py-3">
               <Button
                 className="w-full"

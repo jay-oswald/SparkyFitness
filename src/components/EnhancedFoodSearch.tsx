@@ -497,7 +497,7 @@ const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
             </SelectTrigger>
             <SelectContent>
               {foodDataProviders
-                .filter(provider => getProviderCategory(provider) === 'food' && provider.is_active)
+                .filter(provider => getProviderCategory(provider).includes('food') && provider.is_active)
                 .map(provider => (
                   <SelectItem key={provider.id} value={provider.id}> {/* Use provider.id for value */}
                     {provider.provider_name} {/* Display provider name */}
