@@ -24,6 +24,7 @@ const healthDataRoutes = require('./integrations/healthData/healthDataRoutes');
 const authRoutes = require('./routes/authRoutes');
 const healthRoutes = require('./routes/healthRoutes');
 const externalProviderRoutes = require('./routes/externalProviderRoutes'); // Renamed import
+const openidRoutes = require('./openidRoutes');
 const { applyMigrations } = require('./utils/dbMigrations');
 const errorHandler = require('./middleware/errorHandler'); // Import the new error handler
 
@@ -42,14 +43,23 @@ app.use(cors({
 // Middleware to parse JSON bodies for all incoming requests
 app.use(express.json());
 
+const session = require('express-session');
+
+app.use(session({
+  secret: process.env.SESSION_SECRET ?? 'sparky_secret',
+  resave: false,
+  saveUninitialized: false,
+}));
+
 // Apply authentication middleware to all routes except auth
 app.use((req, res, next) => {
   if (req.path.startsWith('/auth/login') || req.path.startsWith('/auth/register')) {
     return next(); // Skip authentication for login and register
   }
   // If the request is for a route that doesn't require authentication, skip
-  const nonAuthRoutes = ['/some/other/public/route', '/health-data', '/health']; // Add any other public routes here
+  const nonAuthRoutes = ['/some/other/public/route', '/health-data', '/health', '/openid']; // Add any other public routes here
   if (nonAuthRoutes.some(route => req.path.startsWith(route))) {
+      console.log(`Skipping authentication for public route: ${req.path}`);
       return next();
   }
   authenticateToken(req, res, next);
@@ -74,7 +84,7 @@ app.use('/auth', authRoutes);
 app.use('/user', authRoutes);
 app.use('/health', healthRoutes);
 app.use('/external-providers', externalProviderRoutes); // Renamed route for generic data providers
-
+app.use('/openid', openidRoutes); // Import OpenID routes
 
 console.log('DEBUG: Attempting to start server...');
 applyMigrations().then(() => {
