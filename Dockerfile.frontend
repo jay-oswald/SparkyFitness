@@ -15,6 +15,9 @@ RUN npm run build
 # Stage 2: Serve the application with Nginx
 FROM nginx:alpine
 
+# Install bash for console access
+RUN apk add --no-cache bash
+
 # Copy the build output from the builder stage
 COPY --from=builder /app/dist /usr/share/nginx/html
 

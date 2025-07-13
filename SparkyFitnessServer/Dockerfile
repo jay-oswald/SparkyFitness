@@ -27,7 +27,7 @@ COPY --from=backend_deps /app/SparkyFitnessServer/node_modules ./node_modules
 EXPOSE 3010
 
 # Healthcheck
-HEALTHCHECK --interval=5s --timeout=10s --retries=5 CMD ["curl", "http://127.0.0.1:3010/health"]
+HEALTHCHECK --interval=5s --timeout=10s --retries=5 CMD ["/usr/bin/curl", "http://127.0.0.1:3010/health"]
 
 # Set default environment variables for the backend (can be overridden at runtime)
 ENV SPARKY_FITNESS_SERVER_PORT=3010

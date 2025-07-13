@@ -16,6 +16,9 @@ FROM node:20-slim
 
 WORKDIR /app/SparkyFitnessServer
 
+# Install curl for healthcheck
+RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
+
 # Copy installed node_modules from the builder stage
 COPY --from=backend_builder /app/SparkyFitnessServer/node_modules ./node_modules
 
@@ -26,7 +29,7 @@ COPY . .
 EXPOSE 3010
 
 # Healthcheck
-HEALTHCHECK --interval=5s --timeout=10s --retries=5 CMD ["curl", "http://127.0.0.1:3010/health"]
+HEALTHCHECK --interval=5s --timeout=10s --retries=5 CMD ["/usr/bin/curl", "http://127.0.0.1:3010/health"]
 
 # Command to run the backend server
 CMD ["node", "SparkyFitnessServer.js"]
