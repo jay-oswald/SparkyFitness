@@ -23,6 +23,7 @@ const exerciseEntryRoutes = require('./routes/exerciseEntryRoutes');
 const healthDataRoutes = require('./integrations/healthData/healthDataRoutes');
 const authRoutes = require('./routes/authRoutes');
 const healthRoutes = require('./routes/healthRoutes');
+const externalProviderRoutes = require('./routes/externalProviderRoutes'); // Renamed import
 const { applyMigrations } = require('./utils/dbMigrations');
 const errorHandler = require('./middleware/errorHandler'); // Import the new error handler
 
@@ -72,6 +73,7 @@ app.use('/health-data', healthDataRoutes);
 app.use('/auth', authRoutes);
 app.use('/user', authRoutes);
 app.use('/health', healthRoutes);
+app.use('/external-providers', externalProviderRoutes); // Renamed route for generic data providers
 
 
 console.log('DEBUG: Attempting to start server...');

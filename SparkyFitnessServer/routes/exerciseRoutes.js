@@ -38,6 +38,37 @@ router.get('/search/:name', authenticateToken, authorizeAccess('exercise_list', 
   }
 });
 
+// Endpoint to search for exercises from Wger
+router.get('/search-external', authenticateToken, authorizeAccess('exercise_list', (req) => req.userId), async (req, res, next) => {
+  const { query, provider } = req.query; // Get provider from query
+  if (!query) {
+    return res.status(400).json({ error: 'Search query is required.' });
+  }
+  if (!provider) {
+    return res.status(400).json({ error: 'Provider is required for external search.' });
+  }
+  try {
+    const exercises = await exerciseService.searchExternalExercises(req.userId, query, provider); // Pass authenticatedUserId, query, and provider
+    res.status(200).json(exercises);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Endpoint to add an external exercise to user's exercises
+router.post('/add-external', authenticateToken, authorizeAccess('exercise_list'), async (req, res, next) => {
+  const { wgerExerciseId } = req.body;
+  if (!wgerExerciseId) {
+    return res.status(400).json({ error: 'Wger exercise ID is required.' });
+  }
+  try {
+    const newExercise = await exerciseService.addExternalExerciseToUserExercises(req.userId, wgerExerciseId);
+    res.status(201).json(newExercise);
+  } catch (error) {
+    next(error);
+  }
+});
+
 
 // Endpoint to fetch an exercise by ID
 router.get('/:id', authenticateToken, authorizeAccess('exercise_list'), async (req, res, next) => {

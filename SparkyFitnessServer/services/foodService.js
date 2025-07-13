@@ -1,12 +1,13 @@
 const foodRepository = require('../models/foodRepository');
+const externalProviderService = require('./externalProviderService'); // Renamed import
 const userRepository = require('../models/userRepository'); // For authorization checks
 const mealService = require('./mealService');
 const { log } = require('../config/logging');
 const { getFatSecretAccessToken, foodNutrientCache, CACHE_DURATION_MS, FATSECRET_API_BASE_URL } = require('../integrations/fatsecret/fatsecretService');
 
-async function getFoodDataProviders(userId) {
+async function getFoodDataProviders(userId) { // This function will be removed from foodService later
   try {
-    const providers = await foodRepository.getFoodDataProviders(userId);
+    const providers = await externalProviderService.getExternalDataProviders(userId);
     return providers;
   } catch (error) {
     log('error', `Error fetching food data providers for user ${userId} in foodService:`, error);
@@ -14,9 +15,9 @@ async function getFoodDataProviders(userId) {
   }
 }
 
-async function getFoodDataProvidersForUser(authenticatedUserId, targetUserId) {
+async function getFoodDataProvidersForUser(authenticatedUserId, targetUserId) { // This function will be removed from foodService later
   try {
-    const providers = await foodRepository.getFoodDataProvidersByUserId(targetUserId);
+    const providers = await externalProviderService.getExternalDataProvidersForUser(authenticatedUserId, targetUserId);
     return providers;
   } catch (error) {
     log('error', `Error fetching food data providers for target user ${targetUserId} by ${authenticatedUserId} in foodService:`, error);
@@ -24,11 +25,9 @@ async function getFoodDataProvidersForUser(authenticatedUserId, targetUserId) {
   }
 }
 
-async function createFoodDataProvider(authenticatedUserId, providerData) {
+async function createFoodDataProvider(authenticatedUserId, providerData) { // This function will be removed from foodService later
   try {
-    // Ensure the authenticated user is the one creating the provider
-    providerData.user_id = authenticatedUserId;
-    const newProvider = await foodRepository.createFoodDataProvider(providerData);
+    const newProvider = await externalProviderService.createExternalDataProvider(authenticatedUserId, providerData);
     return newProvider;
   } catch (error) {
     log('error', `Error creating food data provider for user ${authenticatedUserId} in foodService:`, error);
@@ -36,16 +35,9 @@ async function createFoodDataProvider(authenticatedUserId, providerData) {
   }
 }
 
-async function updateFoodDataProvider(authenticatedUserId, providerId, updateData) {
+async function updateFoodDataProvider(authenticatedUserId, providerId, updateData) { // This function will be removed from foodService later
   try {
-    const isOwner = await foodRepository.checkFoodDataProviderOwnership(providerId, authenticatedUserId);
-    if (!isOwner) {
-      throw new Error("Forbidden: You do not have permission to update this food data provider.");
-    }
-    const updatedProvider = await foodRepository.updateFoodDataProvider(providerId, authenticatedUserId, updateData);
-    if (!updatedProvider) {
-      throw new Error('Food data provider not found or not authorized to update.');
-    }
+    const updatedProvider = await externalProviderService.updateExternalDataProvider(authenticatedUserId, providerId, updateData);
     return updatedProvider;
   } catch (error) {
     log('error', `Error updating food data provider ${providerId} by user ${authenticatedUserId} in foodService:`, error);
@@ -53,13 +45,9 @@ async function updateFoodDataProvider(authenticatedUserId, providerId, updateDat
   }
 }
 
-async function getFoodDataProviderDetails(authenticatedUserId, providerId) {
+async function getFoodDataProviderDetails(authenticatedUserId, providerId) { // This function will be removed from foodService later
   try {
-    const isOwner = await foodRepository.checkFoodDataProviderOwnership(providerId, authenticatedUserId);
-    if (!isOwner) {
-      throw new Error("Forbidden: You do not have permission to access this food data provider.");
-    }
-    const details = await foodRepository.getFoodDataProviderById(providerId);
+    const details = await externalProviderService.getExternalDataProviderDetails(authenticatedUserId, providerId);
     return details;
   } catch (error) {
     log('error', `Error fetching food data provider details for ${providerId} by user ${authenticatedUserId} in foodService:`, error);
@@ -67,17 +55,10 @@ async function getFoodDataProviderDetails(authenticatedUserId, providerId) {
   }
 }
  
-async function deleteFoodDataProvider(authenticatedUserId, providerId) {
+async function deleteFoodDataProvider(authenticatedUserId, providerId) { // This function will be removed from foodService later
   try {
-    const isOwner = await foodRepository.checkFoodDataProviderOwnership(providerId, authenticatedUserId);
-    if (!isOwner) {
-      throw new Error("Forbidden: You do not have permission to delete this food data provider.");
-    }
-    const success = await foodRepository.deleteFoodDataProvider(providerId);
-    if (!success) {
-      throw new Error('Food data provider not found or not authorized to delete.');
-    }
-    return true;
+    const success = await externalProviderService.deleteExternalDataProvider(authenticatedUserId, providerId);
+    return success;
   } catch (error) {
     log('error', `Error deleting food data provider ${providerId} by user ${authenticatedUserId} in foodService:`, error);
     throw error;

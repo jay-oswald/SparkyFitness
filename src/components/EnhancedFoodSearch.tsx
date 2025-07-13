@@ -10,13 +10,17 @@ import { toast } from '@/hooks/use-toast';
 import EnhancedCustomFoodForm from './EnhancedCustomFoodForm';
 import BarcodeScanner from './BarcodeScanner';
 import { usePreferences } from "@/contexts/PreferencesContext";
+import { debug, error } from '@/utils/logging'; // Import logging functions
 import { searchNutritionixFoods, getNutritionixNutrients, getNutritionixBrandedNutrients } from "@/services/NutritionixService";
+import { getMeals } from '@/services/mealService'; // Import getMeals
 import { searchFatSecretFoods, getFatSecretNutrients, FatSecretFoodItem } from "@/services/FatSecretService";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/hooks/useAuth";
 import { useActiveUser } from "@/contexts/ActiveUserContext";
 import { apiCall } from '@/services/api';
+import { getProviderCategory } from '@/services/externalProviderService'; // New import
 import { Food, FoodVariant } from '@/types/food';
+import { Meal } from '@/types/meal'; // Import Meal type
 
 
 interface OpenFoodFactsProduct {
@@ -42,7 +46,7 @@ interface EnhancedFoodSearchProps {
 const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
   const { user } = useAuth();
   const { activeUserId } = useActiveUser();
-  const { defaultFoodDataProviderId, setDefaultFoodDataProviderId } = usePreferences();
+  const { defaultFoodDataProviderId, setDefaultFoodDataProviderId, loggingLevel } = usePreferences(); // Get loggingLevel
   const [searchTerm, setSearchTerm] = useState('');
   const [foods, setFoods] = useState<Food[]>([]);
   const [meals, setMeals] = useState<Meal[]>([]); // New state for meal results
@@ -61,7 +65,7 @@ const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
   // Load food data providers and set default
   useEffect(() => {
     const loadFoodDataProviders = async () => {
-      const data = await apiCall(`/foods/food-data-providers`);
+      const data = await apiCall(`/external-providers`);
       const error = null; // apiCall handles errors internally with toast, so we can assume data is valid if no error is thrown
 
       if (error) {
@@ -92,7 +96,7 @@ const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
     }
     
     setLoading(true);
-    const data = await apiCall(`/foods?name=${encodeURIComponent(term)}&broadMatch=true`);
+    const data = await apiCall(`/foods?name=${encodeURIComponent(term)}&broadMatch=true`); // This is for internal food search, remains the same
     const error = null; // apiCall handles errors internally with toast, so we can assume data is valid if no error is thrown
 
     if (error) {
@@ -125,7 +129,7 @@ const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
     
     setLoading(true);
     try {
-      const data = await apiCall(`/foods/openfoodfacts/search?query=${encodeURIComponent(searchTerm)}`);
+      const data = await apiCall(`/foods/openfoodfacts/search?query=${encodeURIComponent(searchTerm)}`); // This is for OpenFoodFacts search, remains the same
       
       if (data.products) {
         setOpenFoodFactsResults(data.products.filter((p: any) =>
@@ -145,7 +149,7 @@ const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
   const searchOpenFoodFactsByBarcode = async (barcode: string) => {
    setLoading(true);
    try {
-     const data = await apiCall(`/foods/openfoodfacts/barcode/${barcode}`);
+     const data = await apiCall(`/foods/openfoodfacts/barcode/${barcode}`); // This is for OpenFoodFacts barcode search, remains the same
 
      if (data.status === 1 && data.product) {
        setOpenFoodFactsResults([data.product]);
@@ -178,7 +182,8 @@ const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
   };
 
   const convertOpenFoodFactsToFood = (product: OpenFoodFactsProduct): Food => {
-    const defaultVariant = {
+    const defaultVariant: FoodVariant = {
+      id: 'default', // Assign a default ID for now
       serving_size: 100,
       serving_unit: 'g',
       calories: Math.round(product.nutriments['energy-kcal_100g'] || 0),
@@ -267,7 +272,7 @@ const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
       try {
         const fetchedMeals = await getMeals(activeUserId!, true); // Fetch public meals
         setMeals(fetchedMeals.filter(meal => meal.name.toLowerCase().includes(searchTerm.toLowerCase())));
-      } catch (err) {
+      } catch (err: any) {
         error(loggingLevel, 'Error searching meals:', err);
       }
     } else if (activeTab === 'online') {
@@ -303,7 +308,8 @@ const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
   };
 
   const convertNutritionixToFood = (item: any, nutrientData: any): Food => {
-    const defaultVariant = {
+    const defaultVariant: FoodVariant = {
+      id: 'default', // Assign a default ID for now
       serving_size: nutrientData.serving_qty,
       serving_unit: nutrientData.serving_unit,
       calories: nutrientData.calories,
@@ -372,7 +378,8 @@ const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
   };
 
   const convertFatSecretToFood = (item: FatSecretFoodItem, nutrientData: any): Food => {
-    const defaultVariant = {
+    const defaultVariant: FoodVariant = {
+      id: 'default', // Assign a default ID for now
       serving_size: nutrientData.serving_qty,
       serving_unit: nutrientData.serving_unit,
       calories: nutrientData.calories,
@@ -489,11 +496,13 @@ const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
               <SelectValue placeholder="Select Provider" />
             </SelectTrigger>
             <SelectContent>
-              {foodDataProviders.map(provider => (
-                <SelectItem key={provider.id} value={provider.id}>
-                  {provider.provider_name}
-                </SelectItem>
-              ))}
+              {foodDataProviders
+                .filter(provider => getProviderCategory(provider) === 'food' && provider.is_active)
+                .map(provider => (
+                  <SelectItem key={provider.id} value={provider.id}> {/* Use provider.id for value */}
+                    {provider.provider_name} {/* Display provider name */}
+                  </SelectItem>
+                ))}
             </SelectContent>
           </Select>
         )}

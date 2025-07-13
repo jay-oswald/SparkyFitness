@@ -1,10 +1,10 @@
 const { log } = require('../../config/logging');
-const foodRepository = require('../../models/foodRepository');
+const externalProviderRepository = require('../../models/externalProviderRepository');
 
 const NUTRITIONIX_API_BASE_URL = "https://trackapi.nutritionix.com/v2";
 
 async function getNutritionixHeaders(providerId) {
-  const providerData = await foodRepository.getFoodDataProviderById(providerId);
+  const providerData = await externalProviderRepository.getExternalDataProviderById(providerId);
   if (!providerData || !providerData.app_id || !providerData.app_key) {
     throw new Error("Nutritionix provider not configured or keys missing.");
   }

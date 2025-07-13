@@ -16,12 +16,12 @@ import {
   fetchExerciseEntries,
   addExerciseEntry,
   deleteExerciseEntry,
-  searchExercises,
+  searchExercises, // Keep searchExercises for internal search
   ExerciseEntry,
-  Exercise,
 } from '@/services/exerciseEntryService';
-
-
+import ExerciseSearch from "./ExerciseSearch"; // New import for ExerciseSearch
+import { Exercise } from '@/services/exerciseSearchService'; // Import Exercise type from exerciseSearchService
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"; // New import for tabs
 
 interface ExerciseCardProps {
   selectedDate: string;
@@ -37,14 +37,16 @@ const ExerciseCard = ({ selectedDate, onExerciseChange }: ExerciseCardProps) => 
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const addDialogRef = useRef<HTMLDivElement>(null); // Declare addDialogRef
   const [selectedExerciseId, setSelectedExerciseId] = useState<string | null>(null);
+  const [selectedExercise, setSelectedExercise] = useState<Exercise | null>(null); // New state for selected exercise object
   const [duration, setDuration] = useState<number>(30);
   const [notes, setNotes] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [editingEntry, setEditingEntry] = useState<ExerciseEntry | null>(null);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [exercises, setExercises] = useState<Exercise[]>([]);
-  const [searchLoading, setSearchLoading] = useState(false);
-  const [filterType, setFilterType] = useState<string>("all");
+  const [searchTerm, setSearchTerm] = useState(""); // Keep for internal search
+  const [exercises, setExercises] = useState<Exercise[]>([]); // Keep for internal search
+  const [searchLoading, setSearchLoading] = useState(false); // Keep for internal search
+  const [filterType, setFilterType] = useState<string>("all"); // Keep for internal search
+  const [searchMode, setSearchMode] = useState<'internal' | 'external'>('internal'); // New state for search mode
 
   const currentUserId = activeUserId || user?.id;
   debug(loggingLevel, "Current user ID:", currentUserId);
@@ -63,83 +65,44 @@ const ExerciseCard = ({ selectedDate, onExerciseChange }: ExerciseCardProps) => 
     }
   }, [currentUserId, selectedDate, loggingLevel]);
 
-  const _searchExercises = useCallback(async (query: string) => {
-    debug(loggingLevel, "Searching exercises with query:", query);
-    setSearchLoading(true);
-    try {
-      const data = await searchExercises(query, filterType); // Use imported searchExercises
-      info(loggingLevel, "Exercises search results:", data);
-      setExercises(data || []);
-    } catch (err) {
-      error(loggingLevel, "Error searching exercises:", err);
-    } finally {
-      setSearchLoading(false);
-    }
-  }, [filterType, currentUserId, loggingLevel]); // Add filterType and currentUserId as dependencies
-
   useEffect(() => {
     debug(loggingLevel, "currentUserId or selectedDate useEffect triggered.", { currentUserId, selectedDate });
     if (currentUserId) {
       _fetchExerciseEntries();
     }
-  }, [currentUserId, selectedDate, _fetchExerciseEntries]); // Add _fetchExerciseEntries to dependency array
-
-  useEffect(() => {
-    debug(loggingLevel, "searchTerm, filterType, or isAddDialogOpen useEffect triggered.", { searchTerm, filterType, isAddDialogOpen });
-    const timeoutId = setTimeout(() => {
-      if (isAddDialogOpen && searchTerm.trim()) {
-        _searchExercises(searchTerm); // Call the memoized search function
-      } else {
-        setExercises([]);
-      }
-    }, 300);
-
-    return () => {
-      debug(loggingLevel, "Cleaning up search timeout.");
-      clearTimeout(timeoutId);
-    };
-  }, [searchTerm, filterType, isAddDialogOpen, _searchExercises]); // Add _searchExercises to dependency array
+  }, [currentUserId, selectedDate, _fetchExerciseEntries]);
 
   const handleOpenAddDialog = () => {
     debug(loggingLevel, "Opening add exercise dialog.");
     setIsAddDialogOpen(true);
-    setSearchTerm("");
-    setExercises([]);
+    setSelectedExerciseId(null); // Reset selected exercise
+    setSelectedExercise(null); // Reset selected exercise object
+    setDuration(30);
+    setNotes("");
   };
 
   const handleCloseAddDialog = () => {
     debug(loggingLevel, "Closing add exercise dialog.");
     setIsAddDialogOpen(false);
     setSelectedExerciseId(null);
+    setSelectedExercise(null);
     setDuration(30);
     setNotes("");
-    setSearchTerm("");
-    setExercises([]);
   };
 
-  const handleExerciseSelect = (exerciseId: string) => {
-    debug(loggingLevel, "Exercise selected in search:", exerciseId);
-    setSelectedExerciseId(exerciseId);
+  const handleExerciseSelect = (exercise: Exercise) => { // Modified to accept full Exercise object
+    debug(loggingLevel, "Exercise selected in search:", exercise.id);
+    setSelectedExerciseId(exercise.id);
+    setSelectedExercise(exercise); // Store the full exercise object
   };
 
   const handleSubmit = async () => {
     debug(loggingLevel, "Handling submit add exercise.");
-    if (!selectedExerciseId) {
+    if (!selectedExerciseId || !selectedExercise) { // Check for selectedExercise object
       warn(loggingLevel, "Submit called with no exercise selected.");
       toast({
         title: "Error",
         description: "Please select an exercise.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const selectedExercise = exercises.find(ex => ex.id === selectedExerciseId);
-    if (!selectedExercise) {
-      error(loggingLevel, "Selected exercise not found in state:", selectedExerciseId);
-      toast({
-        title: "Error",
-        description: "Exercise not found.",
         variant: "destructive",
       });
       return;
@@ -311,90 +274,99 @@ const ExerciseCard = ({ selectedDate, onExerciseChange }: ExerciseCardProps) => 
                 Add a new exercise entry for the selected date.
               </DialogDescription>
             </DialogHeader>
-            <div className="mt-2">
-              <div className="mb-4">
-                <Input
-                  type="text"
-                  placeholder="Search for exercises..."
-                  value={searchTerm}
-                  onChange={(e) => {
-                    debug(loggingLevel, "Exercise search term changed:", e.target.value);
-                    setSearchTerm(e.target.value);
-                  }}
-                  className="mb-2"
-                />
-                <Select value={filterType} onValueChange={(value) => {
-                  debug(loggingLevel, "Exercise filter type changed:", value);
-                  setFilterType(value);
-                }}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Filter exercises" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Exercises</SelectItem>
-                    <SelectItem value="my_own">My Own</SelectItem>
-                    <SelectItem value="family">Family</SelectItem>
-                    <SelectItem value="public">Public</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+            <Tabs value={searchMode} onValueChange={(value) => setSearchMode(value as 'internal' | 'external')}>
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="internal">My Exercises</TabsTrigger>
+                <TabsTrigger value="external">External Database</TabsTrigger>
+              </TabsList>
+              <TabsContent value="internal" className="mt-4 space-y-4">
+                <div className="mb-4">
+                  <Input
+                    type="text"
+                    placeholder="Search your exercises..."
+                    value={searchTerm}
+                    onChange={(e) => {
+                      debug(loggingLevel, "Exercise search term changed:", e.target.value);
+                      setSearchTerm(e.target.value);
+                    }}
+                    className="mb-2"
+                  />
+                  <Select value={filterType} onValueChange={(value) => {
+                    debug(loggingLevel, "Exercise filter type changed:", value);
+                    setFilterType(value);
+                  }}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Filter exercises" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Exercises</SelectItem>
+                      <SelectItem value="my_own">My Own</SelectItem>
+                      <SelectItem value="family">Family</SelectItem>
+                      <SelectItem value="public">Public</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
 
-              {searchLoading && <div>Searching...</div>}
+                {searchLoading && <div>Searching...</div>}
 
-              <div className="max-h-60 overflow-y-auto space-y-2 mb-4">
-                {exercises.map((exercise) => (
-                  <div
-                    key={exercise.id}
-                    className={`flex items-center justify-between p-3 border rounded-lg cursor-pointer ${
-                      selectedExerciseId === exercise.id ? 'bg-blue-100 border-blue-300' : 'hover:bg-gray-50'
-                    }`}
-                    onClick={() => handleExerciseSelect(exercise.id)}
-                  >
-                    <div>
-                      <div className="font-medium">{exercise.name}</div>
-                      <div className="text-sm text-gray-500">
-                        {exercise.category} • {exercise.calories_per_hour} cal/hour
+                <div className="max-h-60 overflow-y-auto space-y-2 mb-4">
+                  {exercises.map((exercise) => (
+                    <div
+                      key={exercise.id}
+                      className={`flex items-center justify-between p-3 border rounded-lg cursor-pointer ${
+                        selectedExerciseId === exercise.id ? 'bg-blue-100 border-blue-300' : 'hover:bg-gray-50'
+                      }`}
+                      onClick={() => handleExerciseSelect(exercise)}
+                    >
+                      <div>
+                        <div className="font-medium">{exercise.name}</div>
+                        <div className="text-sm text-gray-500">
+                          {exercise.category} • {exercise.calories_per_hour} cal/hour
+                        </div>
+                        {exercise.description && (
+                          <div className="text-xs text-gray-400">{exercise.description}</div>
+                        )}
                       </div>
-                      {exercise.description && (
-                        <div className="text-xs text-gray-400">{exercise.description}</div>
-                      )}
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
 
-              {searchTerm && !searchLoading && exercises.length === 0 && (
-                <div className="text-center text-gray-500 mb-4">No exercises found</div>
-              )}
+                {searchTerm && !searchLoading && exercises.length === 0 && (
+                  <div className="text-center text-gray-500 mb-4">No exercises found</div>
+                )}
+              </TabsContent>
+              <TabsContent value="external" className="mt-4 space-y-4">
+                <ExerciseSearch onExerciseSelect={handleExerciseSelect} showInternalTab={false} /> {/* Now expects Exercise object */}
+              </TabsContent>
+            </Tabs>
 
-              <div className="mt-4">
-                <label htmlFor="duration" className="block text-gray-700 text-sm font-bold mb-2">
-                  Duration (minutes):
-                </label>
-                <Input
-                  type="number"
-                  id="duration"
-                  value={duration}
-                  onChange={(e) => {
-                    debug(loggingLevel, "Exercise duration changed:", e.target.value);
-                    setDuration(Number(e.target.value));
-                  }}
-                />
-              </div>
-              <div className="mt-4">
-                <label htmlFor="notes" className="block text-gray-700 text-sm font-bold mb-2">
-                  Notes:
-                </label>
-                <textarea
-                  id="notes"
-                  className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                  value={notes}
-                  onChange={(e) => {
-                    debug(loggingLevel, "Exercise notes changed:", e.target.value);
-                    setNotes(e.target.value);
-                  }}
-                />
-              </div>
+            <div className="mt-4">
+              <label htmlFor="duration" className="block text-gray-700 text-sm font-bold mb-2">
+                Duration (minutes):
+              </label>
+              <Input
+                type="number"
+                id="duration"
+                value={duration}
+                onChange={(e) => {
+                  debug(loggingLevel, "Exercise duration changed:", e.target.value);
+                  setDuration(Number(e.target.value));
+                }}
+              />
+            </div>
+            <div className="mt-4">
+              <label htmlFor="notes" className="block text-gray-700 text-sm font-bold mb-2">
+                Notes:
+              </label>
+              <textarea
+                id="notes"
+                className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                value={notes}
+                onChange={(e) => {
+                  debug(loggingLevel, "Exercise notes changed:", e.target.value);
+                  setNotes(e.target.value);
+                }}
+              />
             </div>
             <div className="items-center px-4 py-3">
               <Button

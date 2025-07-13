@@ -460,7 +460,24 @@ module.exports = {
   upsertCustomMeasurement,
   deleteCustomMeasurement,
   getCustomMeasurementOwnerId,
+  getLatestMeasurement,
 };
+
+async function getLatestMeasurement(userId) {
+  const client = await pool.connect();
+  try {
+    const result = await client.query(
+      `SELECT weight FROM check_in_measurements
+       WHERE user_id = $1 AND weight IS NOT NULL
+       ORDER BY entry_date DESC, updated_at DESC
+       LIMIT 1`,
+      [userId]
+    );
+    return result.rows[0];
+  } finally {
+    client.release();
+  }
+}
 
 async function getCustomMeasurementOwnerId(id) {
   const client = await pool.connect();

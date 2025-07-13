@@ -9,7 +9,7 @@ const { searchNutritionixFoods, getNutritionixNutrients, getNutritionixBrandedNu
 
 router.use(express.json());
 
-// Middleware to get FatSecret API keys from Supabase
+// Middleware to get FatSecret API keys from Supabase - This middleware will be moved to a more generic place if needed for other providers
 router.use('/fatsecret', authenticateToken, async (req, res, next) => {
   const providerId = req.headers['x-provider-id'];
 
@@ -18,6 +18,7 @@ router.use('/fatsecret', authenticateToken, async (req, res, next) => {
   }
 
   try {
+    // This call will eventually go through the generic dataIntegrationService
     const providerDetails = await foodService.getFoodDataProviderDetails(req.userId, providerId);
     if (!providerDetails || !providerDetails.app_id || !providerDetails.app_key) {
       return next(new Error("Failed to retrieve FatSecret API keys. Please check provider configuration."));
@@ -33,95 +34,9 @@ router.use('/fatsecret', authenticateToken, async (req, res, next) => {
   }
 });
 
-router.get('/food-data-providers', authenticateToken, async (req, res, next) => {
-  try {
-    const providers = await foodService.getFoodDataProviders(req.userId);
-    res.status(200).json(providers);
-  } catch (error) {
-    next(error);
-  }
-});
+// Removed /food-data-providers routes as they are now handled by dataIntegrationRoutes.js
 
-router.get('/food-data-providers/user/:targetUserId', authenticateToken, authorizeAccess('food_list', (req) => req.params.targetUserId), async (req, res, next) => {
-  const { targetUserId } = req.params;
-  if (!targetUserId) {
-    return res.status(400).json({ error: "Missing target user ID" });
-  }
-  try {
-    const providers = await foodService.getFoodDataProvidersForUser(req.userId, targetUserId);
-    res.status(200).json(providers);
-  } catch (error) {
-    if (error.message.startsWith('Forbidden')) {
-      return res.status(403).json({ error: error.message });
-    }
-    next(error);
-  }
-});
-
-router.post('/food-data-providers', authenticateToken, async (req, res, next) => {
-  try {
-    const newProvider = await foodService.createFoodDataProvider(req.userId, req.body);
-    res.status(201).json(newProvider);
-  } catch (error) {
-    next(error);
-  }
-});
-
-router.put('/food-data-providers/:id', authenticateToken, async (req, res, next) => {
-  const { id } = req.params;
-  if (!id) {
-    return res.status(400).json({ error: 'Provider ID is required.' });
-  }
-  try {
-    const updatedProvider = await foodService.updateFoodDataProvider(req.userId, id, req.body);
-    res.status(200).json(updatedProvider);
-  } catch (error) {
-    if (error.message.startsWith('Forbidden')) {
-      return res.status(403).json({ error: error.message });
-    }
-    if (error.message === 'Food data provider not found or not authorized to update.') {
-      return res.status(404).json({ error: error.message });
-    }
-    next(error);
-  }
-});
- 
-router.delete('/food-data-providers/:id', authenticateToken, async (req, res, next) => {
-  const { id } = req.params;
-  if (!id) {
-    return res.status(400).json({ error: 'Provider ID is required.' });
-  }
-  try {
-    await foodService.deleteFoodDataProvider(req.userId, id);
-    res.status(200).json({ message: 'Food data provider deleted successfully.' });
-  } catch (error) {
-    if (error.message.startsWith('Forbidden')) {
-      return res.status(403).json({ error: error.message });
-    }
-    if (error.message === 'Food data provider not found or not authorized to delete.') {
-      return res.status(404).json({ error: error.message });
-    }
-    next(error);
-  }
-});
- 
-router.get('/food-data-providers/:id', authenticateToken, async (req, res, next) => {
-  const { id } = req.params;
-  if (!id) {
-    return res.status(400).json({ error: "Missing provider ID" });
-  }
-  try {
-    const providerDetails = await foodService.getFoodDataProviderDetails(req.userId, id);
-    res.status(200).json(providerDetails);
-  } catch (error) {
-    if (error.message.startsWith('Forbidden')) {
-      return res.status(403).json({ error: error.message });
-    }
-    next(error);
-  }
-});
-
-router.get('/fatsecret/search', async (req, res, next) => {
+router.get('/fatsecret/search', authenticateToken, async (req, res, next) => {
   const { query } = req.query;
   const { clientId, clientSecret } = req;
 
@@ -137,7 +52,7 @@ router.get('/fatsecret/search', async (req, res, next) => {
   }
 });
 
-router.get('/fatsecret/nutrients', async (req, res, next) => {
+router.get('/fatsecret/nutrients', authenticateToken, async (req, res, next) => {
   const { foodId } = req.query;
   const { clientId, clientSecret } = req;
 

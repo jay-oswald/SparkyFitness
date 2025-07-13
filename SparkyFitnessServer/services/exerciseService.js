@@ -1,6 +1,8 @@
 const exerciseRepository = require('../models/exerciseRepository');
 const userRepository = require('../models/userRepository');
 const { log } = require('../config/logging');
+const wgerService = require('../integrations/wger/wgerService'); // New import
+const measurementRepository = require('../models/measurementRepository'); // For fetching user weight
 
 async function getExercisesWithPagination(authenticatedUserId, targetUserId, searchTerm, categoryFilter, ownershipFilter, currentPage, itemsPerPage) {
   try {
@@ -207,6 +209,96 @@ async function upsertExerciseEntryData(userId, exerciseId, caloriesBurned, date)
   }
 }
 
+async function searchExternalExercises(authenticatedUserId, query, provider) {
+  try {
+    let exercises = [];
+    if (provider === 'wger') {
+      const wgerSearchResults = await wgerService.searchWgerExercises(query);
+      // Fetch details for each exercise to get the name and category name
+      const latestMeasurement = await measurementRepository.getLatestMeasurement(authenticatedUserId);
+      const userWeightKg = (latestMeasurement && latestMeasurement.weight) ? latestMeasurement.weight : 70; // Default to 70kg
+
+      const detailedExercisesPromises = wgerSearchResults.map(async (wgerExercise) => {
+        const details = await wgerService.getWgerExerciseDetails(wgerExercise.id);
+
+        let caloriesPerHour = 0; // Default value
+        if (details.met && details.met > 0) {
+          caloriesPerHour = Math.round((details.met * 3.5 * userWeightKg) / 200 * 60);
+        }
+
+        // Use the name from translations if available, otherwise fallback to description or ID
+        const exerciseName = (details.translations && details.translations.length > 0 && details.translations[0].name)
+          ? details.translations[0].name
+          : details.description || `Exercise ID: ${details.id}`;
+
+        return {
+          id: details.id.toString(),
+          name: exerciseName,
+          category: details.category ? details.category.name : 'Uncategorized',
+          calories_per_hour: caloriesPerHour,
+          description: details.description || exerciseName, // Use the derived exerciseName for description fallback
+        };
+      });
+      exercises = await Promise.all(detailedExercisesPromises);
+    } else {
+      throw new Error(`Unsupported external exercise provider: ${provider}`);
+    }
+    return exercises;
+  } catch (error) {
+    log('error', `Error searching external exercises with query "${query}" from provider "${provider}":`, error);
+    throw error;
+  }
+}
+
+async function addExternalExerciseToUserExercises(authenticatedUserId, wgerExerciseId) {
+  try {
+    const wgerExerciseDetails = await wgerService.getWgerExerciseDetails(wgerExerciseId);
+
+    if (!wgerExerciseDetails) {
+      throw new Error('Wger exercise not found.');
+    }
+
+    // Attempt to get a more descriptive name from the /exercise/ endpoint if available
+
+    // Calculate calories_per_hour
+    let caloriesPerHour = 300; // Default value if MET is not available or calculation fails
+    if (wgerExerciseDetails.met && wgerExerciseDetails.met > 0) {
+      let userWeightKg = 70; // Default to 70kg if user weight not found
+      const latestMeasurement = await measurementRepository.getLatestMeasurement(authenticatedUserId);
+      if (latestMeasurement && latestMeasurement.weight) {
+        userWeightKg = latestMeasurement.weight;
+      }
+
+      // Formula: METs * 3.5 * body weight in kg / 200 = calories burned per minute
+      // To get calories per hour: (METs * 3.5 * body weight in kg) / 200 * 60
+      caloriesPerHour = (wgerExerciseDetails.met * 3.5 * userWeightKg) / 200 * 60;
+      caloriesPerHour = Math.round(caloriesPerHour); // Round to nearest whole number
+    }
+
+    // Use the name from translations if available, otherwise fallback to description or ID
+    const exerciseName = (wgerExerciseDetails.translations && wgerExerciseDetails.translations.length > 0 && wgerExerciseDetails.translations[0].name)
+      ? wgerExerciseDetails.translations[0].name
+      : wgerExerciseDetails.description || `Wger Exercise ${wgerExerciseId}`;
+
+    const exerciseData = {
+      name: exerciseName,
+      category: wgerExerciseDetails.category ? wgerExerciseDetails.category.name : 'general',
+      calories_per_hour: caloriesPerHour,
+      description: wgerExerciseDetails.description || exerciseName, // Use the derived exerciseName for description fallback
+      user_id: authenticatedUserId,
+      is_custom: true, // Mark as custom as it's imported by the user
+      shared_with_public: false, // Imported exercises are private by default
+      source_external_id: wgerExerciseDetails.id.toString(), // Store wger ID
+    };
+
+    const newExercise = await exerciseRepository.createExercise(exerciseData);
+    return newExercise;
+  } catch (error) {
+    log('error', `Error adding external exercise ${wgerExerciseId} for user ${authenticatedUserId}:`, error);
+    throw error;
+  }
+}
+
 module.exports = {
   getExercisesWithPagination,
   searchExercises,
@@ -221,4 +313,6 @@ module.exports = {
   getExerciseEntriesByDate,
   getOrCreateActiveCaloriesExercise,
   upsertExerciseEntryData,
+  searchExternalExercises, // New export
+  addExternalExerciseToUserExercises, // New export
 };

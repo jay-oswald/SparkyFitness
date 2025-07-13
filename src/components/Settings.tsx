@@ -19,7 +19,7 @@ import { toast } from "@/hooks/use-toast";
 import FamilyAccessManager from "./FamilyAccessManager";
 import AIServiceSettings from "./AIServiceSettings";
 import CustomCategoryManager from "./CustomCategoryManager";
-import FoodDataProviderSettings from "./FoodDataProviderSettings"; // Import FoodDataProviderSettings
+import ExternalProviderSettings from "./ExternalProviderSettings"; // Import ExternalProviderSettings
 import { usePreferences } from "@/contexts/PreferencesContext"; // Import usePreferences
 import { parse } from "date-fns"; // Import parse for parsing user-entered date strings
 
@@ -630,7 +630,7 @@ const Settings = () => {
       />
 
       {/* Food Data Provider Settings */}
-      <FoodDataProviderSettings />
+      <ExternalProviderSettings />
 
       {/* AI Service Settings */}
       <AIServiceSettings />

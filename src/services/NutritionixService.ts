@@ -4,7 +4,7 @@ import { apiCall } from './api'; // Import apiCall
 // Function to fetch food data provider details from your backend
 const fetchFoodDataProvider = async (providerId: string) => {
   try {
-    const data = await apiCall(`/foods/food-data-providers/${providerId}`);
+    const data = await apiCall(`/external-providers/${providerId}`);
     return data;
   } catch (error) {
     console.error("Error fetching food data provider:", error);
