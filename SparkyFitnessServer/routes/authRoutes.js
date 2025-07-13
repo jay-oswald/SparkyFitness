@@ -34,6 +34,9 @@ router.post('/logout', (req, res) => {
 
 // Authentication Endpoints
 router.post('/register', registerValidation, async (req, res, next) => {
+  if (process.env.SPARKY_FITNESS_DISABLE_SIGNUP === 'true') {
+    return res.status(403).json({ error: 'New user registration is currently disabled.' });
+  }
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(400).json({ errors: errors.array() });

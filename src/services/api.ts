@@ -84,7 +84,7 @@ export async function apiCall(endpoint: string, options?: ApiCallOptions): Promi
       description: err.message || "Could not connect to the server.",
       variant: "destructive",
     });
-    throw error;
+    throw new Error(err.message);
   }
 }
 
