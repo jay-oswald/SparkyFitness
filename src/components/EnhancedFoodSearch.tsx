@@ -58,6 +58,7 @@ const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [editingProduct, setEditingProduct] = useState<OpenFoodFactsProduct | Food | null>(null);
   const [showBarcodeScanner, setShowBarcodeScanner] = useState(false);
+  const [showAddFoodDialog, setShowAddFoodDialog] = useState(false); // New state for Add Food dialog
   const [foodDataProviders, setFoodDataProviders] = useState<any[]>([]); // To store configured food data providers
   const [selectedFoodDataProvider, setSelectedFoodDataProvider] = useState<string | null>(null); // To store the ID of the selected provider
   const [hasOnlineSearchBeenPerformed, setHasOnlineSearchBeenPerformed] = useState(false);
@@ -466,6 +467,9 @@ const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
         >
           <Camera className="w-4 h-4 mr-2" /> Scan Barcode
         </Button>
+        <Button onClick={() => setShowAddFoodDialog(true)} className="whitespace-nowrap">
+          <Plus className="w-4 h-4 mr-2" /> Add New Food
+        </Button>
       </div>
 
       <div className="flex space-x-2 items-center">
@@ -703,6 +707,19 @@ const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
               onSave={handleSaveEditedFood}
             />
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Add New Food Dialog */}
+      <Dialog open={showAddFoodDialog} onOpenChange={setShowAddFoodDialog}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Add New Food</DialogTitle>
+            <DialogDescription>
+              Enter the details for a new food item to add to your database.
+            </DialogDescription>
+          </DialogHeader>
+          <EnhancedCustomFoodForm onSave={handleSaveEditedFood} />
         </DialogContent>
       </Dialog>
 
