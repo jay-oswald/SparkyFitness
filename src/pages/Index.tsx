@@ -260,7 +260,7 @@ const Index: React.FC<IndexProps> = ({ onShowAboutDialog }) => {
        </div>
        {/* Footer with Version Info */}
        <footer className="hidden sm:block text-center text-muted-foreground text-sm py-4">
-         <p>SparkyFitness v{appVersion}</p>
+         <p className="cursor-pointer underline" onClick={onShowAboutDialog}>SparkyFitness v{appVersion}</p>
        </footer>
      </div>
    );
