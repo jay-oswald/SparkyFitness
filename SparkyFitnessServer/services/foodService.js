@@ -681,6 +681,19 @@ async function copyFoodEntriesFromYesterday(authenticatedUserId, mealType, targe
   }
 }
 
+async function getDailyNutritionSummary(userId, date) {
+  try {
+    const summary = await foodRepository.getDailyNutritionSummary(userId, date);
+    if (!summary) {
+      throw new Error('Nutrition summary not found for this date.');
+    }
+    return summary;
+  } catch (error) {
+    log('error', `Error fetching daily nutrition summary for user ${userId} on ${date} in foodService:`, error);
+    throw error;
+  }
+}
+
 module.exports = {
   getFoodDataProviders,
   getFoodDataProvidersForUser,
@@ -710,5 +723,6 @@ module.exports = {
   deleteFoodDataProvider,
   addMealFoodsToDiary,
   copyFoodEntries,
-  copyFoodEntriesFromYesterday, // Add the new function to exports
+  copyFoodEntriesFromYesterday,
+  getDailyNutritionSummary, // Add the new function to exports
 };

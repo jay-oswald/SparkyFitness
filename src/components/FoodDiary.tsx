@@ -50,14 +50,14 @@ interface MealTotals {
 interface FoodDiaryProps {
   selectedDate: string;
   onDateChange: (date: string) => void;
+  refreshTrigger: number; // New prop for external refresh trigger
 }
 
-const FoodDiary = ({ selectedDate, onDateChange }: FoodDiaryProps) => {
+const FoodDiary = ({ selectedDate, onDateChange, refreshTrigger: externalRefreshTrigger }: FoodDiaryProps) => {
   const { activeUserId } = useActiveUser();
-  const { formatDate, formatDateInUserTimezone, parseDateInUserTimezone, loggingLevel } = usePreferences(); // Call usePreferences here
+  const { formatDate, formatDateInUserTimezone, parseDateInUserTimezone, loggingLevel } = usePreferences();
   debug(loggingLevel, "FoodDiary component rendered for date:", selectedDate);
   const [date, setDate] = useState<Date>(new Date(selectedDate));
-  const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [foodEntries, setFoodEntries] = useState<FoodEntry[]>([]);
   const [editingEntry, setEditingEntry] = useState<FoodEntry | null>(null);
   const [goals, setGoals] = useState<ExpandedGoals>({
@@ -125,12 +125,12 @@ const FoodDiary = ({ selectedDate, onDateChange }: FoodDiaryProps) => {
   }, [currentUserId, selectedDate, loggingLevel]); // Dependencies for _loadGoals
 
   useEffect(() => {
-    debug(loggingLevel, "currentUserId, selectedDate, refreshTrigger useEffect triggered.", { currentUserId, selectedDate, refreshTrigger });
+    debug(loggingLevel, "currentUserId, selectedDate, externalRefreshTrigger useEffect triggered.", { currentUserId, selectedDate, externalRefreshTrigger });
     if (currentUserId) {
       _loadFoodEntries();
       _loadGoals();
     }
-  }, [currentUserId, selectedDate, refreshTrigger, _loadFoodEntries, _loadGoals]); // Add memoized functions to dependency array
+  }, [currentUserId, selectedDate, externalRefreshTrigger, _loadFoodEntries, _loadGoals]);
 
   const getEntryNutrition = useCallback((entry: FoodEntry): MealTotals => {
     debug(loggingLevel, "Calculating entry nutrition for entry:", entry);
@@ -161,8 +161,9 @@ const FoodDiary = ({ selectedDate, onDateChange }: FoodDiaryProps) => {
 
   const handleDataChange = useCallback(() => {
     debug(loggingLevel, "Handling data change, triggering refresh.");
-    setRefreshTrigger(prev => prev + 1);
-  }, [debug, loggingLevel, setRefreshTrigger]);
+    _loadFoodEntries();
+    _loadGoals();
+  }, [debug, loggingLevel, _loadFoodEntries, _loadGoals]);
 
   const handleCopyClick = useCallback((mealType: string) => {
     setCopySourceMealType(mealType);
@@ -309,20 +310,6 @@ const FoodDiary = ({ selectedDate, onDateChange }: FoodDiaryProps) => {
   }, [debug, loggingLevel, handleDataChange]);
 
 
-  // Listen for global food diary refresh events
-  useEffect(() => {
-    debug(loggingLevel, "Setting up foodDiaryRefresh event listener.");
-    const handleRefresh = () => {
-      info(loggingLevel, "Received foodDiaryRefresh event, triggering refresh.");
-      setRefreshTrigger(prev => prev + 1);
-    };
-
-    window.addEventListener('foodDiaryRefresh', handleRefresh);
-    return () => {
-      debug(loggingLevel, "Cleaning up foodDiaryRefresh event listener.");
-      window.removeEventListener('foodDiaryRefresh', handleRefresh);
-    };
-  }, []);
 
   return (
     <div className="space-y-6">
@@ -384,7 +371,7 @@ const FoodDiary = ({ selectedDate, onDateChange }: FoodDiaryProps) => {
         dayTotals={dayTotals}
         goals={goals}
         onGoalsUpdated={handleDataChange}
-        refreshTrigger={refreshTrigger}
+        refreshTrigger={externalRefreshTrigger}
       />
 
       {/* Main Content - Meals and Exercise */}
@@ -400,7 +387,7 @@ const FoodDiary = ({ selectedDate, onDateChange }: FoodDiaryProps) => {
           onMealAdded={handleDataChange}
           onCopyClick={handleCopyClick} // Pass the new handler
           onCopyFromYesterday={handleCopyFromYesterday} // Pass the new handler
-          key={`breakfast-${refreshTrigger}`}
+          key={`breakfast-${externalRefreshTrigger}`}
         />
         <MealCard
           meal={{ ...getMealData("lunch"), selectedDate: selectedDate }}
@@ -413,7 +400,7 @@ const FoodDiary = ({ selectedDate, onDateChange }: FoodDiaryProps) => {
           onMealAdded={handleDataChange}
           onCopyClick={handleCopyClick} // Pass the new handler
           onCopyFromYesterday={handleCopyFromYesterday} // Pass the new handler
-          key={`lunch-${refreshTrigger}`}
+          key={`lunch-${externalRefreshTrigger}`}
         />
         <MealCard
           meal={{ ...getMealData("dinner"), selectedDate: selectedDate }}
@@ -426,7 +413,7 @@ const FoodDiary = ({ selectedDate, onDateChange }: FoodDiaryProps) => {
           onMealAdded={handleDataChange}
           onCopyClick={handleCopyClick} // Pass the new handler
           onCopyFromYesterday={handleCopyFromYesterday} // Pass the new handler
-          key={`dinner-${refreshTrigger}`}
+          key={`dinner-${externalRefreshTrigger}`}
         />
         <MealCard
           meal={{ ...getMealData("snacks"), selectedDate: selectedDate }}
@@ -439,14 +426,14 @@ const FoodDiary = ({ selectedDate, onDateChange }: FoodDiaryProps) => {
           onMealAdded={handleDataChange}
           onCopyClick={handleCopyClick} // Pass the new handler
           onCopyFromYesterday={handleCopyFromYesterday} // Pass the new handler
-          key={`snacks-${refreshTrigger}`}
+          key={`snacks-${externalRefreshTrigger}`}
         />
 
         {/* Exercise Section */}
         <ExerciseCard
           selectedDate={selectedDate}
           onExerciseChange={handleDataChange}
-          key={`exercise-${refreshTrigger}`}
+          key={`exercise-${externalRefreshTrigger}`}
         />
       </div>
 

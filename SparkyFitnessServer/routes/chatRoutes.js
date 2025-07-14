@@ -186,4 +186,17 @@ router.post('/save-history', authenticateToken, authorizeAccess('chat_history'),
   }
 });
 
+router.post('/food-options', authenticateToken, async (req, res, next) => {
+  const { foodName, unit, service_config } = req.body; // Destructure service_config
+  try {
+    const { content } = await chatService.processFoodOptionsRequest(foodName, unit, req.userId, service_config); // Pass service_config
+    return res.status(200).json({ content });
+  } catch (error) {
+    if (error.message.startsWith('AI service setting not found') || error.message.startsWith('API key missing') || error.message.startsWith('AI service configuration is missing')) {
+      return res.status(404).json({ error: error.message });
+    }
+    next(error);
+  }
+});
+
 module.exports = router;

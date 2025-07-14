@@ -49,6 +49,21 @@ export const getPreferences = async (): Promise<UserPreferences> => {
   }
 };
 
+export const getActiveAiServiceSetting = async (): Promise<AIService | null> => {
+  try {
+    const setting = await apiCall(`/chat/ai-service-settings/active`, {
+      method: 'GET',
+      suppress404Toast: true, // Suppress toast for 404
+    });
+    return setting;
+  } catch (err: any) {
+    if (err.message && err.message.includes('404')) {
+      return null;
+    }
+    throw err;
+  }
+};
+
 export const addAIService = async (serviceData: Partial<AIService>): Promise<AIService> => {
   return apiCall('/chat', {
     method: 'POST',

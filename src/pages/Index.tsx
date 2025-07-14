@@ -3,7 +3,7 @@ import { usePreferences } from "@/contexts/PreferencesContext";
 import { debug, info, warn, error } from '@/utils/logging';
 import { apiCall } from '@/services/api';
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import FoodDiary from "@/components/FoodDiary";
@@ -51,6 +51,22 @@ const Index: React.FC<IndexProps> = ({ onShowAboutDialog }) => {
    const { formatDateInUserTimezone } = usePreferences();
    const [selectedDate, setSelectedDate] = useState(formatDateInUserTimezone(new Date(), 'yyyy-MM-dd'));
    const [activeTab, setActiveTab] = useState<string>("");
+   const [foodDiaryRefreshTrigger, setFoodDiaryRefreshTrigger] = useState(0); // New state for FoodDiary refresh
+
+   // Listen for global foodDiaryRefresh events
+   useEffect(() => {
+     debug(loggingLevel, "Index: Setting up foodDiaryRefresh event listener.");
+     const handleRefresh = () => {
+       info(loggingLevel, "Index: Received foodDiaryRefresh event, triggering refresh.");
+       setFoodDiaryRefreshTrigger(prev => prev + 1);
+     };
+
+     window.addEventListener('foodDiaryRefresh', handleRefresh);
+     return () => {
+       debug(loggingLevel, "Index: Cleaning up foodDiaryRefresh event listener.");
+       window.removeEventListener('foodDiaryRefresh', handleRefresh);
+     };
+   }, [loggingLevel]);
  
    const handleSignOut = async () => {
      info(loggingLevel, "Index: Attempting to sign out.");
@@ -244,6 +260,7 @@ const Index: React.FC<IndexProps> = ({ onShowAboutDialog }) => {
                    <Component
                      selectedDate={selectedDate}
                      onDateChange={setSelectedDate}
+                     refreshTrigger={foodDiaryRefreshTrigger} // Pass the new refresh trigger
                    />
                  ) : value === "settings" ? (
                    <Component onShowAboutDialog={onShowAboutDialog} />

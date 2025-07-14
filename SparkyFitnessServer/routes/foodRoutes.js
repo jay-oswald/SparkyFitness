@@ -133,6 +133,29 @@ router.get('/nutritionix/item', authenticateToken, async (req, res, next) => {
   }
 });
 
+// AI-dedicated food search route to handle /api/foods/search
+router.get('/search', authenticateToken, authorizeAccess('food_list', (req) => req.userId), async (req, res, next) => {
+  const { name, exactMatch, broadMatch, checkCustom } = req.query;
+ 
+  if (!name) {
+    return res.status(400).json({ error: 'Food name is required.' });
+  }
+ 
+  try {
+    const foods = await foodService.searchFoods(req.userId, name, req.userId, exactMatch === 'true', broadMatch === 'true', checkCustom === 'true');
+    res.status(200).json(foods);
+  } catch (error) {
+    if (error.message.startsWith('Forbidden')) {
+      return res.status(403).json({ error: error.message });
+    }
+    if (error.message === 'Invalid search parameters.') {
+      return res.status(400).json({ error: error.message });
+    }
+    next(error);
+  }
+});
+
+// General food search route (should come before specific ID routes)
 router.get('/', authenticateToken, authorizeAccess('food_list', (req) => req.userId), async (req, res, next) => {
   const { name, exactMatch, broadMatch, checkCustom } = req.query;
  
@@ -310,6 +333,25 @@ router.get('/food-entries-range/:startDate/:endDate', authenticateToken, authori
   } catch (error) {
     if (error.message.startsWith('Forbidden')) {
       return res.status(403).json({ error: error.message });
+    }
+    next(error);
+  }
+});
+
+router.get('/nutrition/today', authenticateToken, authorizeAccess('food_log', (req) => req.userId), async (req, res, next) => {
+  const { date } = req.query;
+  if (!date) {
+    return res.status(400).json({ error: 'Date is required.' });
+  }
+  try {
+    const summary = await foodService.getDailyNutritionSummary(req.userId, date);
+    res.status(200).json(summary);
+  } catch (error) {
+    if (error.message.startsWith('Forbidden')) {
+      return res.status(403).json({ error: error.message });
+    }
+    if (error.message === 'Nutrition summary not found for this date.') {
+      return res.status(404).json({ error: error.message });
     }
     next(error);
   }

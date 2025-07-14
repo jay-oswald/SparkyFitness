@@ -1,4 +1,3 @@
-
 import { useState, useRef, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,6 +17,7 @@ import {
   Message,
   UserPreferences,
 } from '@/services/sparkyChatService';
+import { getActiveAiServiceSetting, AIService } from '@/services/aiServiceSettingsService';
 
 
 const SparkyChatInterface = () => {
@@ -27,6 +27,7 @@ const SparkyChatInterface = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
   const [userPreferences, setUserPreferences] = useState<any>(null); // State to store user preferences
+  const [activeAIServiceSetting, setActiveAIServiceSetting] = useState<AIService | null>(null); // State to store active AI service setting
   const [selectedImage, setSelectedImage] = useState<File | null>(null); // State to store the selected image file
   const coachRef = useRef<any>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
@@ -35,6 +36,7 @@ const SparkyChatInterface = () => {
   useEffect(() => {
     
     loadUserPreferencesAndHistory();
+    loadActiveAIServiceSetting(); // Load active AI service setting
   }, []);
 
   // Auto-scroll to bottom when new messages are added
@@ -74,7 +76,7 @@ const SparkyChatInterface = () => {
       if (coachRef.current) {
         setIsLoading(true);
         try {
-          await coachRef.current.clearHistory('manual'); // Call clear history function
+          await clearChatHistory('manual'); // Call clear history function
           setMessages([]); // Clear local state
           toast({
             title: "Chat Cleared",
@@ -118,6 +120,20 @@ const SparkyChatInterface = () => {
     setIsInitialized(true);
   };
 
+  const loadActiveAIServiceSetting = async () => {
+    try {
+      const setting = await getActiveAiServiceSetting();
+      setActiveAIServiceSetting(setting);
+    } catch (err) {
+      console.error('Error loading active AI service setting:', err);
+      toast({
+        title: "Error",
+        description: "Failed to load active AI service setting. Please configure it in settings.",
+        variant: "destructive",
+      });
+    }
+  };
+
 
   const initializeChat = async () => {
     // Prevent multiple initializations
@@ -125,26 +141,11 @@ const SparkyChatInterface = () => {
       return;
     }
 
-    // The check for coachRef.current is now handled in the useEffect
-    // if (!coachRef.current) {
-    //   setTimeout(() => {
-    //     if (!isInitialized) {
-    //       initializeChat();
-    //     }
-    //   }, 500);
-    //   return;
-    // }
-
     setIsLoading(true);
     try {
       const today = new Date().toISOString().split('T')[0];
       const nutritionData = await getTodaysNutrition(today);
       
-      // Only add welcome message if no messages were loaded from history AND messages state is still empty
-      // This prevents adding the welcome message if history was loaded but was empty
-      
-      // Only add welcome message if no messages were loaded from history AND messages state is still empty
-      // This prevents adding the welcome message if history was loaded but was empty
       if (messages.length === 0) {
         if (nutritionData && nutritionData.analysis) {
           const welcomeMessage: Message = {
@@ -166,7 +167,6 @@ const SparkyChatInterface = () => {
       } else {
         // If messages were loaded from history, do not add a welcome message.
       }
-      // setIsInitialized(true); // Moved to loadUserPreferencesAndHistory
     } catch (error) {
       console.error('SparkyChatInterface: Error initializing chat:', error);
       // Only add error message if no messages exist after loading history
@@ -179,7 +179,6 @@ const SparkyChatInterface = () => {
         };
         setMessages([errorMessage]);
       }
-      // setIsInitialized(true); // Moved to loadUserPreferencesAndHistory
     } finally {
       setIsLoading(false);
     }
@@ -188,12 +187,10 @@ const SparkyChatInterface = () => {
   const handleSendMessage = async () => {
     if (!inputValue.trim() || isLoading) return;
 
-    // Check if coach is ready
-    if (!coachRef.current) {
-      error(userPreferences?.logging_level || 'INFO', 'SparkyChatInterface: Coach is not ready');
+    if (!activeAIServiceSetting) {
       toast({
         title: "Error",
-        description: "AI coach is not ready yet. Please try again in a moment.",
+        description: "No active AI service configured. Please go to settings to set one up.",
         variant: "destructive",
       });
       return;
@@ -232,7 +229,16 @@ const SparkyChatInterface = () => {
         };
         setMessages(prev => [...prev, userMessageWithImage]);
         
-        response = await processUserInput(inputValue.trim(), selectedImage, transactionId);
+        response = await processUserInput(
+          inputValue.trim(),
+          selectedImage,
+          transactionId,
+          null, // lastBotMessageMetadata is not used for initial input
+          userPreferences?.logging_level || 'INFO',
+          formatDateInUserTimezone,
+          activeAIServiceSetting, // Pass the active AI service setting
+          messages // Pass the messages array
+        );
         setSelectedImage(null); // Clear the selected image after sending
         
       } else {
@@ -248,14 +254,41 @@ const SparkyChatInterface = () => {
           if (lastBotMessage?.metadata?.foodOptions) {
             const optionIndex = parseInt(numberMatch[1]) - 1;
             info(userPreferences?.logging_level || 'INFO', `[${transactionId}] Processing food option selection:`, optionIndex, lastBotMessage.metadata);
-            response = await processUserInput(currentInput, null, transactionId, lastBotMessage.metadata);
+            response = await processUserInput(
+              currentInput,
+              null,
+              transactionId,
+              lastBotMessage.metadata,
+              userPreferences?.logging_level || 'INFO',
+              formatDateInUserTimezone,
+              activeAIServiceSetting, // Pass the active AI service setting
+              messages // Pass the messages array
+            );
           } else {
             info(userPreferences?.logging_level || 'INFO', `[${transactionId}] No food options metadata found on last bot message, processing as new input.`);
-            response = await processUserInput(currentInput, null, transactionId);
+            response = await processUserInput(
+              currentInput,
+              null,
+              transactionId,
+              null, // No lastBotMessageMetadata
+              userPreferences?.logging_level || 'INFO',
+              formatDateInUserTimezone,
+              activeAIServiceSetting, // Pass the active AI service setting
+              messages // Pass the messages array
+            );
           }
         } else {
           info(userPreferences?.logging_level || 'INFO', `[${transactionId}] Processing input as new request:`, currentInput);
-          response = await processUserInput(currentInput, null, transactionId);
+          response = await processUserInput(
+            currentInput,
+            null,
+            transactionId,
+            null, // No lastBotMessageMetadata
+            userPreferences?.logging_level || 'INFO',
+            formatDateInUserTimezone,
+            activeAIServiceSetting, // Pass the active AI service setting
+            messages // Pass the messages array
+          );
         }
       }
       
@@ -270,9 +303,20 @@ const SparkyChatInterface = () => {
           case 'food_added':
           case 'exercise_added':
           case 'measurement_added':
+          case 'log_water': // Added log_water to trigger refresh
             // For successful logging actions, display the confirmation message from the coach
             botMessageContent = response.response || 'Entry logged successfully!';
-            // Trigger data refresh after a short delay
+            
+            // Immediately trigger a refresh for the relevant component
+            if (response.action === 'food_added' || response.action === 'log_water') {
+              window.dispatchEvent(new Event('foodDiaryRefresh'));
+            } else if (response.action === 'exercise_added') {
+              window.dispatchEvent(new Event('exerciseDiaryRefresh'));
+            } else if (response.action === 'measurement_added') {
+              window.dispatchEvent(new Event('measurementsRefresh'));
+            }
+
+            // Trigger data refresh for nutrition analysis after a short delay
             setTimeout(async () => {
               try {
                 info(userPreferences?.logging_level || 'INFO', `[${transactionId}] Triggering data refresh after logging.`);
@@ -286,10 +330,6 @@ const SparkyChatInterface = () => {
                     timestamp: new Date()
                   };
                   setMessages(prev => [...prev, updateMessage]);
-                  
-                  // Trigger global data refresh (e.g., food diary, measurements)
-                  window.dispatchEvent(new Event('foodDiaryRefresh'));
-                  window.dispatchEvent(new Event('measurementsRefresh'));
                 }
               } catch (error) {
                 console.error('SparkyChatInterface: Error refreshing data after logging:', error);
@@ -417,11 +457,11 @@ const SparkyChatInterface = () => {
               >
                 <div
                   dangerouslySetInnerHTML={{
-                    __html: formatMessage(message) // Pass the whole message object
+                    __html: formatMessage(message)
                   }}
                 />
                 <div className="text-xs opacity-70 mt-1">
-                  {formatDateInUserTimezone(message.timestamp, 'p')} {/* Format time using user's timezone */}
+                  {message.timestamp && !isNaN(message.timestamp.getTime()) ? formatDateInUserTimezone(message.timestamp, 'p') : 'Invalid Date'}
                 </div>
               </div>
             </div>
@@ -436,7 +476,7 @@ const SparkyChatInterface = () => {
           )}
         </div>
       </ScrollArea>
-
+      
       <div className="p-4 border-t">
         {/* Image Preview */}
         {selectedImage && (
@@ -503,4 +543,3 @@ const SparkyChatInterface = () => {
 };
 
 export default SparkyChatInterface;
-

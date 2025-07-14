@@ -129,7 +129,7 @@ export const processFoodInput = async (data: {
       info(userLoggingLevel, 'Inserting food entry...');
       let insertError = null;
       try {
-        await apiCall('/food-entries', {
+        await apiCall('/foods/food-entries', {
           method: 'POST',
           body: {
             food_id: food.id,
@@ -322,7 +322,7 @@ export const addFoodOption = async (optionIndex: number, originalMetadata: any, 
           };
         }
         foodId = newFood.id;
-        // No variantId needed here, as the main food entry serves as the base unit.
+        variantId = newFood.default_variant.id; // Set variantId to the ID of the newly created default variant
     }
 
     // Then, add it to the diary
@@ -337,7 +337,7 @@ export const addFoodOption = async (optionIndex: number, originalMetadata: any, 
     });
     let entryError = null;
     try {
-      await apiCall('/food-entries', {
+      await apiCall('/foods/food-entries', {
         method: 'POST',
         body: {
           food_id: foodId,

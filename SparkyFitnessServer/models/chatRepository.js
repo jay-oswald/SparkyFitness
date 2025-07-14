@@ -147,7 +147,7 @@ async function getChatHistoryByUserId(userId) {
   const client = await pool.connect();
   try {
     const result = await client.query(
-      'SELECT content, message_type FROM sparky_chat_history WHERE user_id = $1 ORDER BY created_at ASC LIMIT 5',
+      'SELECT content, message_type, created_at FROM sparky_chat_history WHERE user_id = $1 ORDER BY created_at ASC LIMIT 5',
       [userId]
     );
     return result.rows;

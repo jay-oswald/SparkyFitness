@@ -973,8 +973,29 @@ module.exports = {
   deleteFoodEntriesByTemplateId,
   createFoodEntriesFromTemplate,
   getFoodDataProviderById,
-  getFoodEntryByDetails, // Add the new function to exports
+  getFoodEntryByDetails,
+  getDailyNutritionSummary, // Add the new function to exports
 };
+
+async function getDailyNutritionSummary(userId, date) {
+  const client = await pool.connect();
+  try {
+    const result = await client.query(
+      `SELECT
+        SUM(fv.calories * fe.quantity / fv.serving_size) AS total_calories,
+        SUM(fv.protein * fe.quantity / fv.serving_size) AS total_protein,
+        SUM(fv.carbs * fe.quantity / fv.serving_size) AS total_carbs,
+        SUM(fv.fat * fe.quantity / fv.serving_size) AS total_fat
+       FROM food_entries fe
+       JOIN food_variants fv ON fe.variant_id = fv.id
+       WHERE fe.user_id = $1 AND fe.entry_date = $2`,
+      [userId, date]
+    );
+    return result.rows[0];
+  } finally {
+    client.release();
+  }
+}
 
 async function getFoodEntryByDetails(userId, foodId, mealType, entryDate, variantId) {
   const client = await pool.connect();
