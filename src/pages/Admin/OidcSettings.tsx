@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { oidcSettingsService, type OidcSettings } from '../../services/oidcSettingsService';
 import { toast } from '@/hooks/use-toast';
+import { ClipboardCopy } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
@@ -255,14 +256,43 @@ const OidcSettings: React.FC = () => {
                 {/* Redirect URI Information */}
                 <div className="col-span-4 text-sm text-muted-foreground mt-2">
                   <p>
-                    The Redirect URI (Callback URL) for your OIDC provider should be: <code className="font-mono bg-gray-100 p-1 rounded">[Your App Base URL]/openid/callback</code>
+                    The Redirect URI (Callback URL) for your OIDC provider should be: <code className="font-mono bg-gray-100 p-1 rounded">[Your App Base URL]/oidc-callback</code>
                   </p>
                   <p className="mt-1">
-                    For example: <code className="font-mono bg-gray-100 p-1 rounded">http://localhost:3010/openid/callback</code> or <code className="font-mono bg-gray-100 p-1 rounded">https://fit.domain.com/openid/callback</code>
+                    For example: <code className="font-mono bg-gray-100 p-1 rounded">https://fit.domain.com/oidc-callback</code>
                   </p>
                   <p className="mt-1">
                     Ensure your OIDC provider allows <code>localhost</code> or your local IP for development.
                   </p>
+                  <p className="mt-2">
+                    If using a proxy like Nginx Proxy Manager, ensure the following headers are configured:
+                  </p>
+                  <div className="relative group">
+                    <pre id="proxy-config-code" className="bg-gray-100 p-2 rounded text-xs overflow-x-auto">
+                      <code>
+                        proxy_set_header Host $host;<br/>
+                        proxy_set_header X-Real-IP $remote_addr;<br/>
+                        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;<br/>
+                        proxy_set_header X-Forwarded-Proto $scheme;
+                      </code>
+                    </pre>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={() => {
+                        const codeBlock = document.getElementById('proxy-config-code');
+                        if (codeBlock) {
+                          // Replace <br/> with newlines for proper copying
+                          const textToCopy = codeBlock.innerText.replace(/<br\/>/g, '\n');
+                          navigator.clipboard.writeText(textToCopy);
+                          toast({ title: "Copied!", description: "Proxy configuration copied to clipboard." });
+                        }
+                      }}
+                    >
+                      <ClipboardCopy className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
 
                 {/* Action Buttons */}
