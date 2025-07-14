@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
-import { Plus, Edit, Trash2, Settings } from "lucide-react";
+import { Plus, Edit, Trash2, Settings, Copy, History, Utensils, ClipboardCopy } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useState } from "react";
 import EnhancedFoodSearch from "./EnhancedFoodSearch";
@@ -14,9 +14,10 @@ import { debug, info, warn, error } from '@/utils/logging'; // Import logging ut
 
 import { Food, FoodVariant, FoodEntry } from '@/types/food';
 
-import { Meal as MealType } from '@/types/meal'; // Import MealType from types/meal.d.ts
+// import { Meal as MealType } from '@/types/meal'; // No longer needed as we define Meal directly
 
-interface Meal extends MealType { // Extend the imported MealType
+interface Meal {
+  name: string; // Add name property
   type: string;
   entries: FoodEntry[];
   targetCalories?: number;
@@ -39,6 +40,8 @@ interface MealCardProps {
   onRemoveEntry: (entryId: string) => void;
   getEntryNutrition: (entry: FoodEntry) => MealTotals;
   onMealAdded: () => void; // Add onMealAdded to MealCardProps
+  onCopyClick: (mealType: string) => void; // New prop for custom copy
+  onCopyFromYesterday: (mealType: string) => void; // New prop for copy from yesterday
 }
 
 const MealCard = ({
@@ -49,7 +52,9 @@ const MealCard = ({
   onEditFood,
   onRemoveEntry,
   getEntryNutrition,
-  onMealAdded
+  onMealAdded,
+  onCopyClick, // Destructure new prop
+  onCopyFromYesterday // Destructure new prop
 }: MealCardProps) => {
   const { user } = useAuth();
   const { loggingLevel } = usePreferences(); // Get logging level
@@ -79,19 +84,21 @@ const MealCard = ({
     <>
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between gap-4">
-            <CardTitle className="text-lg sm:text-xl">{meal.name}</CardTitle>
-            <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2 sm:gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-4">
+            <div className="flex items-center gap-2">
+              <CardTitle className="text-lg sm:text-xl">{meal.name}</CardTitle>
               {meal.targetCalories && (
                 <span className="text-xs sm:text-sm text-gray-500">
                   {Math.round(totals.calories)} / {meal.targetCalories} cal
                 </span>
               )}
+            </div>
+            <div className="flex flex-wrap gap-2 sm:gap-4 justify-end">
               <Dialog>
                 <DialogTrigger asChild>
-                  <Button size="sm" onClick={() => debug(loggingLevel, `MealCard: Add Food button clicked for ${meal.name}.`)}>
+                  <Button size="default" onClick={() => debug(loggingLevel, `MealCard: Add Food button clicked for ${meal.name}.`)} title="Add a new food item">
                     <Plus className="w-4 h-4 mr-1" />
-                    Add Food
+                    <Utensils className="w-4 h-4" />
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
@@ -114,6 +121,21 @@ const MealCard = ({
                 selectedDate={meal.selectedDate}
                 onMealAdded={onMealAdded}
               />
+              {/* Existing clock icon would go here if it were part of this component */}
+              <Button
+                size="default"
+                onClick={() => onCopyClick(meal.type)}
+                title="Copy food entries from this meal to clipboard"
+              >
+                <ClipboardCopy className="w-4 h-4" />
+              </Button>
+              <Button
+                size="default"
+                onClick={() => onCopyFromYesterday(meal.type)}
+                title="Copy food entries from yesterday's meal"
+              >
+                <History className="w-4 h-4" />
+              </Button>
             </div>
           </div>
         </CardHeader>

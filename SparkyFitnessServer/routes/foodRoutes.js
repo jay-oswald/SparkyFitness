@@ -196,6 +196,39 @@ router.post('/food-entries/add-meal', authenticateToken, authorizeAccess('food_l
     next(error);
   }
 });
+
+router.post('/food-entries/copy', authenticateToken, authorizeAccess('food_log'), async (req, res, next) => {
+  try {
+    const { sourceDate, sourceMealType, targetDate, targetMealType } = req.body;
+    if (!sourceDate || !sourceMealType || !targetDate || !targetMealType) {
+      return res.status(400).json({ error: 'sourceDate, sourceMealType, targetDate, and targetMealType are required.' });
+    }
+    const copiedEntries = await foodService.copyFoodEntries(req.userId, sourceDate, sourceMealType, targetDate, targetMealType);
+    res.status(201).json(copiedEntries);
+  } catch (error) {
+    if (error.message.startsWith('Forbidden')) {
+      return res.status(403).json({ error: error.message });
+    }
+    next(error);
+  }
+});
+
+router.post('/food-entries/copy-yesterday', authenticateToken, authorizeAccess('food_log'), async (req, res, next) => {
+  try {
+    const { mealType, targetDate } = req.body;
+    if (!mealType || !targetDate) {
+      return res.status(400).json({ error: 'mealType and targetDate are required.' });
+    }
+    const copiedEntries = await foodService.copyFoodEntriesFromYesterday(req.userId, mealType, targetDate);
+    res.status(201).json(copiedEntries);
+  } catch (error) {
+    if (error.message.startsWith('Forbidden')) {
+      return res.status(403).json({ error: error.message });
+    }
+    next(error);
+  }
+});
+
 router.put('/food-entries/:id', authenticateToken, authorizeAccess('food_log'), async (req, res, next) => {
   const { id } = req.params;
   if (!id) {

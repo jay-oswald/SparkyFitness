@@ -227,9 +227,9 @@ const ExerciseCard = ({ selectedDate, onExerciseChange }: ExerciseCardProps) => 
       <CardHeader>
         <div className="flex justify-between items-center">
           <CardTitle>Exercise</CardTitle>
-          <Button size="sm" onClick={handleOpenAddDialog}>
+          <Button size="default" onClick={handleOpenAddDialog}>
             <Plus className="w-4 h-4 mr-1" />
-            Add Exercise
+            <Dumbbell className="w-4 h-4" />
           </Button>
         </div>
       </CardHeader>
@@ -404,11 +404,11 @@ const ExerciseCard = ({ selectedDate, onExerciseChange }: ExerciseCardProps) => 
             )}
             <div className="items-center px-4 py-3">
               <Button
-                className="w-full"
+                size="default"
                 onClick={handleSubmit}
                 disabled={!selectedExerciseId}
               >
-                Add
+                <Plus className="w-4 h-4" />
               </Button>
               <Button variant="ghost" className="mt-2 px-4 py-2 text-gray-500 text-base font-medium rounded-md w-full shadow-sm hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-300" onClick={handleCloseAddDialog}>
                 Cancel

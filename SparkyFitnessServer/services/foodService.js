@@ -573,6 +573,114 @@ async function addMealFoodsToDiary(authenticatedUserId, mealId, mealType, entryD
   }
 }
 
+async function copyFoodEntries(authenticatedUserId, sourceDate, sourceMealType, targetDate, targetMealType) {
+  try {
+    // 1. Fetch source entries
+    const sourceEntries = await foodRepository.getFoodEntriesByDateAndMealType(authenticatedUserId, sourceDate, sourceMealType);
+
+    if (sourceEntries.length === 0) {
+      log('info', `No food entries found for ${sourceMealType} on ${sourceDate} for user ${authenticatedUserId}. No entries to copy.`);
+      return [];
+    }
+
+    const entriesToCreate = [];
+    for (const entry of sourceEntries) {
+      // Check for existing entry to prevent duplicates
+      const existingEntry = await foodRepository.getFoodEntryByDetails(
+        authenticatedUserId,
+        entry.food_id,
+        targetMealType,
+        targetDate,
+        entry.variant_id
+      );
+
+      if (!existingEntry) {
+        entriesToCreate.push({
+          user_id: authenticatedUserId,
+          food_id: entry.food_id,
+          meal_type: targetMealType,
+          quantity: entry.quantity,
+          unit: entry.unit,
+          entry_date: targetDate,
+          variant_id: entry.variant_id,
+          meal_plan_template_id: null, // Copied entries are not part of a template
+        });
+      } else {
+        log('info', `Skipping duplicate food entry for food_id ${entry.food_id} in ${targetMealType} on ${targetDate}.`);
+      }
+    }
+
+    if (entriesToCreate.length === 0) {
+      log('info', `All food entries from ${sourceMealType} on ${sourceDate} already exist in ${targetMealType} on ${targetDate}. No new entries created.`);
+      return [];
+    }
+
+    // 3. Bulk insert new entries
+    const newEntries = await foodRepository.bulkCreateFoodEntries(entriesToCreate);
+    log('info', `Successfully copied ${newEntries.length} new food entries from ${sourceMealType} on ${sourceDate} to ${targetMealType} on ${targetDate} for user ${authenticatedUserId}.`);
+    return newEntries;
+  } catch (error) {
+    log('error', `Error copying food entries for user ${authenticatedUserId} from ${sourceDate} ${sourceMealType} to ${targetDate} ${targetMealType}:`, error);
+    throw error;
+  }
+}
+
+async function copyFoodEntriesFromYesterday(authenticatedUserId, mealType, targetDate) {
+  try {
+    const priorDay = new Date(targetDate);
+    priorDay.setDate(priorDay.getDate() - 1);
+    const sourceDate = priorDay.toISOString().split('T')[0]; // Format as YYYY-MM-DD
+
+    // 1. Fetch source entries from the prior day for the specified meal type
+    const sourceEntries = await foodRepository.getFoodEntriesByDateAndMealType(authenticatedUserId, sourceDate, mealType);
+
+    if (sourceEntries.length === 0) {
+      log('info', `No food entries found for ${mealType} on ${sourceDate} for user ${authenticatedUserId}. No entries to copy.`);
+      return [];
+    }
+
+    const entriesToCreate = [];
+    for (const entry of sourceEntries) {
+      // Check for existing entry to prevent duplicates
+      const existingEntry = await foodRepository.getFoodEntryByDetails(
+        authenticatedUserId,
+        entry.food_id,
+        mealType,
+        targetDate,
+        entry.variant_id
+      );
+
+      if (!existingEntry) {
+        entriesToCreate.push({
+          user_id: authenticatedUserId,
+          food_id: entry.food_id,
+          meal_type: mealType, // Keep the same meal type
+          quantity: entry.quantity,
+          unit: entry.unit,
+          entry_date: targetDate, // Set to targetDate
+          variant_id: entry.variant_id,
+          meal_plan_template_id: null, // Copied entries are not part of a template
+        });
+      } else {
+        log('info', `Skipping duplicate food entry for food_id ${entry.food_id} in ${mealType} on ${targetDate}.`);
+      }
+    }
+
+    if (entriesToCreate.length === 0) {
+      log('info', `All food entries from prior day's ${mealType} already exist in ${targetDate} ${mealType}. No new entries created.`);
+      return [];
+    }
+
+    // 3. Bulk insert new entries
+    const newEntries = await foodRepository.bulkCreateFoodEntries(entriesToCreate);
+    log('info', `Successfully copied ${newEntries.length} new food entries from prior day's ${mealType} to ${targetDate} ${mealType} for user ${authenticatedUserId}.`);
+    return newEntries;
+  } catch (error) {
+    log('error', `Error copying food entries from prior day for user ${authenticatedUserId} to ${targetDate} ${mealType}:`, error);
+    throw error;
+  }
+}
+
 module.exports = {
   getFoodDataProviders,
   getFoodDataProvidersForUser,
@@ -601,4 +709,6 @@ module.exports = {
   bulkCreateFoodVariants,
   deleteFoodDataProvider,
   addMealFoodsToDiary,
+  copyFoodEntries,
+  copyFoodEntriesFromYesterday, // Add the new function to exports
 };

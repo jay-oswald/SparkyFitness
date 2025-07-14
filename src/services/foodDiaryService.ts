@@ -73,3 +73,17 @@ export const removeFoodEntry = async (entryId: string): Promise<void> => {
     method: 'DELETE',
   });
 };
+
+export const copyFoodEntries = async (sourceDate: string, sourceMealType: string, targetDate: string, targetMealType: string): Promise<FoodEntry[]> => {
+  return apiCall('/foods/food-entries/copy', {
+    method: 'POST',
+    body: { sourceDate, sourceMealType, targetDate, targetMealType },
+  });
+};
+
+export const copyFoodEntriesFromYesterday = async (mealType: string, targetDate: string): Promise<FoodEntry[]> => {
+  return apiCall('/foods/food-entries/copy-yesterday', {
+    method: 'POST',
+    body: { mealType, targetDate },
+  });
+};

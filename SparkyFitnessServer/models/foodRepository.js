@@ -598,6 +598,54 @@ async function getFoodEntriesByDate(userId, selectedDate) {
   }
 }
 
+async function getFoodEntriesByDateAndMealType(userId, date, mealType) {
+  const client = await pool.connect();
+  try {
+    const result = await client.query(
+      `SELECT
+        fe.id, fe.food_id, fe.meal_type, fe.quantity, fe.unit, fe.variant_id, fe.entry_date, fe.meal_plan_template_id,
+        json_build_object(
+          'id', f.id,
+          'name', f.name,
+          'brand', f.brand,
+          'is_custom', f.is_custom,
+          'user_id', f.user_id,
+          'shared_with_public', f.shared_with_public
+        ) AS foods,
+        json_build_object(
+          'id', fv.id,
+          'serving_size', fv.serving_size,
+          'serving_unit', fv.serving_unit,
+          'calories', fv.calories,
+          'protein', fv.protein,
+          'carbs', fv.carbs,
+          'fat', fv.fat,
+          'saturated_fat', fv.saturated_fat,
+          'polyunsaturated_fat', fv.polyunsaturated_fat,
+          'monounsaturated_fat', fv.monounsaturated_fat,
+          'trans_fat', fv.trans_fat,
+          'cholesterol', fv.cholesterol,
+          'sodium', fv.sodium,
+          'potassium', fv.potassium,
+          'dietary_fiber', fv.dietary_fiber,
+          'sugars', fv.sugars,
+          'vitamin_a', fv.vitamin_a,
+          'vitamin_c', fv.vitamin_c,
+          'calcium', fv.calcium,
+          'iron', fv.iron
+        ) AS food_variants
+       FROM food_entries fe
+       JOIN foods f ON fe.food_id = f.id
+       JOIN food_variants fv ON fe.variant_id = fv.id
+       WHERE fe.user_id = $1 AND fe.entry_date = $2 AND fe.meal_type = $3`,
+      [userId, date, mealType]
+    );
+    return result.rows;
+  } finally {
+    client.release();
+  }
+}
+
 async function getFoodEntriesByDateRange(userId, startDate, endDate) {
   const client = await pool.connect();
   try {
@@ -857,6 +905,32 @@ async function createFoodEntriesFromTemplate(templateId, userId, currentClientDa
     }
 }
 
+async function bulkCreateFoodEntries(entriesData) {
+  const client = await pool.connect();
+  try {
+    const query = `
+      INSERT INTO food_entries (user_id, food_id, meal_type, quantity, unit, entry_date, variant_id, meal_plan_template_id)
+      VALUES %L RETURNING *`;
+
+    const values = entriesData.map(entry => [
+      entry.user_id,
+      entry.food_id,
+      entry.meal_type,
+      entry.quantity,
+      entry.unit,
+      entry.entry_date,
+      entry.variant_id,
+      entry.meal_plan_template_id || null // meal_plan_template_id can be null
+    ]);
+
+    const formattedQuery = format(query, values);
+    const result = await client.query(formattedQuery);
+    return result.rows;
+  } finally {
+    client.release();
+  }
+}
+
 async function getFoodDataProviderById(providerId) {
   const client = await pool.connect();
   try {
@@ -890,11 +964,32 @@ module.exports = {
   updateFoodEntry,
   deleteFoodEntry,
   getFoodEntriesByDate,
+  getFoodEntriesByDateAndMealType, // Add this new function to the exports
   getFoodEntriesByDateRange,
   findFoodByNameAndBrand,
   bulkCreateFoodVariants,
+  bulkCreateFoodEntries, // Add this new function to the exports
   deleteFoodEntriesByMealPlanId,
   deleteFoodEntriesByTemplateId,
   createFoodEntriesFromTemplate,
   getFoodDataProviderById,
+  getFoodEntryByDetails, // Add the new function to exports
 };
+
+async function getFoodEntryByDetails(userId, foodId, mealType, entryDate, variantId) {
+  const client = await pool.connect();
+  try {
+    const result = await client.query(
+      `SELECT id FROM food_entries
+       WHERE user_id = $1
+         AND food_id = $2
+         AND meal_type = $3
+         AND entry_date = $4
+         AND variant_id = $5`,
+      [userId, foodId, mealType, entryDate, variantId]
+    );
+    return result.rows[0]; // Returns the entry if found, otherwise undefined
+  } finally {
+    client.release();
+  }
+}

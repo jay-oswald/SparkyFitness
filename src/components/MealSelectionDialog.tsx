@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
+import { Plus, BookText } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useActiveUser } from "@/contexts/ActiveUserContext";
@@ -103,9 +103,9 @@ const MealSelectionDialog: React.FC<MealSelectionDialogProps> = ({ mealType, sel
   return (
     <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
       <DialogTrigger asChild>
-        <Button size="sm">
+        <Button size="default" title="Add a pre-defined meal">
           <Plus className="w-4 h-4 mr-1" />
-          Add Meal
+          <BookText className="w-4 h-4" />
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[600px]">

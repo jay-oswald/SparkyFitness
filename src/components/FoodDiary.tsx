@@ -14,6 +14,7 @@ import ExerciseCard from "./ExerciseCard";
 import EditFoodEntryDialog from "./EditFoodEntryDialog";
 import EnhancedCustomFoodForm from "./EnhancedCustomFoodForm";
 import FoodUnitSelector from "./FoodUnitSelector";
+import CopyFoodEntryDialog from "./CopyFoodEntryDialog"; // Import the new dialog component
 import { debug, info, warn, error } from '@/utils/logging'; // Import logging utility
 import { calculateFoodEntryNutrition } from '@/utils/nutritionCalculations'; // Import the new utility function
 import { toast } from "@/hooks/use-toast"; // Import toast
@@ -22,6 +23,8 @@ import {
   loadGoals,
   addFoodEntry,
   removeFoodEntry,
+  copyFoodEntries, // Import the new copy function
+  copyFoodEntriesFromYesterday, // Import the new copy from yesterday function
 } from '@/services/foodDiaryService';
 import { Food, FoodVariant, FoodEntry } from '@/types/food';
 import { ExpandedGoals } from '@/types/goals'; // Import ExpandedGoals
@@ -29,11 +32,12 @@ import { ExpandedGoals } from '@/types/goals'; // Import ExpandedGoals
 
 import { Meal as MealType } from '@/types/meal'; // Import MealType from types/meal.d.ts
 
-interface Meal extends MealType { // Extend the imported MealType
+interface Meal {
   name: string;
   type: string;
   entries: FoodEntry[];
   targetCalories?: number;
+  selectedDate?: string; // Add selectedDate as it's passed to MealCard
 }
 
 interface MealTotals {
@@ -68,6 +72,8 @@ const FoodDiary = ({ selectedDate, onDateChange }: FoodDiaryProps) => {
   const [selectedFood, setSelectedFood] = useState<Food | null>(null);
   const [selectedMealType, setSelectedMealType] = useState<string>("");
   const [isUnitSelectorOpen, setIsUnitSelectorOpen] = useState(false);
+  const [isCopyDialogOpen, setIsCopyDialogOpen] = useState(false); // State for copy dialog
+  const [copySourceMealType, setCopySourceMealType] = useState<string>(""); // State to hold the meal type from which copy was initiated
 
   const currentUserId = activeUserId;
   debug(loggingLevel, "Current user ID:", currentUserId);
@@ -153,6 +159,59 @@ const FoodDiary = ({ selectedDate, onDateChange }: FoodDiaryProps) => {
     };
   }, [foodEntries, goals, loggingLevel]);
 
+  const handleDataChange = useCallback(() => {
+    debug(loggingLevel, "Handling data change, triggering refresh.");
+    setRefreshTrigger(prev => prev + 1);
+  }, [debug, loggingLevel, setRefreshTrigger]);
+
+  const handleCopyClick = useCallback((mealType: string) => {
+    setCopySourceMealType(mealType);
+    setIsCopyDialogOpen(true);
+    debug(loggingLevel, "Opening copy dialog for meal type:", mealType);
+  }, [debug, loggingLevel]);
+
+  const handleCopyFoodEntries = useCallback(async (targetDate: string, targetMealType: string) => {
+    debug(loggingLevel, "Attempting to copy food entries.", { selectedDate, copySourceMealType, targetDate, targetMealType });
+    try {
+      await copyFoodEntries(selectedDate, copySourceMealType, targetDate, targetMealType);
+      info(loggingLevel, "Food entries copied successfully.");
+      toast({
+        title: "Success",
+        description: "Food entries copied successfully",
+      });
+      handleDataChange(); // Refresh data after copy
+    } catch (err) {
+      error(loggingLevel, "Error copying food entries:", err);
+      toast({
+        title: "Error",
+        description: "Failed to copy food entries.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsCopyDialogOpen(false);
+    }
+  }, [selectedDate, copySourceMealType, handleDataChange, info, loggingLevel, toast, error]);
+
+  const handleCopyFromYesterday = useCallback(async (mealType: string) => {
+    debug(loggingLevel, "Attempting to copy food entries from yesterday.", { selectedDate, mealType });
+    try {
+      await copyFoodEntriesFromYesterday(mealType, selectedDate);
+      info(loggingLevel, "Food entries copied from yesterday successfully.");
+      toast({
+        title: "Success",
+        description: "Food entries copied from yesterday successfully",
+      });
+      handleDataChange(); // Refresh data after copy
+    } catch (err) {
+      error(loggingLevel, "Error copying food entries from yesterday:", err);
+      toast({
+        title: "Error",
+        description: "Failed to copy food entries from yesterday.",
+        variant: "destructive",
+      });
+    }
+  }, [selectedDate, handleDataChange, info, loggingLevel, toast, error]);
+
   const getMealTotals = useCallback((mealType: string): MealTotals => {
     debug(loggingLevel, "Calculating meal totals for meal type:", mealType);
     const entries = foodEntries.filter(entry => entry.meal_type === mealType);
@@ -191,11 +250,6 @@ const FoodDiary = ({ selectedDate, onDateChange }: FoodDiaryProps) => {
     nextDay.setDate(nextDay.getDate() + 1);
     handleDateSelect(nextDay);
   }, [debug, loggingLevel, date, handleDateSelect]);
-
-  const handleDataChange = useCallback(() => {
-    debug(loggingLevel, "Handling data change, triggering refresh.");
-    setRefreshTrigger(prev => prev + 1);
-  }, [debug, loggingLevel, setRefreshTrigger]);
 
   const handleFoodSelect = useCallback((food: Food, mealType: string) => {
     debug(loggingLevel, "Handling food select:", { food, mealType });
@@ -344,6 +398,8 @@ const FoodDiary = ({ selectedDate, onDateChange }: FoodDiaryProps) => {
           onRemoveEntry={handleRemoveEntry}
           getEntryNutrition={getEntryNutrition}
           onMealAdded={handleDataChange}
+          onCopyClick={handleCopyClick} // Pass the new handler
+          onCopyFromYesterday={handleCopyFromYesterday} // Pass the new handler
           key={`breakfast-${refreshTrigger}`}
         />
         <MealCard
@@ -355,6 +411,8 @@ const FoodDiary = ({ selectedDate, onDateChange }: FoodDiaryProps) => {
           onRemoveEntry={handleRemoveEntry}
           getEntryNutrition={getEntryNutrition}
           onMealAdded={handleDataChange}
+          onCopyClick={handleCopyClick} // Pass the new handler
+          onCopyFromYesterday={handleCopyFromYesterday} // Pass the new handler
           key={`lunch-${refreshTrigger}`}
         />
         <MealCard
@@ -366,6 +424,8 @@ const FoodDiary = ({ selectedDate, onDateChange }: FoodDiaryProps) => {
           onRemoveEntry={handleRemoveEntry}
           getEntryNutrition={getEntryNutrition}
           onMealAdded={handleDataChange}
+          onCopyClick={handleCopyClick} // Pass the new handler
+          onCopyFromYesterday={handleCopyFromYesterday} // Pass the new handler
           key={`dinner-${refreshTrigger}`}
         />
         <MealCard
@@ -377,6 +437,8 @@ const FoodDiary = ({ selectedDate, onDateChange }: FoodDiaryProps) => {
           onRemoveEntry={handleRemoveEntry}
           getEntryNutrition={getEntryNutrition}
           onMealAdded={handleDataChange}
+          onCopyClick={handleCopyClick} // Pass the new handler
+          onCopyFromYesterday={handleCopyFromYesterday} // Pass the new handler
           key={`snacks-${refreshTrigger}`}
         />
 
@@ -409,6 +471,15 @@ const FoodDiary = ({ selectedDate, onDateChange }: FoodDiaryProps) => {
         />
       )}
 
+      {/* Copy Food Entry Dialog */}
+      {isCopyDialogOpen && (
+        <CopyFoodEntryDialog
+          isOpen={isCopyDialogOpen}
+          onClose={() => setIsCopyDialogOpen(false)}
+          onCopy={handleCopyFoodEntries}
+          sourceMealType={copySourceMealType}
+        />
+      )}
     </div>
   );
 };
