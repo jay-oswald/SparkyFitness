@@ -111,6 +111,8 @@ To get the SparkyFitness application running on your local machine, follow these
 1.  **Configure Environment Variables:**
 
     Create a `.env` file in the root directory. Copy the template from the example `.env` file and update it with your settings. Refer to the WIKI for the existing configuration that I used. Try not to change the port as they may not work properly with initial releases until the project is stable.
+
+    *   **Admin Panel URL:** To enable the Admin panel and configure OIDC settings, ensure the `SPARKY_FITNESS_ADMIN_EMAIL` environment variable is set to the appropriate URL for your Admin panel.
     
 
 2.  **Run with Docker Compose:**
