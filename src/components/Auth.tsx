@@ -10,7 +10,7 @@ import { toast } from "@/hooks/use-toast";
 import { Zap } from "lucide-react";
 import { usePreferences } from "@/contexts/PreferencesContext";
 import { debug, info, warn, error } from '@/utils/logging';
-import { registerUser, loginUser } from '@/services/authService';
+import { registerUser, loginUser, initiateOidcLogin } from '@/services/authService';
 import { useAuth } from "@/hooks/useAuth";
 import { AuthResponse } from "../types"; // Import AuthResponse type
 
@@ -61,14 +61,13 @@ const Auth = () => {
    setLoading(true);
 
    try {
-     const data: AuthResponse = await registerUser(email, password, fullName);
+     const data: any = await registerUser(email, password, fullName);
      info(loggingLevel, "Auth: Sign up successful.");
      toast({
        title: "Success",
        description: "Account created successfully!",
      });
-     signIn(data.userId, email, data.token); // Pass token to signIn
-     navigate("/"); // Navigate to home page after successful sign up
+     signIn(data.userId, email, data.token, data.role); // Pass token and role to signIn
    } catch (err: any) {
      error(loggingLevel, "Auth: Sign up failed:", err);
      toast({
@@ -89,14 +88,13 @@ const Auth = () => {
    setLoading(true);
 
    try {
-     const data: AuthResponse = await loginUser(email, password);
+     const data: any = await loginUser(email, password);
      info(loggingLevel, "Auth: Sign in successful.");
      toast({
        title: "Success",
        description: "Logged in successfully!",
      });
-     signIn(data.userId, email, data.token); // Pass token to signIn
-     navigate("/"); // Navigate to home page after successful sign in
+     signIn(data.userId, email, data.token, data.role); // Pass token and role to signIn
    } catch (err: any) {
      error(loggingLevel, "Auth: Sign in failed:", err);
      toast({
@@ -183,6 +181,23 @@ const Auth = () => {
                  {loading ? "Signing in..." : "Sign In"}
                </Button>
              </form>
+             <div className="relative my-6">
+               <div className="absolute inset-0 flex items-center">
+                 <span className="w-full border-t" />
+               </div>
+               <div className="relative flex justify-center text-xs uppercase">
+                 <span className="bg-background px-2 text-muted-foreground">
+                   Or continue with
+                 </span>
+               </div>
+             </div>
+             <Button
+               variant="outline"
+               className="w-full"
+               onClick={initiateOidcLogin}
+             >
+               Sign In with OIDC
+             </Button>
            </TabsContent>
            
            <TabsContent value="signup">

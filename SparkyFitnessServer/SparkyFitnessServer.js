@@ -1,7 +1,6 @@
 const path = require('path');
 const fs = require('fs');
 require('dotenv').config({ path: path.resolve(__dirname, '../.env') }); // Load .env from root directory
-
 const express = require('express');
 const cors = require('cors'); // Added this line
 const pool = require('./db/connection');
@@ -24,7 +23,8 @@ const healthDataRoutes = require('./integrations/healthData/healthDataRoutes');
 const authRoutes = require('./routes/authRoutes');
 const healthRoutes = require('./routes/healthRoutes');
 const externalProviderRoutes = require('./routes/externalProviderRoutes'); // Renamed import
-const openidRoutes = require('./openidRoutes');
+const { router: openidRoutes, initializeOidcClient } = require('./openidRoutes');
+const oidcSettingsRoutes = require('./routes/oidcSettingsRoutes');
 const { applyMigrations } = require('./utils/dbMigrations');
 const errorHandler = require('./middleware/errorHandler'); // Import the new error handler
 
@@ -35,33 +35,63 @@ console.log(`DEBUG: SPARKY_FITNESS_FRONTEND_URL is: ${process.env.SPARKY_FITNESS
 
 // Use cors middleware to allow requests from your frontend
 app.use(cors({
-  origin: process.env.SPARKY_FITNESS_FRONTEND_URL || 'http://localhost:8080', // Allow requests from your frontend's origin, fallback to localhost
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], // Explicitly allow common methods
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-provider-id', 'x-api-key'], // Explicitly allow headers, including custom ones
+  origin: process.env.SPARKY_FITNESS_FRONTEND_URL || 'http://localhost:8080',
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-provider-id', 'x-api-key'],
+  credentials: true // Allow cookies to be sent from the frontend
 }));
 
 // Middleware to parse JSON bodies for all incoming requests
 app.use(express.json());
 
 const session = require('express-session');
+const pgSession = require('connect-pg-simple')(session);
+
+// Trust the first proxy
+app.set('trust proxy', 1);
+
+const isProduction = process.env.NODE_ENV === 'production';
 
 app.use(session({
+  store: new pgSession({
+    pool: pool, // Connection pool
+    tableName: 'session' // Use a table named 'session'
+  }),
+  name: 'sparky.sid',
   secret: process.env.SESSION_SECRET ?? 'sparky_secret',
   resave: false,
-  saveUninitialized: false,
+  saveUninitialized: true,
+  proxy: true, // Trust the proxy in all environments (like Vite dev server)
+  cookie: {
+    path: '/', // Ensure cookie is sent for all paths
+    // In development, set secure to false and sameSite to 'none' for cross-origin local development.
+    // In production, secure should be true (HTTPS) and sameSite should be 'none'.
+    secure: isProduction,
+    httpOnly: true,
+    sameSite: isProduction ? 'none' : 'lax', // Revert to original logic
+    maxAge: 24 * 60 * 60 * 1000 // 1 day
+  }
 }));
 
 // Apply authentication middleware to all routes except auth
 app.use((req, res, next) => {
-  if (req.path.startsWith('/auth/login') || req.path.startsWith('/auth/register')) {
-    return next(); // Skip authentication for login and register
+  // Routes that do not require authentication (e.g., login, register, OIDC flows, health checks)
+  const publicRoutes = [
+    '/auth/login',
+    '/auth/register',
+    '/health-data',
+    '/health',
+    '/openid', // All OIDC routes are handled by session, not JWT token
+    '/openid/api/me', // Explicitly allow /openid/api/me as a public route for session check
+  ];
+
+  // Check if the current request path starts with any of the public routes
+  if (publicRoutes.some(route => req.path.startsWith(route))) {
+    console.log(`Skipping authentication for public route: ${req.path}`);
+    return next();
   }
-  // If the request is for a route that doesn't require authentication, skip
-  const nonAuthRoutes = ['/some/other/public/route', '/health-data', '/health', '/openid']; // Add any other public routes here
-  if (nonAuthRoutes.some(route => req.path.startsWith(route))) {
-      console.log(`Skipping authentication for public route: ${req.path}`);
-      return next();
-  }
+
+  // For all other routes, apply JWT token authentication
   authenticateToken(req, res, next);
 });
 
@@ -84,10 +114,31 @@ app.use('/auth', authRoutes);
 app.use('/user', authRoutes);
 app.use('/health', healthRoutes);
 app.use('/external-providers', externalProviderRoutes); // Renamed route for generic data providers
+app.use('/admin/oidc-settings', oidcSettingsRoutes); // Admin OIDC settings routes
+log('debug', 'Registering /openid routes');
 app.use('/openid', openidRoutes); // Import OpenID routes
 
 console.log('DEBUG: Attempting to start server...');
-applyMigrations().then(() => {
+applyMigrations().then(async () => {
+  // Initialize OIDC client after migrations are applied
+  await initializeOidcClient();
+
+  // Set admin user from environment variable if provided
+  if (process.env.SPARKY_FITNESS_ADMIN_EMAIL) {
+    const userRepository = require('./models/userRepository');
+    const adminUser = await userRepository.findUserByEmail(process.env.SPARKY_FITNESS_ADMIN_EMAIL);
+    if (adminUser && adminUser.id) {
+      const success = await userRepository.updateUserRole(adminUser.id, 'admin');
+      if (success) {
+        log('info', `User ${process.env.SPARKY_FITNESS_ADMIN_EMAIL} set as admin.`);
+      } else {
+        log('warn', `Failed to set user ${process.env.SPARKY_FITNESS_ADMIN_EMAIL} as admin.`);
+      }
+    } else {
+      log('warn', `Admin user with email ${process.env.SPARKY_FITNESS_ADMIN_EMAIL} not found.`);
+    }
+  }
+
   app.listen(PORT, () => {
     console.log(`DEBUG: Server started and listening on port ${PORT}`); // Direct console log
     log('info', `SparkyFitnessServer listening on port ${PORT}`);
@@ -102,5 +153,6 @@ app.use(errorHandler);
 
 // Catch-all for 404 Not Found - MUST be placed after all routes and error handlers
 app.use((req, res, next) => {
+  // For any unhandled routes, return a JSON 404 response
   res.status(404).json({ error: "Not Found", message: `The requested URL ${req.originalUrl} was not found on this server.` });
 });

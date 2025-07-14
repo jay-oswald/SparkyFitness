@@ -8,7 +8,7 @@ const LOG_LEVELS = {
 };
 
 // Get desired log level from environment variable, default to INFO
-const currentLogLevel = LOG_LEVELS[process.env.SPARKY_FITNESS_LOG_LEVEL?.toUpperCase()] || LOG_LEVELS.INFO;
+const currentLogLevel = LOG_LEVELS[process.env.SPARKY_FITNESS_LOG_LEVEL?.trim().toUpperCase()] || LOG_LEVELS.INFO;
 
 // Custom logger function
 function log(level, message, ...args) {

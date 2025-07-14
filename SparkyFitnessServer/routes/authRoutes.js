@@ -16,8 +16,8 @@ router.post('/login', loginValidation, async (req, res, next) => {
   const { email, password } = req.body;
 
   try {
-    const { userId, token } = await authService.loginUser(email, password);
-    res.status(200).json({ message: 'Login successful', userId, token });
+    const { userId, token, role } = await authService.loginUser(email, password);
+    res.status(200).json({ message: 'Login successful', userId, token, role });
   } catch (error) {
     if (error.message === 'Invalid credentials.') {
       return res.status(401).json({ error: error.message });
@@ -26,10 +26,21 @@ router.post('/login', loginValidation, async (req, res, next) => {
   }
 });
 
-router.post('/logout', (req, res) => {
-  // In a real application, this would involve invalidating a JWT or session.
-  // For now, it's a placeholder for client-side token removal.
-  res.status(200).json({ message: 'Logout successful.' });
+router.post('/logout', (req, res, next) => {
+  // Destroy the session for OIDC users
+  if (req.session) {
+    req.session.destroy((err) => {
+      if (err) {
+        return next(err);
+      }
+      // Clear the session cookie from the client
+      res.clearCookie('sparky.sid'); // Ensure this matches the session name in SparkyFitnessServer.js
+      res.status(200).json({ message: 'Logout successful.' });
+    });
+  } else {
+    // For JWT users, simply acknowledge logout (client-side token removal is sufficient)
+    res.status(200).json({ message: 'Logout successful.' });
+  }
 });
 
 // Authentication Endpoints

@@ -38,6 +38,7 @@ export async function apiCall(endpoint: string, options?: ApiCallOptions): Promi
   const config: RequestInit = {
     ...options,
     headers,
+    credentials: 'include', // Send cookies with all API requests
   };
 
   if (options?.body && typeof options.body === 'object') {

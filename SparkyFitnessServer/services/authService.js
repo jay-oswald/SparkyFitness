@@ -31,7 +31,7 @@ async function loginUser(email, password) {
     }
 
     const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '1h' });
-    return { userId: user.id, token };
+    return { userId: user.id, token, role: user.role };
   } catch (error) {
     log('error', 'Error during user login in authService:', error);
     throw error;
@@ -263,6 +263,7 @@ async function deleteFamilyAccessEntry(authenticatedUserId, id) {
 
 module.exports = {
   registerUser,
+  registerOidcUser,
   loginUser,
   getUser,
   findUserIdByEmail,
@@ -281,3 +282,14 @@ module.exports = {
   updateFamilyAccessEntry,
   deleteFamilyAccessEntry,
 };
+
+async function registerOidcUser(email, fullName, oidcSub) {
+  try {
+    const userId = uuidv4();
+    await userRepository.createOidcUser(userId, email, fullName, oidcSub);
+    return userId;
+  } catch (error) {
+    log('error', 'Error during OIDC user registration in authService:', error);
+    throw error;
+  }
+}

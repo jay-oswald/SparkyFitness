@@ -37,7 +37,7 @@ async function findUserByEmail(email) {
   const client = await pool.connect();
   try {
     const result = await client.query(
-      'SELECT id, password_hash FROM auth.users WHERE email = $1',
+      'SELECT id, password_hash, role, oidc_sub FROM auth.users WHERE email = $1',
       [email]
     );
     return result.rows[0];
@@ -196,8 +196,22 @@ async function updateUserEmail(userId, newEmail) {
   }
 }
 
+async function getUserRole(userId) {
+  const client = await pool.connect();
+  try {
+    const result = await client.query(
+      'SELECT role FROM auth.users WHERE id = $1',
+      [userId]
+    );
+    return result.rows[0] ? result.rows[0].role : null;
+  } finally {
+    client.release();
+  }
+}
+
 module.exports = {
   createUser,
+  createOidcUser,
   findUserByEmail,
   findUserById,
   findUserIdByEmail,
@@ -209,4 +223,66 @@ module.exports = {
   getUserApiKeys,
   updateUserPassword,
   updateUserEmail,
+  getUserRole,
+  updateUserRole,
+  updateUserOidcSub,
 };
+
+async function updateUserRole(userId, role) {
+  const client = await pool.connect();
+  try {
+    const result = await client.query(
+      'UPDATE auth.users SET role = $1, updated_at = now() WHERE id = $2 RETURNING id',
+      [role, userId]
+    );
+    return result.rowCount > 0;
+  } finally {
+    client.release();
+  }
+}
+
+async function createOidcUser(userId, email, fullName, oidcSub) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // Insert into auth.users for OIDC
+    await client.query(
+      'INSERT INTO auth.users (id, email, oidc_sub, created_at, updated_at) VALUES ($1, $2, $3, now(), now())',
+      [userId, email, oidcSub]
+    );
+
+    // Insert into profiles
+    await client.query(
+      'INSERT INTO profiles (id, full_name, created_at, updated_at) VALUES ($1, $2, now(), now())',
+      [userId, fullName]
+    );
+
+    // Insert into user_goals
+    await client.query(
+      'INSERT INTO user_goals (user_id, created_at, updated_at) VALUES ($1, now(), now())',
+      [userId]
+    );
+
+    await client.query('COMMIT');
+    return userId;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+async function updateUserOidcSub(userId, oidcSub) {
+  const client = await pool.connect();
+  try {
+    const result = await client.query(
+      'UPDATE auth.users SET oidc_sub = $1, updated_at = now() WHERE id = $2 RETURNING id',
+      [oidcSub, userId]
+    );
+    return result.rowCount > 0;
+  } finally {
+    client.release();
+  }
+}

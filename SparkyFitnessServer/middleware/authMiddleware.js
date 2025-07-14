@@ -1,24 +1,31 @@
 const jwt = require('jsonwebtoken');
 const { log } = require('../config/logging');
 const { JWT_SECRET } = require('../security/encryption');
+const userRepository = require('../models/userRepository'); // Import userRepository
 
 const authenticateToken = (req, res, next) => {
+  // Check for JWT token in Authorization header (for traditional login)
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
 
-  if (token == null) {
-    log('warn', 'Authentication: No token provided.');
-    return res.status(401).json({ error: 'Authentication: No token provided.' });
-  }
-
-  jwt.verify(token, JWT_SECRET, (err, user) => {
-    if (err) {
-      log('warn', 'Authentication: Invalid or expired token.', err.message);
-      return res.status(403).json({ error: 'Authentication: Invalid or expired token.' });
-    }
-    req.userId = user.userId; // Attach userId from JWT payload to request
+  if (token) {
+    jwt.verify(token, JWT_SECRET, (err, user) => {
+      if (err) {
+        log('warn', 'Authentication: Invalid or expired token.', err.message);
+        return res.status(403).json({ error: 'Authentication: Invalid or expired token.' });
+      }
+      req.userId = user.userId; // Attach userId from JWT payload to request
+      next();
+    });
+  } else if (req.session && req.session.user && req.session.user.userId) {
+    // If no JWT token, check for session-based authentication (for OIDC)
+    log('debug', `Session-based authentication: User ID from session: ${req.session.user.userId}`);
+    req.userId = req.session.user.userId;
     next();
-  });
+  } else {
+    log('warn', 'Authentication: No token or active session provided.');
+    return res.status(401).json({ error: 'Authentication: No token or active session provided.' });
+  }
 };
 
 const authorizeAccess = (permissionType, getTargetUserIdFromRequest = null) => {
@@ -145,7 +152,28 @@ const authorizeAccess = (permissionType, getTargetUserIdFromRequest = null) => {
   };
 };
 
+const isAdmin = async (req, res, next) => {
+  if (!req.userId) {
+    log('warn', 'Admin Check: No user ID found in request. User not authenticated.');
+    return res.status(401).json({ error: 'Admin Check: Authentication required.' });
+  }
+
+  try {
+    const userRole = await userRepository.getUserRole(req.userId);
+    if (userRole === 'admin') {
+      next();
+    } else {
+      log('warn', `Admin Check: User ${req.userId} with role '${userRole}' attempted to access admin resource.`);
+      return res.status(403).json({ error: 'Admin Check: Access denied. Admin privileges required.' });
+    }
+  } catch (error) {
+    log('error', `Admin Check: Error checking user role for user ${req.userId}: ${error.message}`);
+    return res.status(500).json({ error: 'Admin Check: Internal server error during role check.' });
+  }
+};
+
 module.exports = {
   authenticateToken,
-  authorizeAccess
+  authorizeAccess,
+  isAdmin
 };

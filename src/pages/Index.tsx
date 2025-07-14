@@ -17,8 +17,9 @@ import ThemeToggle from "@/components/ThemeToggle";
 import ProfileSwitcher from "@/components/ProfileSwitcher";
 import { useAuth } from "@/hooks/useAuth";
 import { useActiveUser } from "@/contexts/ActiveUserContext";
-import { Home, Activity, BarChart3, Utensils, Settings as SettingsIcon, LogOut, Dumbbell, Target } from "lucide-react"; // Import Target icon
+import { Home, Activity, BarChart3, Utensils, Settings as SettingsIcon, LogOut, Dumbbell, Target, Shield } from "lucide-react"; // Import Target and Shield icons
 import { toast } from "@/hooks/use-toast";
+import OidcSettings from '@/pages/Admin/OidcSettings'; // Import OidcSettings
 
 import { API_BASE_URL } from "@/services/api";
 const Index = () => {
@@ -78,10 +79,13 @@ const Index = () => {
    // Memoize available tabs to prevent hook order violations
    const availableTabs = useMemo(() => {
      debug(loggingLevel, "Index: Calculating available tabs.", { isActingOnBehalf, hasPermission, hasWritePermission });
+     
+     const tabs = [];
+
      if (!isActingOnBehalf) {
        // User viewing their own profile - show all tabs excluding measurements
        debug(loggingLevel, "Index: User viewing own profile, showing all tabs.");
-       return [
+       tabs.push(
          { value: "home", label: "Diary", icon: Home, component: FoodDiary },
          { value: "checkin", label: "Check-In", icon: Activity, component: CheckIn },
          { value: "reports", label: "Reports", icon: BarChart3, component: Reports },
@@ -89,40 +93,45 @@ const Index = () => {
          { value: "exercises", label: "Exercises", icon: Dumbbell, component: ExerciseDatabaseManager },
          { value: "goals", label: "Goals", icon: Target, component: GoalsSettings }, // New Goals tab
          { value: "settings", label: "Settings", icon: SettingsIcon, component: Settings },
-       ];
+       );
+     } else {
+       // User acting on behalf of someone else - filter by permissions
+       debug(loggingLevel, "Index: User acting on behalf, filtering tabs by permissions.");
+       
+       // Only show tabs if user has write permission (direct permission)
+       if (hasWritePermission('calorie')) {
+         debug(loggingLevel, "Index: User has calorie write permission, adding Diary tab.");
+         tabs.push({ value: "home", label: "Diary", icon: Home, component: FoodDiary });
+       }
+       
+       if (hasWritePermission('checkin')) {
+         debug(loggingLevel, "Index: User has checkin write permission, adding Check-In tab.");
+         tabs.push({ value: "checkin", label: "Check-In", icon: Activity, component: CheckIn });
+       }
+       
+       // Reports tab shows if user has reports permission (read or write)
+       if (hasPermission('reports')) {
+         debug(loggingLevel, "Index: User has reports permission, adding Reports tab.");
+         tabs.push({ value: "reports", label: "Reports", icon: BarChart3, component: Reports });
+       }
      }
- 
-     // User acting on behalf of someone else - filter by permissions
-     debug(loggingLevel, "Index: User acting on behalf, filtering tabs by permissions.");
-     const tabs = [];
+
+     // Add Admin tab if user is an admin
+     if (user?.role === 'admin') {
+       debug(loggingLevel, "Index: User is admin, adding Admin tab.");
+       tabs.push({ value: "admin", label: "Admin", icon: Shield, component: OidcSettings });
+     }
      
-     // Only show tabs if user has write permission (direct permission)
-     if (hasWritePermission('calorie')) {
-       debug(loggingLevel, "Index: User has calorie write permission, adding Diary tab.");
-       tabs.push({ value: "home", label: "Diary", icon: Home, component: FoodDiary });
-     }
-     
-     if (hasWritePermission('checkin')) {
-       debug(loggingLevel, "Index: User has checkin write permission, adding Check-In tab.");
-       tabs.push({ value: "checkin", label: "Check-In", icon: Activity, component: CheckIn });
-     }
-     
-     // Reports tab shows if user has reports permission (read or write)
-     if (hasPermission('reports')) {
-       debug(loggingLevel, "Index: User has reports permission, adding Reports tab.");
-       tabs.push({ value: "reports", label: "Reports", icon: BarChart3, component: Reports });
-     }
- 
      info(loggingLevel, "Index: Available tabs calculated:", tabs.map(tab => tab.value));
      return tabs;
-   }, [isActingOnBehalf, hasPermission, hasWritePermission, loggingLevel]);
+   }, [isActingOnBehalf, hasPermission, hasWritePermission, loggingLevel, user?.role]);
  
-   // Set the active tab to the first available tab when tabs change
+   // Set the active tab to "home" (Diary) by default, or the first available tab if "home" is not available
    useEffect(() => {
      debug(loggingLevel, "Index: availableTabs or activeTab useEffect triggered.", { availableTabs, activeTab });
-     if (availableTabs.length > 0 && (!activeTab || !availableTabs.find(tab => tab.value === activeTab))) {
-       info(loggingLevel, "Index: Setting active tab to first available tab:", availableTabs[0].value);
-       setActiveTab(availableTabs[0].value);
+     if (user && availableTabs.length > 0 && !activeTab) { // Only set default if no active tab is selected and user is logged in
+       info(loggingLevel, "Index: Setting initial active tab to 'home' (Diary) for logged-in user.");
+       setActiveTab("home");
      } else if (availableTabs.length === 0 && activeTab) {
        warn(loggingLevel, "Index: No available tabs, clearing active tab.");
        setActiveTab("");
@@ -140,6 +149,7 @@ const Index = () => {
        case 5: return "grid-cols-5";
        case 6: return "grid-cols-6";
        case 7: return "grid-cols-7";
+       case 8: return "grid-cols-8"; // Added for Admin tab
        default: return "grid-cols-7";
      }
    };
