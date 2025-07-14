@@ -25,6 +25,7 @@ const healthRoutes = require('./routes/healthRoutes');
 const externalProviderRoutes = require('./routes/externalProviderRoutes'); // Renamed import
 const { router: openidRoutes, initializeOidcClient } = require('./openidRoutes');
 const oidcSettingsRoutes = require('./routes/oidcSettingsRoutes');
+const versionRoutes = require('./routes/versionRoutes');
 const { applyMigrations } = require('./utils/dbMigrations');
 const errorHandler = require('./middleware/errorHandler'); // Import the new error handler
 
@@ -83,6 +84,7 @@ app.use((req, res, next) => {
     '/health',
     '/openid', // All OIDC routes are handled by session, not JWT token
     '/openid/api/me', // Explicitly allow /openid/api/me as a public route for session check
+    '/version', // Allow version endpoint to be public
   ];
 
   // Check if the current request path starts with any of the public routes
@@ -115,6 +117,7 @@ app.use('/user', authRoutes);
 app.use('/health', healthRoutes);
 app.use('/external-providers', externalProviderRoutes); // Renamed route for generic data providers
 app.use('/admin/oidc-settings', oidcSettingsRoutes); // Admin OIDC settings routes
+app.use('/version', versionRoutes); // Version routes
 log('debug', 'Registering /openid routes');
 app.use('/openid', openidRoutes); // Import OpenID routes
 

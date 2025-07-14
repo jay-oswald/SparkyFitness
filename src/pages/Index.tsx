@@ -20,13 +20,33 @@ import { useActiveUser } from "@/contexts/ActiveUserContext";
 import { Home, Activity, BarChart3, Utensils, Settings as SettingsIcon, LogOut, Dumbbell, Target, Shield } from "lucide-react"; // Import Target and Shield icons
 import { toast } from "@/hooks/use-toast";
 import OidcSettings from '@/pages/Admin/OidcSettings'; // Import OidcSettings
+import axios from 'axios'; // Import axios
 
 import { API_BASE_URL } from "@/services/api";
-const Index = () => {
-   const { user, signOut, loading } = useAuth(); // Destructure loading from useAuth
-   const { isActingOnBehalf, hasPermission, hasWritePermission, activeUserName } = useActiveUser();
-   const { loggingLevel } = usePreferences();
-   debug(loggingLevel, "Index: Component rendered.");
+interface IndexProps {
+  onShowAboutDialog: () => void;
+}
+
+const Index: React.FC<IndexProps> = ({ onShowAboutDialog }) => {
+     const { user, signOut, loading } = useAuth(); // Destructure loading from useAuth
+     const { isActingOnBehalf, hasPermission, hasWritePermission, activeUserName } = useActiveUser();
+     const { loggingLevel } = usePreferences();
+     debug(loggingLevel, "Index: Component rendered.");
+
+    const [appVersion, setAppVersion] = useState('Loading...'); // State for app version
+
+    useEffect(() => {
+        const fetchVersion = async () => {
+            try {
+                const response = await axios.get('/api/version/current');
+                setAppVersion(response.data.version);
+            } catch (error) {
+                console.error('Error fetching app version for footer:', error);
+                setAppVersion('Error');
+            }
+        };
+        fetchVersion();
+    }, []);
  
    const { formatDateInUserTimezone } = usePreferences();
    const [selectedDate, setSelectedDate] = useState(formatDateInUserTimezone(new Date(), 'yyyy-MM-dd'));
@@ -225,6 +245,8 @@ const Index = () => {
                      selectedDate={selectedDate}
                      onDateChange={setSelectedDate}
                    />
+                 ) : value === "settings" ? (
+                   <Component onShowAboutDialog={onShowAboutDialog} />
                  ) : (
                    <Component />
                  )}
@@ -236,6 +258,10 @@ const Index = () => {
          {/* Sparky AI Chat Popup */}
          <SparkyChat />
        </div>
+       {/* Footer with Version Info */}
+       <footer className="hidden sm:block text-center text-muted-foreground text-sm py-4">
+         <p>SparkyFitness v{appVersion}</p>
+       </footer>
      </div>
    );
  };

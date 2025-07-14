@@ -14,9 +14,13 @@ import Auth from '@/components/Auth'; // Import Auth component
 import MealManagement from './MealManagement'; // Import MealManagement
 import MealPlanCalendar from './MealPlanCalendar'; // Import MealPlanCalendar
 
-const AppContent: React.FC = () => {
+interface AppContentProps {
+  onShowAboutDialog: () => void;
+}
+
+const AppContent: React.FC<AppContentProps> = ({ onShowAboutDialog }) => {
   const { loggingLevel } = usePreferences();
-  const { user, loading } = useAuth(); // No longer passing navigate
+  const { user, loading } = useAuth();
 
   if (loading) {
     // Optionally, render a loading spinner or skeleton screen here
@@ -29,7 +33,7 @@ const AppContent: React.FC = () => {
         <TooltipProvider>
           <Toaster />
           <Routes>
-            <Route path="/" element={user ? <Index /> : <Auth />} />
+            <Route path="/" element={user ? <Index onShowAboutDialog={onShowAboutDialog} /> : <Auth />} />
             <Route path="/oidc-callback" element={<OidcCallback />} />
             <Route path="/meals" element={user ? <MealManagement /> : <Navigate to="/" />} />
             <Route path="/meal-plan" element={user ? <MealPlanCalendar /> : <Navigate to="/" />} />

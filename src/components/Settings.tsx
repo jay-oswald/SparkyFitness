@@ -46,7 +46,11 @@ interface CustomCategory {
   frequency: string;
 }
 
-const Settings = () => {
+interface SettingsProps {
+  onShowAboutDialog: () => void;
+}
+
+const Settings: React.FC<SettingsProps> = ({ onShowAboutDialog }) => {
   const { user } = useAuth();
   const {
     weightUnit, setWeightUnit,
@@ -794,6 +798,22 @@ const Settings = () => {
               {loading ? 'Updating...' : 'Update Password'}
             </Button>
           </form>
+        </CardContent>
+      </Card>
+
+
+      {/* About Section */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <SettingsIcon className="h-5 w-5" /> {/* Re-using SettingsIcon for "About" */}
+            About
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Button onClick={onShowAboutDialog}>
+            View App Information
+          </Button>
         </CardContent>
       </Card>
     </div>
