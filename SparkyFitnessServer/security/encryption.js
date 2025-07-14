@@ -9,6 +9,12 @@ if (!ENCRYPTION_KEY) {
   process.exit(1);
 }
 
+// Validate ENCRYPTION_KEY length for AES-256-GCM (32 bytes = 64 hex characters)
+if (ENCRYPTION_KEY.length !== 64) {
+  log('error', `SPARKY_FITNESS_API_ENCRYPTION_KEY has an invalid length. Expected 64 hex characters, got ${ENCRYPTION_KEY.length}.`);
+  process.exit(1);
+}
+
 if (!JWT_SECRET) {
   log('error', 'JWT_SECRET is not set in environment variables. Please generate a strong secret.');
   process.exit(1);
@@ -16,6 +22,9 @@ if (!JWT_SECRET) {
 
 // Utility functions for encryption and decryption
 async function encrypt(text, key) {
+  if (!text) {
+    return { encryptedText: null, iv: null, tag: null };
+  }
   const iv = crypto.randomBytes(12); // GCM recommended IV size is 12 bytes
   const cipher = crypto.createCipheriv('aes-256-gcm', Buffer.from(key, 'hex'), iv);
   let encrypted = cipher.update(text, 'utf8', 'base64');

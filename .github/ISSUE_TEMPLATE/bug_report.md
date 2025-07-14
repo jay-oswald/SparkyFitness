@@ -57,6 +57,22 @@ Make sure you are cleaning the log before re-producing the steps to minimize the
 # Paste console log here
 ```
 
+## Container Log for SparkyFitness
+
+Please provide the container logs for the `sparkyfitness` service. You can usually obtain these logs using `docker logs sparkyfitness` or by checking your container orchestration platform's logging interface.
+
+```
+# Paste SparkyFitness container log here
+```
+
+## Container Log for SparkyFitness_Server
+
+Please provide the container logs for the `sparkyfitness_server` service. You can usually obtain these logs using `docker logs sparkyfitness_server` or by checking your container orchestration platform's logging interface.
+
+```
+# Paste SparkyFitness_Server container log here
+```
+
 ## Screenshots/Videos (Optional)
 
 If applicable, add screenshots or a short video to help explain your problem.
