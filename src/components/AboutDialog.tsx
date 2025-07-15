@@ -15,25 +15,14 @@ import { X } from 'lucide-react'; // Import X icon
 interface AboutDialogProps {
   isOpen: boolean;
   onClose: () => void;
+  version: string;
 }
 
-const AboutDialog: React.FC<AboutDialogProps> = ({ isOpen, onClose }) => {
-  const [appVersion, setAppVersion] = useState('Loading...');
+const AboutDialog: React.FC<AboutDialogProps> = ({ isOpen, onClose, version }) => {
   const contentRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (isOpen) {
-      const fetchVersion = async () => {
-        try {
-          const response = await axios.get('/api/version/current');
-          setAppVersion(response.data.version);
-        } catch (error) {
-          console.error('Error fetching app version:', error);
-          setAppVersion('Error');
-        }
-      };
-      fetchVersion();
-
       const handleMouseDown = (event: MouseEvent) => {
         if (contentRef.current && !contentRef.current.contains(event.target as Node)) {
           onClose();
@@ -61,47 +50,49 @@ const AboutDialog: React.FC<AboutDialogProps> = ({ isOpen, onClose }) => {
       <AlertDialogContent ref={contentRef}>
         <AlertDialogHeader>
           <AlertDialogTitle>About SparkyFitness</AlertDialogTitle>
-          <AlertDialogDescription className="space-y-4">
-            <p>SparkyFitness: Built for Families. Powered by AI. Track food, fitness, water, and health — together.</p>
-            <p>Application Version: <strong>{appVersion}</strong></p>
-            <p>
-              Join our community on Discord:{' '}
-              <a href="https://discord.gg/vcnMT5cPEA" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">
-                discord.gg/vcnMT5cPEA
-              </a>
-            </p>
-            <p>
-              For more information, visit the{' '}
-              <a href="https://github.com/CodeWithCJ/SparkyFitness" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">
-                GitHub repository
-              </a>.
-            </p>
-            <div>
-              <h3 className="font-semibold mt-2">Technologies Used:</h3>
-              <h4 className="font-medium mt-2">Frontend:</h4>
-              <ul className="list-disc list-inside text-sm ml-4">
-                <li>React</li>
-                <li>TypeScript</li>
-                <li>Tailwind CSS</li>
-              </ul>
-              <h4 className="font-medium mt-2">Backend:</h4>
-              <ul className="list-disc list-inside text-sm ml-4">
-                <li>Node.js</li>
-                <li>Express</li>
-                <li>PostgreSQL</li>
-              </ul>
-              <h4 className="font-medium mt-2">External APIs:</h4>
-              <ul className="list-disc list-inside text-sm ml-4">
-                <li>Wger API (Exercise Data)</li>
-                <li>
-                  Food Data APIs:
-                  <ul className="list-disc list-inside ml-4">
-                    <li>Nutritionix API</li>
-                    <li>FatSecret API</li>
-                    <li>Open Food Facts API</li>
-                  </ul>
-                </li>
-              </ul>
+          <AlertDialogDescription>
+            <div className="space-y-4">
+              <p>SparkyFitness: Built for Families. Powered by AI. Track food, fitness, water, and health — together.</p>
+              <p>Application Version: <strong>{version}</strong></p>
+              <p>
+                Join our community on Discord:{' '}
+                <a href="https://discord.gg/vcnMT5cPEA" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">
+                  discord.gg/vcnMT5cPEA
+                </a>
+              </p>
+              <p>
+                For more information, visit the{' '}
+                <a href="https://github.com/CodeWithCJ/SparkyFitness" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">
+                  GitHub repository
+                </a>.
+              </p>
+              <div>
+                <h3 className="font-semibold mt-2">Technologies Used:</h3>
+                <h4 className="font-medium mt-2">Frontend:</h4>
+                <ul className="list-disc list-inside text-sm ml-4">
+                  <li>React</li>
+                  <li>TypeScript</li>
+                  <li>Tailwind CSS</li>
+                </ul>
+                <h4 className="font-medium mt-2">Backend:</h4>
+                <ul className="list-disc list-inside text-sm ml-4">
+                  <li>Node.js</li>
+                  <li>Express</li>
+                  <li>PostgreSQL</li>
+                </ul>
+                <h4 className="font-medium mt-2">External APIs:</h4>
+                <ul className="list-disc list-inside text-sm ml-4">
+                  <li>Wger API (Exercise Data)</li>
+                  <li>
+                    Food Data APIs:
+                    <ul className="list-disc list-inside ml-4">
+                      <li>Nutritionix API</li>
+                      <li>FatSecret API</li>
+                      <li>Open Food Facts API</li>
+                    </ul>
+                  </li>
+                </ul>
+              </div>
             </div>
           </AlertDialogDescription>
         </AlertDialogHeader>

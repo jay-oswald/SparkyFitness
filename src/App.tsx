@@ -1,54 +1,35 @@
 
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { PreferencesProvider } from "@/contexts/PreferencesContext";
 import { ChatbotVisibilityProvider } from "@/contexts/ChatbotVisibilityContext";
 import AppContent from "@/components/AppContent";
 import DraggableChatbotButton from "@/components/DraggableChatbotButton";
-import { info } from '@/utils/logging';
-import { useAuth } from "@/hooks/useAuth"; // Import useAuth
-import AboutDialog from "@/components/AboutDialog"; // Import AboutDialog
-import NewReleaseDialog from "@/components/NewReleaseDialog"; // Import NewReleaseDialog
+import AboutDialog from "@/components/AboutDialog";
+import NewReleaseDialog from "@/components/NewReleaseDialog";
+import AppSetup from '@/components/AppSetup';
 import axios from 'axios';
 
 const queryClient = new QueryClient();
 
 const App = () => {
-  const { user, loading } = useAuth(); // Get user and loading from useAuth
   const [showAboutDialog, setShowAboutDialog] = useState(false);
   const [latestRelease, setLatestRelease] = useState(null);
   const [showNewReleaseDialog, setShowNewReleaseDialog] = useState(false);
+  const [appVersion, setAppVersion] = useState('unknown');
 
   useEffect(() => {
-    console.log('App useEffect: user', user, 'loading', loading);
-    if (!loading && user) {
-      console.log('User is authenticated, checking for new release.');
-      const checkNewRelease = async () => {
-        try {
-          const response = await axios.get('/api/version/latest-github');
-          const releaseData = response.data;
-          setLatestRelease(releaseData);
-          console.log('Latest GitHub release data:', releaseData);
+    const fetchVersion = async () => {
+      try {
+        const response = await axios.get('/api/version/current');
+        setAppVersion(response.data.version);
+      } catch (error) {
+        console.error('Error fetching app version:', error);
+      }
+    };
 
-          const dismissedVersion = localStorage.getItem('dismissedReleaseVersion');
-          console.log('Dismissed release version from localStorage:', dismissedVersion);
-
-          if (releaseData.isNewVersionAvailable && dismissedVersion !== releaseData.version) {
-            console.log('Showing new release dialog.');
-            setShowNewReleaseDialog(true);
-          } else {
-            console.log('New release dialog not shown. isNewVersionAvailable:', releaseData.isNewVersionAvailable, 'dismissedVersion:', dismissedVersion, 'releaseData.version:', releaseData.version);
-          }
-        } catch (error) {
-          console.error('Error checking for new release:', error);
-        }
-      };
-
-      checkNewRelease();
-    } else {
-      console.log('User not authenticated or still loading, skipping new release check.');
-    }
-  }, [user, loading]); // Add user and loading to dependency array
+    fetchVersion();
+  }, []);
 
   const handleDismissRelease = (version: string) => {
     localStorage.setItem('dismissedReleaseVersion', version);
@@ -59,9 +40,13 @@ const App = () => {
     <QueryClientProvider client={queryClient}>
       <PreferencesProvider>
         <ChatbotVisibilityProvider>
+          <AppSetup
+            setLatestRelease={setLatestRelease}
+            setShowNewReleaseDialog={setShowNewReleaseDialog}
+          />
           <AppContent onShowAboutDialog={() => setShowAboutDialog(true)} />
           <DraggableChatbotButton />
-          <AboutDialog isOpen={showAboutDialog} onClose={() => setShowAboutDialog(false)} />
+          <AboutDialog isOpen={showAboutDialog} onClose={() => setShowAboutDialog(false)} version={appVersion} />
           <NewReleaseDialog
             isOpen={showNewReleaseDialog}
             onClose={() => setShowNewReleaseDialog(false)}
