@@ -217,12 +217,12 @@ async function countExercises(targetUserId, searchTerm, categoryFilter, ownershi
   }
 }
 
-async function searchExercises(name) {
+async function searchExercises(name, userId) {
   const client = await pool.connect();
   try {
     const result = await client.query(
-      'SELECT id, name, calories_per_hour FROM exercises WHERE name ILIKE $1 LIMIT 1',
-      [`%${name}%`]
+      `SELECT id, name, calories_per_hour FROM exercises WHERE name ILIKE $1 AND (is_custom = false OR user_id = $2) LIMIT 1`,
+      [`%${name}%`, userId]
     );
     return result.rows;
   } finally {

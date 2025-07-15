@@ -1,5 +1,6 @@
 const chatRepository = require('../models/chatRepository');
 const userRepository = require('../models/userRepository');
+const measurementRepository = require('../models/measurementRepository');
 const { log } = require('../config/logging');
 const { getDefaultModel } = require('../ai/config');
 
@@ -179,6 +180,12 @@ async function processChatMessage(messages, serviceConfig, authenticatedUserId) 
     const model = aiService.model_name || getDefaultModel(aiService.service_type);
 
     // Comprehensive system prompt from old Supabase Edge Function
+    // Fetch user's custom categories to provide context to the AI
+    const customCategories = await measurementRepository.getCustomCategories(authenticatedUserId);
+    const customCategoriesList = customCategories.length > 0
+      ? customCategories.map(cat => `- ${cat.name} (${cat.measurement_type}, ${cat.frequency})`).join('\n')
+      : 'None';
+
     const systemPromptContent = `You are Sparky, an AI nutrition and wellness coach. Your primary goal is to help users track their food, exercise, and measurements, and provide helpful advice and motivation based on their data and general health knowledge.
 
 The current date is ${new Date().toISOString().split('T')[0]}.
@@ -195,6 +202,11 @@ For image inputs:
 **IMPORTANT:** If the user specifies a date or time (e.g., "yesterday", "last Monday", "at 7 PM"), extract this information and include it as a 'entryDate' field in the top level of the JSON object. **Provide relative terms like "today", "yesterday", "tomorrow", or a specific date in 'MM-DD' or 'YYYY-MM-DD' format. Do NOT try to resolve relative terms to a full date yourself.** If no date is specified, omit the 'entryDate' field.
 
 When the user mentions logging food, exercise, or measurements, prioritize extracting the exact name of the item (food name, exercise name, measurement name) as accurately as possible from the user's input. This is crucial for looking up existing items in the database.
+
+Here are the user's existing custom measurement categories:
+${customCategoriesList}
+
+When the user mentions a custom measurement, compare it to the list above. If you find a match or a very similar variation (considering synonyms and capitalization), use the **exact name** from the list in the 'name' field of the measurement data. If no clear match is found in the list, use the name as provided by the user.
 
 **For 'log_food' intent, pay close attention to the unit specified by the user and match it in the 'unit' field of the food data.**
 - If the user says "gram" or "g", use "g".

@@ -38,10 +38,13 @@ const AIServiceSettings = () => {
     custom_url: '',
     system_prompt: '',
     is_active: false,
-    model_name: ''
+    model_name: '',
+    custom_model_name: '' // Add custom_model_name to newService state
   });
   const [editingService, setEditingService] = useState<string | null>(null);
-  const [editData, setEditData] = useState<Partial<AIService>>({});
+  const [editData, setEditData] = useState<Partial<AIService>>({
+    custom_model_name: '' // Add custom_model_name to editData state
+  });
   const [showAddForm, setShowAddForm] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -56,7 +59,7 @@ const AIServiceSettings = () => {
     if (!user) return;
 
     try {
-      const data = await getAIServices(user.id);
+      const data = await getAIServices();
       setServices(data);
     } catch (error: any) {
       console.error('Error loading AI services:', error);
@@ -72,7 +75,7 @@ const AIServiceSettings = () => {
     if (!user) return;
 
     try {
-      const data = await getPreferences(user.id);
+      const data = await getPreferences();
       setPreferences({
         auto_clear_history: data.auto_clear_history || 'never'
       });
@@ -105,7 +108,7 @@ const AIServiceSettings = () => {
         custom_url: newService.custom_url || null,
         system_prompt: newService.system_prompt || '',
         is_active: newService.is_active,
-        model_name: newService.model_name || null
+        model_name: newService.custom_model_name || newService.model_name || null // Prioritize custom_model_name
       };
       await addAIService(serviceData);
       toast({
@@ -119,7 +122,8 @@ const AIServiceSettings = () => {
         custom_url: '',
         system_prompt: '',
         is_active: false,
-        model_name: ''
+        model_name: '',
+        custom_model_name: '' // Clear custom_model_name field
       });
       setShowAddForm(false);
       loadServices();
@@ -137,24 +141,38 @@ const AIServiceSettings = () => {
 
   const handleUpdateService = async (serviceId: string) => {
     setLoading(true);
-    const serviceUpdateData: Partial<AIService> = {
-      id: serviceId,
-      service_name: editData.service_name,
-      service_type: editData.service_type,
-      custom_url: editData.custom_url || null,
-      system_prompt: editData.system_prompt || '',
-      is_active: editData.is_active,
-      model_name: editData.model_name || null
-    };
+    const originalService = services.find(s => s.id === serviceId);
 
-    // Only include api_key if it's provided (i.e., not blank)
-    if (editData.api_key) {
-      serviceUpdateData.api_key = editData.api_key;
+    if (!originalService) {
+      toast({
+        title: "Error",
+        description: "Original service not found.",
+        variant: "destructive"
+      });
+      setLoading(false);
+      return;
     }
 
-    setLoading(true);
+    // Create a complete service object by merging original with edited data
+    const serviceToUpdate: Partial<AIService> = {
+      ...originalService, // Start with all original fields
+      ...editData,        // Overlay with edited fields
+      id: serviceId,      // Ensure ID is correct
+      model_name: editData.custom_model_name || editData.model_name || null // Prioritize custom_model_name
+    };
+
+    // Special handling for api_key: if editData.api_key is empty, it means user didn't change it,
+    // so we should retain the original (encrypted) api_key.
+    // If editData.api_key has a value, it means user entered a new one.
+    if (!editData.api_key) {
+      // If API key was not provided in editData, remove it from the payload
+      // so the backend doesn't try to update it with an empty string.
+      // The backend should then retain the existing encrypted key.
+      delete serviceToUpdate.api_key;
+    }
+
     try {
-      await updateAIService(serviceId, serviceUpdateData);
+      await updateAIService(serviceId, serviceToUpdate); // Pass the complete object
       toast({
         title: "Success",
         description: "AI service updated successfully"
@@ -199,8 +217,26 @@ const AIServiceSettings = () => {
 
   const handleToggleActive = async (serviceId: string, isActive: boolean) => {
     setLoading(true);
+    const originalService = services.find(s => s.id === serviceId);
+
+    if (!originalService) {
+      toast({
+        title: "Error",
+        description: "Original service not found for status update.",
+        variant: "destructive"
+      });
+      setLoading(false);
+      return;
+    }
+
+    const serviceToUpdate: Partial<AIService> = {
+      ...originalService,
+      is_active: isActive,
+    };
+
     try {
-      await updateAIServiceStatus(serviceId, isActive);
+      // Use updateAIService instead of updateAIServiceStatus to send full object
+      await updateAIService(serviceId, serviceToUpdate);
       toast({
         title: "Success",
         description: `AI service ${isActive ? 'activated' : 'deactivated'}`
@@ -223,7 +259,7 @@ const AIServiceSettings = () => {
 
     setLoading(true);
     try {
-      await updateUserPreferences(user.id, preferences);
+      await updateUserPreferences(preferences);
       toast({
         title: "Success",
         description: "Chat preferences updated successfully"
@@ -249,7 +285,8 @@ const AIServiceSettings = () => {
       custom_url: service.custom_url,
       system_prompt: service.system_prompt || '',
       is_active: service.is_active,
-      model_name: service.model_name || ''
+      model_name: service.model_name || '',
+      custom_model_name: service.model_name || '' // Initialize custom_model_name with current model_name
     });
   };
 
@@ -325,6 +362,7 @@ const AIServiceSettings = () => {
     }
   };
 
+
   return (
     <div className="space-y-6">
       {/* Chat History Preferences */}
@@ -394,6 +432,7 @@ const AIServiceSettings = () => {
                     value={newService.service_name}
                     onChange={(e) => setNewService(prev => ({ ...prev, service_name: e.target.value }))}
                     placeholder="My OpenAI Service"
+                    autoComplete="username"
                   />
                 </div>
                 <div>
@@ -451,12 +490,12 @@ const AIServiceSettings = () => {
 
               {getModelOptions(newService.service_type).length > 0 && (
                 <div>
-                  <Label htmlFor="new_model_name">Model</Label>
+                  <Label htmlFor="new_model_name_select">Model</Label>
                   <Select
                     value={newService.model_name}
-                    onValueChange={(value) => setNewService(prev => ({ ...prev, model_name: value }))}
+                    onValueChange={(value) => setNewService(prev => ({ ...prev, model_name: value, custom_model_name: '' }))} // Clear custom input on select change
                   >
-                    <SelectTrigger>
+                    <SelectTrigger id="new_model_name_select">
                       <SelectValue placeholder="Select a model" />
                     </SelectTrigger>
                     <SelectContent>
@@ -469,6 +508,19 @@ const AIServiceSettings = () => {
                   </Select>
                 </div>
               )}
+              {/* Always show custom model name input */}
+              <div>
+                <Label htmlFor="new_custom_model_name_input">Custom Model Name (Optional)</Label>
+                <Input
+                  id="new_custom_model_name_input"
+                  value={newService.custom_model_name}
+                  onChange={(e) => setNewService(prev => ({ ...prev, custom_model_name: e.target.value }))}
+                  placeholder="Enter custom model name if not in list"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  If your model is not in the list, enter its name here. This will override the selected model.
+                </p>
+              </div>
 
               <div>
                 <Label htmlFor="new_system_prompt">System Prompt (Additional Instructions)</Label>
@@ -575,7 +627,7 @@ const AIServiceSettings = () => {
                             <Label>Model</Label>
                             <Select
                               value={editData.model_name || ''}
-                              onValueChange={(value) => setEditData(prev => ({ ...prev, model_name: value }))}
+                              onValueChange={(value) => setEditData(prev => ({ ...prev, model_name: value, custom_model_name: '' }))} // Clear custom input on select change
                             >
                               <SelectTrigger>
                                 <SelectValue placeholder="Select a model" />
@@ -590,6 +642,18 @@ const AIServiceSettings = () => {
                             </Select>
                           </div>
                         )}
+                        {/* Always show custom model name input */}
+                        <div>
+                          <Label>Custom Model Name (Optional)</Label>
+                          <Input
+                            value={editData.custom_model_name || ''}
+                            onChange={(e) => setEditData(prev => ({ ...prev, custom_model_name: e.target.value }))}
+                            placeholder="Enter custom model name if not in list"
+                          />
+                          <p className="text-xs text-muted-foreground mt-1">
+                            If your model is not in the list, enter its name here. This will override the selected model.
+                          </p>
+                        </div>
 
                         <div>
                           <Label>System Prompt (Additional Instructions)</Label>

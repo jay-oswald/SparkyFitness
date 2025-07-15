@@ -33,21 +33,24 @@ async function upsertWaterData(userId, value, date) {
   const client = await pool.connect();
   try {
     const existingRecord = await client.query(
-      'SELECT * FROM water_intake WHERE user_id = $1 AND entry_date = $2',
+      'SELECT id, glasses_consumed FROM water_intake WHERE user_id = $1 AND entry_date = $2',
       [userId, date]
     );
 
     let result;
     if (existingRecord.rows.length > 0) {
+      // If record exists, increment the glasses_consumed
+      const newTotal = (existingRecord.rows[0].glasses_consumed || 0) + value;
       const updateResult = await client.query(
-        'UPDATE water_intake SET glasses_consumed = $1, updated_at = $2 WHERE user_id = $3 AND entry_date = $4 RETURNING *',
-        [value, new Date().toISOString(), userId, date]
+        'UPDATE water_intake SET glasses_consumed = $1, updated_at = now() WHERE id = $2 RETURNING *',
+        [newTotal, existingRecord.rows[0].id]
       );
       result = updateResult.rows[0];
     } else {
+      // If no record, insert a new one
       const insertResult = await client.query(
-        'INSERT INTO water_intake (user_id, entry_date, glasses_consumed, updated_at) VALUES ($1, $2, $3, $4) RETURNING *',
-        [userId, date, value, new Date().toISOString()]
+        'INSERT INTO water_intake (user_id, entry_date, glasses_consumed, created_at, updated_at) VALUES ($1, $2, $3, now(), now()) RETURNING *',
+        [userId, date, value]
       );
       result = insertResult.rows[0];
     }
@@ -145,7 +148,6 @@ async function upsertCheckInMeasurements(userId, entryDate, measurements) {
       const cols = ['user_id', 'entry_date', ...Object.keys(measurements), 'created_at', 'updated_at'];
       const placeholders = cols.map((_, index) => `$${index + 1}`).join(', ');
       values = [userId, entryDate, ...Object.values(measurements), new Date().toISOString(), new Date().toISOString()];
-      query = `INSERT INTO check_in_measurements (${cols.join(', ')}) VALUES (${placeholders}) RETURNING *`;
       query = `INSERT INTO check_in_measurements (${cols.join(', ')}) VALUES (${placeholders}) RETURNING *`;
     }
 

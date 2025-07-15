@@ -50,10 +50,15 @@ export async function apiCall(endpoint: string, options?: ApiCallOptions): Promi
 
     if (!response.ok) {
       let errorData: any;
-      try {
-        errorData = await response.json();
-      } catch (e) {
-        errorData = { message: response.statusText };
+      const contentType = response.headers.get("content-type");
+      if (contentType && contentType.indexOf("application/json") !== -1) {
+        try {
+          errorData = await response.json();
+        } catch (e) {
+          errorData = { message: "Failed to parse JSON error response." };
+        }
+      } else {
+        errorData = { message: await response.text() };
       }
       const errorMessage = errorData.error || errorData.message || `API call failed with status ${response.status}`;
 

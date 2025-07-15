@@ -9,6 +9,7 @@ export interface AIService {
   system_prompt: string | null;
   is_active: boolean;
   model_name?: string;
+  custom_model_name?: string; // Add custom_model_name to AIService interface
 }
 
 export interface UserPreferences {

@@ -467,7 +467,7 @@ const SparkyChatInterface = () => {
             </div>
           ))}
           {isLoading && (
-            <div className="flex justify-start">
+            <div className="flex justify-start" key="sparky-chat-loading-spinner">
               <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-3 flex items-center gap-2">
                 <Loader2 className="h-4 w-4 animate-spin" />
                 <span className="text-sm">Sparky is thinking...</span>

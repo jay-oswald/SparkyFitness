@@ -25,9 +25,7 @@ async function getExercisesWithPagination(authenticatedUserId, targetUserId, sea
 
 async function searchExercises(authenticatedUserId, name, targetUserId) {
   try {
-    if (targetUserId && targetUserId !== authenticatedUserId) {
-    }
-    const exercises = await exerciseRepository.searchExercises(name);
+    const exercises = await exerciseRepository.searchExercises(name, targetUserId);
     return exercises;
   } catch (error) {
     log('error', `Error searching exercises for user ${authenticatedUserId} with name "${name}":`, error);

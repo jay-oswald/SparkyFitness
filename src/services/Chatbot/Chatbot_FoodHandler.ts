@@ -109,11 +109,11 @@ export const processFoodInput = async (data: {
       debug(userLoggingLevel, 'Using food:', food);
 
       // Check unit mismatch first. If mismatch, return fallback without inserting.
-      if (unit && food.serving_unit && unit.toLowerCase() !== food.serving_unit.toLowerCase()) {
-          warn(userLoggingLevel, `Unit mismatch: User requested '${quantity}${unit}' but database serving unit is '${food.serving_size}${food.serving_unit}'. Triggering AI options.`);
+      if (unit && food.default_variant && food.default_variant.serving_unit && unit.toLowerCase() !== food.default_variant.serving_unit.toLowerCase()) {
+          warn(userLoggingLevel, `Unit mismatch: User requested '${quantity}${unit}' but database serving unit is '${food.default_variant.serving_size}${food.default_variant.serving_unit}'. Triggering AI options.`);
           return {
               action: 'none', // Indicate that no food was added directly
-              response: `I found "${food.name}" in the database, but its primary serving unit is "${food.serving_unit}". I'll check for other options.`, // Provide feedback
+              response: `I found "${food.name}" in the database, but its primary serving unit is "${food.default_variant.serving_unit}". I'll check for other options.`, // Provide feedback
               metadata: {
                   is_fallback: true, // Flag to indicate fallback to AI for options
                   foodName: food_name, // Pass the food name
@@ -132,11 +132,12 @@ export const processFoodInput = async (data: {
         await apiCall('/foods/food-entries', {
           method: 'POST',
           body: {
-            food_id: food.id,
+food_id: food.id,
             meal_type: meal_type,
             quantity: quantity,
-            unit: unit,
-            entry_date: dateToUse
+            unit: food.default_variant.serving_unit, // Use the default variant's serving unit
+            entry_date: dateToUse,
+            variant_id: food.default_variant.id // Populate variant_id
           }
         });
       } catch (err: any) {
@@ -149,11 +150,11 @@ export const processFoodInput = async (data: {
 
       info(userLoggingLevel, 'Food entry inserted successfully.');
 
-      const calories = Math.round((food.calories || 0) * (quantity / (food.serving_size || 100)));
+      const calories = Math.round((food.default_variant.calories || 0) * (quantity / (food.default_variant.serving_size || 100)));
 
       return {
         action: 'food_added',
-        response: `✅ **Added to your ${meal_type} on ${formatDateInUserTimezone(dateToUse, 'PPP')}!**\n\n🍽️ ${food.name} (${quantity}${unit})\n📊 ~${calories} calories\n\n💡 Great choice! This adds ${Math.round(food.protein || 0)}g protein to your day.`
+        response: `✅ **Added to your ${meal_type} on ${formatDateInUserTimezone(dateToUse, 'PPP')}!**\n\n🍽️ ${food.name} (${quantity}${unit})\n📊 ~${calories} calories\n\n💡 Great choice! This adds ${Math.round(food.default_variant.protein || 0)}g protein to your day.`
       };
     } else {
       info(userLoggingLevel, 'Food not found in database. Returning fallback data.');

@@ -240,6 +240,12 @@ const getAIResponse = async (input: string, imageData: string | null = null, tra
 
   } catch (err: any) {
     error(userLoggingLevel, `[${transactionId}] Error in getAIResponse:`, err);
+    if (err.message && err.message.includes('503')) {
+      return {
+        action: 'none',
+        response: 'The AI service is currently overloaded. Please try again in a few moments.'
+      };
+    }
     return {
       action: 'none',
       response: err.message || 'An unexpected error occurred while trying to get an AI response.'
