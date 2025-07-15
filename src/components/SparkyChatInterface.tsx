@@ -149,7 +149,7 @@ const SparkyChatInterface = () => {
       if (messages.length === 0) {
         if (nutritionData && nutritionData.analysis) {
           const welcomeMessage: Message = {
-            id: `msg-${Date.now()}`,
+            id: `msg-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
             content: `👋 **Hi there! I'm Sparky, your AI nutrition coach!**\n\n${nutritionData.analysis}\n\n💡 **Tips for today:**\n${nutritionData.tips}\n\n🗣️ Ask me about nutrition, exercise, or healthy lifestyle tips! I can help you:\n• Understand your nutrition data\n• Suggest meal improvements\n• Provide exercise recommendations\n• Give wellness advice\n• Track food and workouts`,
             isUser: false,
             timestamp: new Date()
@@ -157,7 +157,7 @@ const SparkyChatInterface = () => {
           setMessages(prevMessages => [...prevMessages, welcomeMessage]);
         } else {
           const defaultMessage: Message = {
-            id: `msg-${Date.now()}`,
+            id: `msg-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
             content: '👋 **Hi! I\'m Sparky, your AI nutrition coach!**\n\n🍎 I can help you with nutrition advice and healthy living tips\n🏃‍♂️ Ask me about exercise recommendations\n📊 Get insights about your eating habits\n💡 Receive personalized wellness guidance\n\n💬 Try asking: "What should I eat for a healthy breakfast?" or "How can I increase my protein intake?"',
             isUser: false,
             timestamp: new Date()
@@ -172,7 +172,7 @@ const SparkyChatInterface = () => {
       // Only add error message if no messages exist after loading history
       if (messages.length === 0) { // Check if messages state is empty after loading history
         const errorMessage: Message = {
-          id: `msg-${Date.now()}`,
+          id: `msg-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
           content: '👋 **Hi! I\'m Sparky, your nutrition coach!**\n\n🥗 Ask me about nutrition and healthy eating\n💪 Get exercise and wellness tips\n📈 Learn about balanced nutrition\n\nI\'m here to help you achieve your health goals!',
           isUser: false,
           timestamp: new Date()
@@ -197,7 +197,7 @@ const SparkyChatInterface = () => {
     }
 
     const userMessage: Message = {
-      id: `msg-${Date.now()}-user`,
+      id: `msg-${Date.now()}-user-${Math.random().toString(36).substring(2, 9)}`,
       content: inputValue.trim(),
       isUser: true,
       timestamp: new Date()
@@ -221,7 +221,7 @@ const SparkyChatInterface = () => {
       if (selectedImage) {
         // Create a temporary user message to show the image preview in the chat
         const userMessageWithImage: Message = {
-          id: `msg-${Date.now()}-user-image`,
+          id: `msg-${Date.now()}-user-image-${Math.random().toString(36).substring(2, 9)}`,
           content: inputValue.trim() || 'Image uploaded', // Use input value or a default message
           isUser: true,
           timestamp: new Date(),
@@ -324,7 +324,7 @@ const SparkyChatInterface = () => {
                 const nutritionData = await getTodaysNutrition(today);
                 if (nutritionData && nutritionData.analysis) {
                   const updateMessage: Message = {
-                    id: `msg-${Date.now()}-update`,
+                    id: `msg-${Date.now()}-update-${Math.random().toString(36).substring(2, 9)}`,
                     content: `📊 **Updated Progress:**\n${nutritionData.analysis}\n\n💡 **Coaching tip:** ${nutritionData.tips}`,
                     isUser: false,
                     timestamp: new Date()
@@ -365,7 +365,7 @@ const SparkyChatInterface = () => {
       
       
       const botMessage: Message = {
-        id: `msg-${Date.now()}-bot`,
+        id: `msg-${Date.now()}-bot-${Math.random().toString(36).substring(2, 9)}`,
         content: botMessageContent,
         isUser: false,
         timestamp: new Date(),
@@ -380,7 +380,7 @@ const SparkyChatInterface = () => {
     } catch (err) {
       error(userPreferences?.logging_level || 'INFO', `[${transactionId}] Error processing message:`, err);
       const errorMessage: Message = {
-        id: `msg-${Date.now()}-error`,
+        id: `msg-${Date.now()}-error-${Math.random().toString(36).substring(2, 9)}`,
         content: 'Sorry, I encountered an error. Please check that you have AI services configured in Settings. In the meantime, I can still provide general nutrition and wellness advice! 🌟',
         isUser: false,
         timestamp: new Date()

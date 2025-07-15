@@ -157,7 +157,7 @@ export const processUserInput = async (
       case 'log_measurement':
         return await processMeasurementInput(parsedResponse.data, determinedEntryDate, formatDateInUserTimezone, userLoggingLevel);
       case 'log_water':
-        return await processWaterInput(parsedResponse.data, determinedEntryDate, formatDateInUserTimezone, userLoggingLevel);
+        return await processWaterInput(parsedResponse.data, determinedEntryDate, formatDateInUserTimezone, userLoggingLevel, transactionId);
       case 'ask_question':
       case 'chat':
         return await processChatInput(parsedResponse.data || {}, parsedResponse.response, userLoggingLevel);

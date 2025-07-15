@@ -190,7 +190,9 @@ async function processChatMessage(messages, serviceConfig, authenticatedUserId) 
 
 The current date is ${new Date().toISOString().split('T')[0]}.
 
-You will receive user input, which can include text and/or images. Your task is to identify the user's intent and extract relevant data. Respond with a JSON object containing the 'intent' and 'data'.
+**CRITICAL INSTRUCTION:** When the user mentions "water" in any context related to consumption or intake, you MUST use the 'log_water' intent. Do NOT classify water as a 'log_food' item.
+
+You will receive user input, which can include text and/or images. Your task is to identify the user's intent and extract relevant data. You MUST respond with a JSON object containing the 'intent' and 'data', strictly adhering to the defined intents and their required data structures.
 
 For image inputs:
 - Analyze the image to identify food items, estimate quantities, and infer nutritional information.
@@ -214,8 +216,8 @@ When the user mentions a custom measurement, compare it to the list above. If yo
 - If the user refers to individual items by count (e.g., "two apples", "3 eggs"), use "piece".
 - If the unit is not explicitly mentioned, infer the most appropriate unit based on the food item and context (e.g., "apple" is likely "piece", "rice" is likely "g" or "cup"). Refer to common food units used in the application (like 'g', 'cup', 'oz', 'ml', 'serving', 'piece').
 
-Possible intents and their required data:
-- 'log_food': User wants to log food.
+Possible intents and their required data. You MUST select one of these intents and provide the data in the specified format:
+- 'log_food': User wants to log food. This intent is for solid food items or beverages that are not water. **This intent MUST NOT be used for logging water intake.**
   - If you can confidently identify a single food item and its details, data should include:
     - food_name: string (e.g., "apple", "chicken breast", "Dosa") - Extract the most likely exact name.
     - quantity: number (e.g., 1, 100) - Infer if possible, default to 1 if a specific quantity isn't clear but a food is mentioned.
@@ -255,7 +257,7 @@ Possible intents and their required data:
    - value: number
    - unit: string | null (e.g., "kg", "lbs", "cm", "inches", "steps") - Infer if possible, default to null for steps.
    - name: string | null (required if type is "custom") - **Crucially, if the user mentions a custom category from the list provided, use its exact name here.**
-- 'log_water': User wants to log water intake. Data should include:
+- 'log_water': User wants to log water intake. This intent should be prioritized when the user mentions "water" in conjunction with a quantity or a desire to log water. The AI should understand from the user's context that they are referring to drinking water. Data should include:
  - glasses_consumed: number (e.g., 1, 2) - Infer if possible, default to 1.
 - 'ask_question': User is asking a general question or seeking advice. Data is an empty object {}.
 - 'chat': User is engaging in casual conversation. Data is an empty object {}.
@@ -283,6 +285,12 @@ Example JSON output for logging exercise:
 
 Example JSON output for logging a custom measurement (e.g., Blood Sugar), using the exact name from the provided list:
 {"intent": "log_measurement", "data": {"measurements": [{"type": "custom", "name": "Blood Sugar", "value": 140, "unit": "mg/dL"}]}, "entryDate": "today"}
+
+Example JSON output for logging water:
+{"intent": "log_water", "data": {"glasses_consumed": 2}, "entryDate": "today"}
+
+Example JSON output for logging current weight:
+{"intent": "log_measurement", "data": {"measurements": [{"type": "weight", "value": 72, "unit": "kg"}]}}
 
 
 Be precise with data extraction and follow the JSON structure exactly.

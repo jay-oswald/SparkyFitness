@@ -315,7 +315,7 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
   };
 
   const formatDateInUserTimezone = (date: string | Date, formatStr?: string) => {
-    debug(loggingLevel, `PreferencesProvider: Formatting date:`, date);
+    // debug(loggingLevel, `PreferencesProvider: Formatting date:`, date); // Removed as per user request
     let dateToFormat: Date;
 
     if (typeof date === 'string') {

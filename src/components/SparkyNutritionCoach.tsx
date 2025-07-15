@@ -213,7 +213,7 @@ const SparkyNutritionCoach = forwardRef<any, { userLoggingLevel: UserLoggingLeve
         case 'log_measurement':
           return await processMeasurementInput(parsedResponse.data, determinedEntryDate, formatDateInUserTimezone, userLoggingLevel);
         case 'log_water':
-          return await processWaterInput(parsedResponse.data, determinedEntryDate, formatDateInUserTimezone, userLoggingLevel);
+          return await processWaterInput(parsedResponse.data, formatDateInUserTimezone, userLoggingLevel, transactionId);
         case 'ask_question':
         case 'chat':
           // For chat/ask_question, the response is already in parsedResponse.response
