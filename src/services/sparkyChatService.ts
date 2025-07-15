@@ -78,7 +78,8 @@ export const processUserInput = async (
   userLoggingLevel: UserLoggingLevel,
   formatDateInUserTimezone: (date: string | Date, formatStr?: string) => string,
   activeAIServiceSetting: any,
-  messages: Message[] // Add messages parameter here
+  messages: Message[], // Add messages parameter here
+  userDate: string // Add userDate parameter
 ): Promise<CoachResponse> => {
   try {
     // Check if the current input is a follow-up to a previous food options prompt
@@ -93,7 +94,7 @@ export const processUserInput = async (
       imageData = await fileToBase64(image);
     }
 
-    const aiResponse = await getAIResponse(input, imageData, transactionId, userLoggingLevel, activeAIServiceSetting, messages); // Pass activeAIServiceSetting and messages
+    const aiResponse = await getAIResponse(input, imageData, transactionId, userLoggingLevel, activeAIServiceSetting, messages, userDate); // Pass userDate
 
     let parsedResponse: { intent: string; data: any; response?: string; entryDate?: string };
     try {
@@ -111,7 +112,7 @@ export const processUserInput = async (
       };
     }
 
-    const determinedEntryDate = parsedResponse.entryDate ? extractDateFromInput(parsedResponse.entryDate) : extractDateFromInput(input);
+    const determinedEntryDate = parsedResponse.entryDate ? extractDateFromInput(parsedResponse.entryDate, userDate) : extractDateFromInput(input, userDate);
     info(userLoggingLevel, `[${transactionId}] Determined entry date:`, determinedEntryDate);
 
     switch (parsedResponse.intent) {
@@ -155,6 +156,7 @@ export const processUserInput = async (
       case 'log_exercise':
         return await processExerciseInput(parsedResponse.data, determinedEntryDate, formatDateInUserTimezone, userLoggingLevel);
       case 'log_measurement':
+      case 'log_measurements':
         return await processMeasurementInput(parsedResponse.data, determinedEntryDate, formatDateInUserTimezone, userLoggingLevel);
       case 'log_water':
         return await processWaterInput(parsedResponse.data, determinedEntryDate, formatDateInUserTimezone, userLoggingLevel, transactionId);
@@ -193,7 +195,7 @@ const fileToBase64 = (file: File): Promise<string> => {
   });
 };
 
-const getAIResponse = async (input: string, imageData: string | null = null, transactionId: string, userLoggingLevel: UserLoggingLevel, activeAIServiceSetting: any, messages: Message[]): Promise<CoachResponse> => {
+const getAIResponse = async (input: string, imageData: string | null = null, transactionId: string, userLoggingLevel: UserLoggingLevel, activeAIServiceSetting: any, messages: Message[], userDate: string): Promise<CoachResponse> => {
   try {
     debug(userLoggingLevel, `[${transactionId}] Calling getAIResponse with input:`, input);
 
@@ -230,7 +232,7 @@ const getAIResponse = async (input: string, imageData: string | null = null, tra
 
     const response = await apiCall('/chat', {
       method: 'POST',
-      body: { messages: messagesToSend, service_config: activeAIServiceSetting },
+      body: { messages: messagesToSend, service_config: activeAIServiceSetting, user_date: userDate },
     });
 
     return {
@@ -329,9 +331,9 @@ const callAIForFoodOptions = async (foodName: string, unit: string, userLoggingL
   }
 };
 
-const extractDateFromInput = (input: string): string | undefined => {
+const extractDateFromInput = (input: string, userDate: string): string | undefined => {
   const lowerInput = input.toLowerCase();
-  const today = new Date();
+  const today = new Date(userDate); // Use user's date
   const yesterday = new Date(today);
   yesterday.setDate(yesterday.getDate() - 1);
   const tomorrow = new Date(today);

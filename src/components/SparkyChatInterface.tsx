@@ -214,6 +214,13 @@ const SparkyChatInterface = () => {
     const transactionId = `txn-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
     info(userPreferences?.logging_level || 'INFO', `[${transactionId}] Starting message processing for:`, currentInput);
 
+    // Get user's current date to pass to AI
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    const userDate = `${year}-${month}-${day}`;
+
     try {
       let response;
       
@@ -237,7 +244,8 @@ const SparkyChatInterface = () => {
           userPreferences?.logging_level || 'INFO',
           formatDateInUserTimezone,
           activeAIServiceSetting, // Pass the active AI service setting
-          messages // Pass the messages array
+          messages, // Pass the messages array
+          userDate // Pass user's date
         );
         setSelectedImage(null); // Clear the selected image after sending
         
@@ -262,7 +270,8 @@ const SparkyChatInterface = () => {
               userPreferences?.logging_level || 'INFO',
               formatDateInUserTimezone,
               activeAIServiceSetting, // Pass the active AI service setting
-              messages // Pass the messages array
+              messages, // Pass the messages array
+              userDate // Pass user's date
             );
           } else {
             info(userPreferences?.logging_level || 'INFO', `[${transactionId}] No food options metadata found on last bot message, processing as new input.`);
@@ -274,7 +283,8 @@ const SparkyChatInterface = () => {
               userPreferences?.logging_level || 'INFO',
               formatDateInUserTimezone,
               activeAIServiceSetting, // Pass the active AI service setting
-              messages // Pass the messages array
+              messages, // Pass the messages array
+              userDate // Pass user's date
             );
           }
         } else {
@@ -287,7 +297,8 @@ const SparkyChatInterface = () => {
             userPreferences?.logging_level || 'INFO',
             formatDateInUserTimezone,
             activeAIServiceSetting, // Pass the active AI service setting
-            messages // Pass the messages array
+            messages, // Pass the messages array
+            userDate // Pass user's date
           );
         }
       }
@@ -303,18 +314,14 @@ const SparkyChatInterface = () => {
           case 'food_added':
           case 'exercise_added':
           case 'measurement_added':
-          case 'log_water': // Added log_water to trigger refresh
-            // For successful logging actions, display the confirmation message from the coach
+          case 'log_water':
+          case 'water_added':
             botMessageContent = response.response || 'Entry logged successfully!';
-            
-            // Immediately trigger a refresh for the relevant component
-            if (response.action === 'food_added' || response.action === 'log_water') {
-              window.dispatchEvent(new Event('foodDiaryRefresh'));
-            } else if (response.action === 'exercise_added') {
-              window.dispatchEvent(new Event('exerciseDiaryRefresh'));
-            } else if (response.action === 'measurement_added') {
-              window.dispatchEvent(new Event('measurementsRefresh'));
-            }
+            window.dispatchEvent(new Event('foodDiaryRefresh'));
+            break;
+          case 'measurement_added':
+            botMessageContent = response.response || 'Entry logged successfully!';
+            window.dispatchEvent(new Event('measurementsRefresh'));
 
             // Trigger data refresh for nutrition analysis after a short delay
             setTimeout(async () => {

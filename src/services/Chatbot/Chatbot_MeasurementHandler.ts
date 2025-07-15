@@ -64,22 +64,27 @@ const insertCustomMeasurement = async (payload: { category_id: string; entry_dat
 };
 
 // Function to process measurement input
-export const processMeasurementInput = async (data: { measurements: Array<{ type: string; value: number; unit?: string | null; name?: string | null }> }, entryDate: string | undefined, formatDateInUserTimezone: (date: string | Date, formatStr?: string) => string, userLoggingLevel: UserLoggingLevel): Promise<CoachResponse> => {
+export const processMeasurementInput = async (data: any, entryDate: string | undefined, formatDateInUserTimezone: (date: string | Date, formatStr?: string) => string, userLoggingLevel: UserLoggingLevel): Promise<CoachResponse> => {
   try {
     debug(userLoggingLevel, 'Processing measurement input with data:', data, 'and entryDate:', entryDate);
 
-    const { measurements } = data;
-    const dateToUse = entryDate || formatDateInUserTimezone(new Date(), 'yyyy-MM-dd'); // Use provided date or today's date in user's timezone
-    let response = `📏 **Measurements updated for ${formatDateInUserTimezone(dateToUse, 'PPP')}!**\n\n`; // Include date here
+    const measurements = Array.isArray(data.measurements) ? data.measurements : [data];
+    const dateToUse = entryDate || formatDateInUserTimezone(new Date(), 'yyyy-MM-dd');
+    let response = `📏 **Measurements updated for ${formatDateInUserTimezone(dateToUse, 'PPP')}!**\n\n`;
     let measurementsLogged = false;
 
     for (const measurement of measurements) {
-      if (measurement.type === 'weight' || measurement.type === 'neck' || measurement.type === 'waist' || measurement.type === 'hips' || measurement.type === 'steps') {
-        // Handle standard check-in measurements
+      const measurementType = measurement.measurement_type || measurement.type;
+      if (!measurementType) {
+        warn(userLoggingLevel, '⚠️ [Nutrition Coach] Skipping invalid measurement data, missing type:', measurement);
+        continue;
+      }
+
+      if (['weight', 'neck', 'waist', 'hips', 'steps'].includes(measurementType)) {
         const updateData: any = {
-          entry_date: dateToUse, // Use the determined date
+          entry_date: dateToUse,
         };
-        updateData[measurement.type] = measurement.value;
+        updateData[measurementType] = measurement.value;
 
         let upsertError = null;
         try {
@@ -92,36 +97,39 @@ export const processMeasurementInput = async (data: { measurements: Array<{ type
           error(userLoggingLevel, `❌ [Nutrition Coach] Error saving ${measurement.type} measurement:`, upsertError.message);
           response += `⚠️ Failed to save ${measurement.type}: ${upsertError.message}\n`;
         } else {
-          response += `✅ ${measurement.type.charAt(0).toUpperCase() + measurement.type.slice(1)}: ${measurement.value}${measurement.unit || ''}\n`;
+          response += `✅ ${measurementType.charAt(0).toUpperCase() + measurementType.slice(1)}: ${measurement.value}${measurement.unit || ''}\n`;
           measurementsLogged = true;
         }
-      } else if (measurement.type === 'custom' && measurement.name && measurement.value !== undefined) {
-        // Handle custom measurements
-        // First, find or create the custom category
+      } else {
+        const customMeasurementName = measurement.name || measurementType;
+        warn(userLoggingLevel, `Treating "${customMeasurementName}" as a custom measurement.`);
+        
         let categoryId: string;
         let existingCategory = null;
         let categorySearchError: any = null;
         try {
-          existingCategory = await searchCustomCategory(measurement.name);
+          existingCategory = await searchCustomCategory(customMeasurementName);
         } catch (err: any) {
           categorySearchError = err;
         }
 
         if (categorySearchError && categorySearchError.code !== 'PGRST116') { // PGRST116 means no rows found
           error(userLoggingLevel, '❌ [Nutrition Coach] Error searching custom category:', categorySearchError.message);
-          response += `⚠️ Failed to save custom measurement "${measurement.name}": Could not search for category.\n`;
-          continue; // Skip to the next measurement
+          response += `⚠️ Failed to save custom measurement "${customMeasurementName}": Could not search for category.\n`;
+          continue;
         }
 
-        if (existingCategory) {
+        if (Array.isArray(existingCategory) && existingCategory.length > 0) {
+          categoryId = existingCategory[0].id;
+        } else if (existingCategory && !Array.isArray(existingCategory) && existingCategory.id) {
           categoryId = existingCategory.id;
-        } else if (categorySearchError && categorySearchError.code === 'PGRST116') { // Category not found, create it
-          info(userLoggingLevel, `Custom category "${measurement.name}" not found, creating...`);
+        } else {
+          info(userLoggingLevel, `Custom category "${customMeasurementName}" not found, creating...`);
           let newCategory = null;
           let categoryCreateError: any = null;
           try {
             newCategory = await createCustomCategory({
-              name: measurement.name,
+              name: customMeasurementName,
               frequency: 'Daily',
               measurement_type: 'numeric'
             });
@@ -131,25 +139,28 @@ export const processMeasurementInput = async (data: { measurements: Array<{ type
 
           if (categoryCreateError) {
             error(userLoggingLevel, '❌ [Nutrition Coach] Error creating custom category:', categoryCreateError.message);
-            response += `⚠️ Failed to save custom measurement "${measurement.name}": Could not create category.\n`;
-            continue; // Skip to the next measurement
+            response += `⚠️ Failed to save custom measurement "${customMeasurementName}": Could not create category.\n`;
+            continue;
           }
           categoryId = newCategory.id;
-        } else {
-             // This case should ideally not be reached if PGRST116 is the only expected error for no rows
-             error(userLoggingLevel, '❌ [Nutrition Coach] Unexpected state after custom category search.', categorySearchError.message);
-             response += `⚠️ Failed to save custom measurement "${measurement.name}": Unexpected error during category handling.\n`;
-             continue; // Skip to the next measurement
         }
 
 
         // Now insert the custom measurement entry
+        const valueToLog = measurement.value ?? measurement.systolic;
         let customEntryError: any = null;
+
+        if (valueToLog === undefined || valueToLog === null) {
+          error(userLoggingLevel, `❌ [Nutrition Coach] No valid value found for custom measurement "${customMeasurementName}".`);
+          response += `⚠️ Failed to save custom measurement "${customMeasurementName}": No value provided.\n`;
+          continue;
+        }
+        
         try {
           await insertCustomMeasurement({
             category_id: categoryId,
             entry_date: dateToUse,
-            value: measurement.value,
+            value: valueToLog,
             entry_timestamp: new Date().toISOString()
           });
         } catch (err: any) {
@@ -157,15 +168,12 @@ export const processMeasurementInput = async (data: { measurements: Array<{ type
         }
 
         if (customEntryError) {
-          error(userLoggingLevel, `❌ [Nutrition Coach] Error saving custom measurement "${measurement.name}":`, customEntryError.message);
-          response += `⚠️ Failed to save custom measurement "${measurement.name}": ${customEntryError.message}\n`;
+          error(userLoggingLevel, `❌ [Nutrition Coach] Error saving custom measurement "${customMeasurementName}":`, customEntryError.message);
+          response += `⚠️ Failed to save custom measurement "${customMeasurementName}": ${customEntryError.message}\n`;
         } else {
-          response += `✅ Custom Measurement "${measurement.name}": ${measurement.value}${measurement.unit || ''}\n`;
+          response += `✅ Custom Measurement "${customMeasurementName}": ${valueToLog}${measurement.unit || ''}\n`;
           measurementsLogged = true;
         }
-      } else {
-         warn(userLoggingLevel, '⚠️ [Nutrition Coach] Skipping invalid measurement data:', measurement);
-         response += `⚠️ Skipping invalid measurement data provided by AI.\n`;
       }
     }
 
