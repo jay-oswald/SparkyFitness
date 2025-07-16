@@ -54,18 +54,18 @@ const AboutDialog: React.FC<AboutDialogProps> = ({ isOpen, onClose, version }) =
             <div className="space-y-4">
               <p>SparkyFitness: Built for Families. Powered by AI. Track food, fitness, water, and health — together.</p>
               <p>Application Version: <strong>{version}</strong></p>
-              <p>
+              <div>
                 Join our community on Discord:{' '}
                 <a href="https://discord.gg/vcnMT5cPEA" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">
                   discord.gg/vcnMT5cPEA
                 </a>
-              </p>
-              <p>
+              </div>
+              <div>
                 For more information, visit the{' '}
                 <a href="https://github.com/CodeWithCJ/SparkyFitness" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">
                   GitHub repository
                 </a>.
-              </p>
+              </div>
               <div>
                 <h3 className="font-semibold mt-2">Technologies Used:</h3>
                 <h4 className="font-medium mt-2">Frontend:</h4>

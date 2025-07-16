@@ -49,9 +49,6 @@ async function deleteAiServiceSetting(authenticatedUserId, id) {
     if (!setting) {
       throw new Error('AI service setting not found.');
     }
-    if (setting.user_id !== authenticatedUserId) {
-      throw new Error('Forbidden: You do not have permission to delete this AI service setting.');
-    }
     const success = await chatRepository.deleteAiServiceSetting(id, authenticatedUserId);
     if (!success) {
       throw new Error('AI service setting not found.');

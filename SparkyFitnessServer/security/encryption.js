@@ -20,8 +20,14 @@ if (!JWT_SECRET) {
   process.exit(1);
 }
 
+if (JWT_SECRET.length !== 64) {
+  log('error', `JWT_SECRET has an invalid length. Expected 64 hex characters, got ${JWT_SECRET.length}.`);
+  process.exit(1);
+}
+
 // Utility functions for encryption and decryption
 async function encrypt(text, key) {
+  log('debug', `Encrypting text with key of length: ${key.length}`);
   if (!text) {
     return { encryptedText: null, iv: null, tag: null };
   }
@@ -34,6 +40,7 @@ async function encrypt(text, key) {
 }
 
 async function decrypt(encryptedText, ivString, tagString, key) {
+  log('debug', `Decrypting text with key of length: ${key.length}`);
   const iv = Buffer.from(ivString, 'base64');
   const tag = Buffer.from(tagString, 'base64');
   const decipher = crypto.createDecipheriv('aes-256-gcm', Buffer.from(key, 'hex'), iv);

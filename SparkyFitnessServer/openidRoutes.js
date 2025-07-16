@@ -181,7 +181,6 @@ router.post("/callback", async (req, res, next) => {
 
         if (user && user.id) {
           req.session.user = { ...claims, userId: user.id };
-          log('info', `OIDC callback: User session created for userId: ${user.id}. Session content: ${JSON.stringify(req.session.user)}`);
         } else {
           log('error', `OIDC callback: Failed to create or find a valid user for ${userEmail}. Cannot set session.`);
           // Fallback to storing claims directly if user object is invalid

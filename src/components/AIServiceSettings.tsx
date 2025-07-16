@@ -39,11 +39,13 @@ const AIServiceSettings = () => {
     system_prompt: '',
     is_active: false,
     model_name: '',
-    custom_model_name: '' // Add custom_model_name to newService state
+    custom_model_name: '', // Add custom_model_name to newService state
+    showCustomModelInput: false // New state to control visibility
   });
   const [editingService, setEditingService] = useState<string | null>(null);
-  const [editData, setEditData] = useState<Partial<AIService>>({
-    custom_model_name: '' // Add custom_model_name to editData state
+  const [editData, setEditData] = useState<Partial<AIService & { showCustomModelInput?: boolean }>>({
+    custom_model_name: '', // Add custom_model_name to editData state
+    showCustomModelInput: false // New state to control visibility
   });
   const [showAddForm, setShowAddForm] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -108,7 +110,7 @@ const AIServiceSettings = () => {
         custom_url: newService.custom_url || null,
         system_prompt: newService.system_prompt || '',
         is_active: newService.is_active,
-        model_name: newService.custom_model_name || newService.model_name || null // Prioritize custom_model_name
+        model_name: newService.showCustomModelInput ? newService.custom_model_name : newService.model_name || null // Prioritize custom_model_name if showCustomModelInput is true
       };
       await addAIService(serviceData);
       toast({
@@ -123,7 +125,8 @@ const AIServiceSettings = () => {
         system_prompt: '',
         is_active: false,
         model_name: '',
-        custom_model_name: '' // Clear custom_model_name field
+        custom_model_name: '', // Clear custom_model_name field
+        showCustomModelInput: false // Clear showCustomModelInput field
       });
       setShowAddForm(false);
       loadServices();
@@ -158,7 +161,7 @@ const AIServiceSettings = () => {
       ...originalService, // Start with all original fields
       ...editData,        // Overlay with edited fields
       id: serviceId,      // Ensure ID is correct
-      model_name: editData.custom_model_name || editData.model_name || null // Prioritize custom_model_name
+      model_name: editData.showCustomModelInput ? editData.custom_model_name : editData.model_name || null // Prioritize custom_model_name if showCustomModelInput is true
     };
 
     // Special handling for api_key: if editData.api_key is empty, it means user didn't change it,
@@ -286,7 +289,8 @@ const AIServiceSettings = () => {
       system_prompt: service.system_prompt || '',
       is_active: service.is_active,
       model_name: service.model_name || '',
-      custom_model_name: service.model_name || '' // Initialize custom_model_name with current model_name
+      custom_model_name: service.model_name || '', // Initialize custom_model_name with current model_name
+      showCustomModelInput: service.model_name ? !getModelOptions(service.service_type).includes(service.model_name) : false // Determine initial state
     });
   };
 
@@ -296,23 +300,7 @@ const AIServiceSettings = () => {
   };
 
   const getServiceTypes = () => [
-    { value: "openai", label: "OpenAI" },
-    { value: "openai_compatible", label: "OpenAI Compatible" },
-    { value: "anthropic", label: "Anthropic" },
-    { value: "google", label: "Google Gemini" },
-    { value: "mistral", label: "Mistral" },
-    { value: "groq", label: "Groq" },
-    { value: "grok", label: "Grok (X.AI)" },
-    { value: "together", label: "Together AI" },
-    { value: "openrouter", label: "OpenRouter" },
-    { value: "perplexity", label: "Perplexity" },
-    { value: "cohere", label: "Cohere" },
-    { value: "huggingface", label: "Hugging Face" },
-    { value: "replicate", label: "Replicate" },
-    { value: "vertex", label: "Vertex AI" },
-    { value: "azure_openai", label: "Azure OpenAI" },
-    { value: "ollama", label: "Ollama" },
-    { value: "custom", label: "Custom" }
+    { value: "google", label: "Google Gemini" }
   ];
 
   const getModelOptions = (serviceType: string) => {
@@ -488,12 +476,21 @@ const AIServiceSettings = () => {
                 </div>
               )}
 
-              {getModelOptions(newService.service_type).length > 0 && (
+              <div className="flex items-center space-x-2 mb-4">
+                <Switch
+                  id="new_use_custom_model"
+                  checked={newService.showCustomModelInput}
+                  onCheckedChange={(checked) => setNewService(prev => ({ ...prev, showCustomModelInput: checked, model_name: '', custom_model_name: '' }))}
+                />
+                <Label htmlFor="new_use_custom_model">Use Custom Model Name</Label>
+              </div>
+
+              {!newService.showCustomModelInput && getModelOptions(newService.service_type).length > 0 && (
                 <div>
                   <Label htmlFor="new_model_name_select">Model</Label>
                   <Select
                     value={newService.model_name}
-                    onValueChange={(value) => setNewService(prev => ({ ...prev, model_name: value, custom_model_name: '' }))} // Clear custom input on select change
+                    onValueChange={(value) => setNewService(prev => ({ ...prev, model_name: value }))}
                   >
                     <SelectTrigger id="new_model_name_select">
                       <SelectValue placeholder="Select a model" />
@@ -508,19 +505,20 @@ const AIServiceSettings = () => {
                   </Select>
                 </div>
               )}
-              {/* Always show custom model name input */}
-              <div>
-                <Label htmlFor="new_custom_model_name_input">Custom Model Name (Optional)</Label>
-                <Input
-                  id="new_custom_model_name_input"
-                  value={newService.custom_model_name}
-                  onChange={(e) => setNewService(prev => ({ ...prev, custom_model_name: e.target.value }))}
-                  placeholder="Enter custom model name if not in list"
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  If your model is not in the list, enter its name here. This will override the selected model.
-                </p>
-              </div>
+              {newService.showCustomModelInput && (
+                <div>
+                  <Label htmlFor="new_custom_model_name_input">Custom Model Name</Label>
+                  <Input
+                    id="new_custom_model_name_input"
+                    value={newService.custom_model_name}
+                    onChange={(e) => setNewService(prev => ({ ...prev, custom_model_name: e.target.value }))}
+                    placeholder="Enter custom model name"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Enter the exact name of your custom model.
+                  </p>
+                </div>
+              )}
 
               <div>
                 <Label htmlFor="new_system_prompt">System Prompt (Additional Instructions)</Label>
@@ -622,12 +620,21 @@ const AIServiceSettings = () => {
                           </div>
                         )}
 
-                        {getModelOptions(editData.service_type || '').length > 0 && (
+                        <div className="flex items-center space-x-2 mb-4">
+                          <Switch
+                            id="edit_use_custom_model"
+                            checked={editData.showCustomModelInput || false}
+                            onCheckedChange={(checked) => setEditData(prev => ({ ...prev, showCustomModelInput: checked, model_name: '', custom_model_name: '' }))}
+                          />
+                          <Label htmlFor="edit_use_custom_model">Use Custom Model Name</Label>
+                        </div>
+
+                        {!editData.showCustomModelInput && getModelOptions(editData.service_type || '').length > 0 && (
                           <div>
                             <Label>Model</Label>
                             <Select
                               value={editData.model_name || ''}
-                              onValueChange={(value) => setEditData(prev => ({ ...prev, model_name: value, custom_model_name: '' }))} // Clear custom input on select change
+                              onValueChange={(value) => setEditData(prev => ({ ...prev, model_name: value }))}
                             >
                               <SelectTrigger>
                                 <SelectValue placeholder="Select a model" />
@@ -642,18 +649,19 @@ const AIServiceSettings = () => {
                             </Select>
                           </div>
                         )}
-                        {/* Always show custom model name input */}
-                        <div>
-                          <Label>Custom Model Name (Optional)</Label>
-                          <Input
-                            value={editData.custom_model_name || ''}
-                            onChange={(e) => setEditData(prev => ({ ...prev, custom_model_name: e.target.value }))}
-                            placeholder="Enter custom model name if not in list"
-                          />
-                          <p className="text-xs text-muted-foreground mt-1">
-                            If your model is not in the list, enter its name here. This will override the selected model.
-                          </p>
-                        </div>
+                        {editData.showCustomModelInput && (
+                          <div>
+                            <Label>Custom Model Name</Label>
+                            <Input
+                              value={editData.custom_model_name || ''}
+                              onChange={(e) => setEditData(prev => ({ ...prev, custom_model_name: e.target.value }))}
+                              placeholder="Enter custom model name"
+                            />
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Enter the exact name of your custom model.
+                            </p>
+                          </div>
+                        )}
 
                         <div>
                           <Label>System Prompt (Additional Instructions)</Label>
