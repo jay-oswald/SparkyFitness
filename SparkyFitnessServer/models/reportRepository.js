@@ -93,7 +93,8 @@ async function getMiniNutritionTrends(userId, startDate, endDate) {
          SUM(fv.calories * fe.quantity / fv.serving_size) AS total_calories,
          SUM(fv.protein * fe.quantity / fv.serving_size) AS total_protein,
          SUM(fv.carbs * fe.quantity / fv.serving_size) AS total_carbs,
-         SUM(fv.fat * fe.quantity / fv.serving_size) AS total_fat
+         SUM(fv.fat * fe.quantity / fv.serving_size) AS total_fat,
+         SUM(COALESCE(fv.dietary_fiber, 0) * fe.quantity / fv.serving_size) AS total_dietary_fiber
        FROM food_entries fe
        JOIN food_variants fv ON fe.variant_id = fv.id
        WHERE fe.user_id = $1 AND fe.entry_date BETWEEN $2 AND $3

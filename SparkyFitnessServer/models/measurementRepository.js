@@ -40,10 +40,9 @@ async function upsertWaterData(userId, value, date) {
     let result;
     if (existingRecord.rows.length > 0) {
       // If record exists, increment the glasses_consumed
-      const newTotal = (existingRecord.rows[0].glasses_consumed || 0) + value;
       const updateResult = await client.query(
         'UPDATE water_intake SET glasses_consumed = $1, updated_at = now() WHERE id = $2 RETURNING *',
-        [newTotal, existingRecord.rows[0].id]
+        [value, existingRecord.rows[0].id]
       );
       result = updateResult.rows[0];
     } else {

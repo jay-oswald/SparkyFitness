@@ -6,6 +6,7 @@ export interface DayData {
   protein: number;
   carbs: number;
   fat: number;
+  dietary_fiber: number;
 }
 
 export const loadMiniNutritionTrendData = async (

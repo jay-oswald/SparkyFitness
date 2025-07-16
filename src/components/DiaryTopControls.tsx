@@ -12,6 +12,7 @@ interface Goals {
   protein: number;
   carbs: number;
   fat: number;
+  dietary_fiber: number;
 }
 
 interface DayTotals {
@@ -19,6 +20,7 @@ interface DayTotals {
   protein: number;
   carbs: number;
   fat: number;
+  dietary_fiber: number;
 }
 
 interface DiaryTopControlsProps {
@@ -33,8 +35,8 @@ interface DiaryTopControlsProps {
 const DiaryTopControls = ({
   selectedDate,
   onDateChange,
-  dayTotals = { calories: 0, protein: 0, carbs: 0, fat: 0 },
-  goals = { calories: 2000, protein: 150, carbs: 250, fat: 67 },
+  dayTotals = { calories: 0, protein: 0, carbs: 0, fat: 0, dietary_fiber: 0 },
+  goals = { calories: 2000, protein: 150, carbs: 250, fat: 67, dietary_fiber: 25 },
   onGoalsUpdated = () => {},
   refreshTrigger = 0
 }: DiaryTopControlsProps) => {
@@ -64,7 +66,7 @@ const DiaryTopControls = ({
             </div>
           </CardHeader>
           <CardContent className="pb-4">
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
               <div className="text-center">
                 <div className="text-xl font-bold">{Math.round(dayTotals.calories)}</div>
                 <div className="text-xs text-gray-500">of {goals.calories} cal</div>
@@ -102,6 +104,16 @@ const DiaryTopControls = ({
                   <div
                     className="bg-yellow-500 h-1.5 rounded-full"
                     style={{ width: `${Math.min((dayTotals.fat / goals.fat) * 100, 100)}%` }}
+                  />
+                </div>
+              </div>
+              <div className="text-center">
+                <div className="text-xl font-bold text-green-600">{dayTotals.dietary_fiber.toFixed(1)}g</div>
+                <div className="text-xs text-gray-500">of {goals.dietary_fiber}g fiber</div>
+                <div className="w-full bg-gray-200 rounded-full h-1.5 mt-1">
+                  <div
+                    className="bg-green-500 h-1.5 rounded-full"
+                    style={{ width: `${Math.min((dayTotals.dietary_fiber / goals.dietary_fiber) * 100, 100)}%` }}
                   />
                 </div>
               </div>

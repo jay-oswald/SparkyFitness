@@ -5,7 +5,7 @@ const axios = require('axios');
 // Function to get the application version from package.json
 function getAppVersion() {
     try {
-        const packageJsonPath = path.resolve(__dirname, '../../package.json');
+        const packageJsonPath = path.resolve(__dirname, '../../../package.json');
         const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
         return packageJson.version;
     } catch (error) {

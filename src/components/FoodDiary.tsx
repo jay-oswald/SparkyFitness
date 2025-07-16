@@ -45,6 +45,7 @@ interface MealTotals {
   protein: number;
   carbs: number;
   fat: number;
+  dietary_fiber: number;
 }
 
 interface FoodDiaryProps {
@@ -68,7 +69,7 @@ const FoodDiary = ({ selectedDate, onDateChange, refreshTrigger: externalRefresh
     target_exercise_calories_burned: 0, target_exercise_duration_minutes: 0,
     protein_percentage: null, carbs_percentage: null, fat_percentage: null
   });
-  const [dayTotals, setDayTotals] = useState({ calories: 0, protein: 0, carbs: 0, fat: 0 });
+  const [dayTotals, setDayTotals] = useState<MealTotals>({ calories: 0, protein: 0, carbs: 0, fat: 0, dietary_fiber: 0 });
   const [selectedFood, setSelectedFood] = useState<Food | null>(null);
   const [selectedMealType, setSelectedMealType] = useState<string>("");
   const [isUnitSelectorOpen, setIsUnitSelectorOpen] = useState(false);
@@ -88,13 +89,14 @@ const FoodDiary = ({ selectedDate, onDateChange, refreshTrigger: externalRefresh
   const _calculateDayTotals = useCallback((entries: FoodEntry[]) => {
     debug(loggingLevel, "Calculating day totals for entries:", entries);
     const totals = entries.reduce((acc, entry) => {
-      const entryNutrition = calculateFoodEntryNutrition(entry); // Use the already fixed calculateFoodEntryNutrition
+      const entryNutrition = calculateFoodEntryNutrition(entry);
       acc.calories += entryNutrition.calories;
       acc.protein += entryNutrition.protein;
       acc.carbs += entryNutrition.carbs;
       acc.fat += entryNutrition.fat;
+      acc.dietary_fiber += entryNutrition.dietary_fiber || 0;
       return acc;
-    }, { calories: 0, protein: 0, carbs: 0, fat: 0 });
+    }, { calories: 0, protein: 0, carbs: 0, fat: 0, dietary_fiber: 0 });
 
     info(loggingLevel, "Day totals calculated:", totals);
     setDayTotals(totals);
@@ -222,8 +224,9 @@ const FoodDiary = ({ selectedDate, onDateChange, refreshTrigger: externalRefresh
       acc.protein += entryNutrition.protein;
       acc.carbs += entryNutrition.carbs;
       acc.fat += entryNutrition.fat;
+      acc.dietary_fiber += entryNutrition.dietary_fiber;
       return acc;
-    }, { calories: 0, protein: 0, carbs: 0, fat: 0 });
+    }, { calories: 0, protein: 0, carbs: 0, fat: 0, dietary_fiber: 0 });
     debug(loggingLevel, `Calculated totals for ${mealType}:`, totals);
     return totals;
   }, [foodEntries, getEntryNutrition, loggingLevel]);

@@ -62,7 +62,7 @@ const MiniNutritionTrends = ({ selectedDate, refreshTrigger }: MiniNutritionTren
             {formatDateInUserTimezone(parseISO(label), 'MMM dd')}
           </p>
           <p className="text-xs text-gray-600 dark:text-gray-400">
-            {nutrientName}: {formatNutrientValue(nutrientValue, nutrientName)}
+            {nutrientName === 'dietary_fiber' ? 'Fiber' : nutrientName}: {formatNutrientValue(nutrientValue, nutrientName)}
           </p>
         </div>
       );
@@ -180,6 +180,32 @@ const MiniNutritionTrends = ({ selectedDate, refreshTrigger }: MiniNutritionTren
                 type="monotone" 
                 dataKey="fat" 
                 stroke="#eab308" 
+                strokeWidth={2}
+                dot={false}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* Fiber Trend */}
+      <div className="space-y-1">
+        <div className="flex justify-between items-center">
+          <span className="text-xs font-medium text-gray-600 dark:text-gray-400">Fiber</span>
+          <span className="text-xs text-green-600 font-medium">
+            {formatNutrientValue(chartData[chartData.length - 1]?.dietary_fiber || 0, 'dietary_fiber')}
+          </span>
+        </div>
+        <div className="h-6 bg-gray-100 dark:bg-gray-800 rounded">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={chartData}>
+              <XAxis dataKey="date" hide />
+              <YAxis hide />
+              <Tooltip content={<CustomTooltip />} />
+              <Line
+                type="monotone"
+                dataKey="dietary_fiber"
+                stroke="#22c55e"
                 strokeWidth={2}
                 dot={false}
               />

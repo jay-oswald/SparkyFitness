@@ -6,6 +6,10 @@ labels: ["bug", "triage"]
 assignees: ""
 ---
 
+## Important: Log Requirement for Troubleshooting
+
+To effectively troubleshoot and resolve issues, it is crucial to provide relevant server and/or browser console logs that replicate the problem. Issues submitted without adequate logs may be difficult to diagnose and are at risk of being automatically closed.
+
 ## Bug Description
 
 A clear and concise description of what the bug is.

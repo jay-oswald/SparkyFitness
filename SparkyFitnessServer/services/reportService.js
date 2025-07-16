@@ -79,6 +79,7 @@ async function getMiniNutritionTrends(authenticatedUserId, targetUserId, startDa
       protein: parseFloat(row.total_protein || 0),
       carbs: parseFloat(row.total_carbs || 0),
       fat: parseFloat(row.total_fat || 0),
+      dietary_fiber: parseFloat(row.total_dietary_fiber || 0),
     }));
 
     return formattedResults;

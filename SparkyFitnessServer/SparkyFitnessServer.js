@@ -89,7 +89,7 @@ app.use((req, res, next) => {
 
   // Check if the current request path starts with any of the public routes
   if (publicRoutes.some(route => req.path.startsWith(route))) {
-    console.log(`Skipping authentication for public route: ${req.path}`);
+    log('debug', `Skipping authentication for public route: ${req.path}`);
     return next();
   }
 

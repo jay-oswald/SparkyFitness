@@ -29,6 +29,7 @@ interface MealTotals {
   protein: number;
   carbs: number;
   fat: number;
+  dietary_fiber: number;
 }
 
 interface MealCardProps {
@@ -202,7 +203,7 @@ const MealCard = ({
                           </Badge>
                         )}
                       </div>
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4 text-xs sm:text-sm text-gray-600 dark:text-gray-400">
+                      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 sm:gap-4 text-xs sm:text-sm text-gray-600 dark:text-gray-400">
                         <div>
                           <span className="font-medium text-gray-900 dark:text-gray-100">
                             {Math.round(entryNutrition.calories)}
@@ -222,6 +223,11 @@ const MealCard = ({
                           <span className="font-medium text-yellow-600">
                             {entryNutrition.fat.toFixed(1)}g
                           </span> fat
+                        </div>
+                        <div>
+                          <span className="font-medium text-green-600">
+                            {entryNutrition.dietary_fiber.toFixed(1)}g
+                          </span> fiber
                         </div>
                       </div>
                     </div>
@@ -269,7 +275,7 @@ const MealCard = ({
 
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center pt-2 gap-4">
                 <span className="font-semibold">{meal.name} Total:</span>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4 text-xs sm:text-sm">
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 sm:gap-4 text-xs sm:text-sm">
                   <div className="text-center">
                     <div className="font-bold text-gray-900 dark:text-gray-100">{Math.round(totals.calories)}</div>
                     <div className="text-xs text-gray-500">cal</div>
@@ -285,6 +291,10 @@ const MealCard = ({
                   <div className="text-center">
                     <div className="font-bold text-yellow-600">{totals.fat.toFixed(1)}g</div>
                     <div className="text-xs text-gray-500">fat</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="font-bold text-green-600">{totals.dietary_fiber.toFixed(1)}g</div>
+                    <div className="text-xs text-gray-500">fiber</div>
                   </div>
                 </div>
               </div>

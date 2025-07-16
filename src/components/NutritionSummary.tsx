@@ -6,6 +6,7 @@ interface Goals {
   protein: number;
   carbs: number;
   fat: number;
+  dietary_fiber: number;
 }
 
 interface DayTotals {
@@ -13,6 +14,7 @@ interface DayTotals {
   protein: number;
   carbs: number;
   fat: number;
+  dietary_fiber: number;
 }
 
 interface NutritionSummaryProps {
@@ -28,7 +30,7 @@ const NutritionSummary = ({ dayTotals, goals, selectedDate }: NutritionSummaryPr
         <CardTitle className="text-base">Nutrition Summary</CardTitle>
       </CardHeader>
       <CardContent className="pt-2 pb-3">
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
           <div className="text-center">
             <div className="text-lg sm:text-xl font-bold">{Math.round(dayTotals.calories)}</div>
             <div className="text-xs text-gray-500">of {goals.calories} cal</div>
@@ -66,6 +68,16 @@ const NutritionSummary = ({ dayTotals, goals, selectedDate }: NutritionSummaryPr
               <div
                 className="bg-yellow-500 h-1.5 rounded-full"
                 style={{ width: `${Math.min((dayTotals.fat / goals.fat) * 100, 100)}%` }}
+              />
+            </div>
+          </div>
+          <div className="text-center">
+            <div className="text-lg sm:text-xl font-bold text-green-600">{dayTotals.dietary_fiber.toFixed(1)}g</div>
+            <div className="text-xs text-gray-500">of {goals.dietary_fiber}g fiber</div>
+            <div className="w-full bg-gray-200 rounded-full h-1.5 mt-1">
+              <div
+                className="bg-green-500 h-1.5 rounded-full"
+                style={{ width: `${Math.min((dayTotals.dietary_fiber / goals.dietary_fiber) * 100, 100)}%` }}
               />
             </div>
           </div>
