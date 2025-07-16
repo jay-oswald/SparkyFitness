@@ -206,20 +206,25 @@ router.post("/callback", async (req, res, next) => {
 
 // Protect an API route
 router.get("/api/me", async (req, res) => {
+  log('debug', '/openid/api/me hit. Session user:', req.session.user);
   if (!req.session.user || !req.session.user.userId) {
+    log('warn', '/openid/api/me: No active session or user ID found. Returning 401.');
     return res.status(401).json({ error: "Unauthorized", message: "No active session or user ID found." });
   }
   try {
     // Fetch the user's role from the database to ensure it's up-to-date
     const user = await userRepository.findUserById(req.session.user.userId);
+    log('debug', '/openid/api/me: User found in DB:', user);
     if (user) {
       // Combine session data with the role from the database
       const userData = {
         ...req.session.user,
         role: user.role // Ensure the role is included
       };
+      log('debug', '/openid/api/me: Returning user data:', userData);
       return res.json(userData);
     } else {
+      log('warn', '/openid/api/me: User not found in database for ID:', req.session.user.userId);
       return res.status(404).json({ error: "Not Found", message: "User not found in database." });
     }
   } catch (error) {

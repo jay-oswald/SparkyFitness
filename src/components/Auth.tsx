@@ -76,7 +76,7 @@ const Auth = () => {
         title: "Success",
         description: "Account created successfully!",
       });
-      signIn(data.userId, email, data.token, data.role); // Pass token and role to signIn
+      signIn(data.userId, email, data.token, data.role, 'password'); // Pass token, role, and authType to signIn
     } catch (err: any) {
       error(loggingLevel, "Auth: Sign up failed:", err);
       toast({
@@ -103,7 +103,7 @@ const Auth = () => {
         title: "Success",
         description: "Logged in successfully!",
       });
-      signIn(data.userId, email, data.token, data.role); // Pass token and role to signIn
+      signIn(data.userId, email, data.token, data.role, 'password'); // Pass token, role, and authType to signIn
     } catch (err: any) {
       error(loggingLevel, "Auth: Sign in failed:", err);
       toast({

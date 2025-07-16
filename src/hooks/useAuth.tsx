@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 
 interface User {
@@ -12,7 +11,7 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   signOut: () => Promise<void>;
-  signIn: (userId: string, userEmail: string, token: string, userRole: string) => void;
+  signIn: (userId: string, userEmail: string, token: string | null, userRole: string, authType: 'oidc' | 'password') => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -24,23 +23,55 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   useEffect(() => {
     const checkSession = async () => {
       try {
-        // Attempt to fetch user info from the backend using the session cookie
-        const response = await fetch('/openid/api/me', { credentials: 'include' });
+        const authType = localStorage.getItem('authType');
+        const token = localStorage.getItem('token');
+
+        let response;
+        if (authType === 'password' && token) {
+          response = await fetch('/api/auth/user', {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+            },
+          });
+        } else {
+          response = await fetch('/openid/api/me', { credentials: 'include' });
+        }
+
         if (response.ok) {
           const userData = await response.json();
           if (userData && userData.userId && userData.email) {
             setUser({ id: userData.userId, email: userData.email, role: userData.role || 'user' });
           } else {
-            // Session cookie might be present but user data invalid/expired
             setUser(null);
+            if (authType === 'password') {
+              localStorage.removeItem('userId');
+              localStorage.removeItem('userEmail');
+              localStorage.removeItem('token');
+              localStorage.removeItem('userRole');
+              localStorage.removeItem('authType');
+            }
           }
         } else {
-          // No active session or session expired
           setUser(null);
+          if (authType === 'password') {
+            localStorage.removeItem('userId');
+            localStorage.removeItem('userEmail');
+            localStorage.removeItem('token');
+            localStorage.removeItem('userRole');
+            localStorage.removeItem('authType');
+          }
         }
       } catch (error) {
         console.error('Error checking session:', error);
         setUser(null);
+        const authType = localStorage.getItem('authType');
+        if (authType === 'password') {
+          localStorage.removeItem('userId');
+          localStorage.removeItem('userEmail');
+          localStorage.removeItem('token');
+          localStorage.removeItem('userRole');
+          localStorage.removeItem('authType');
+        }
       } finally {
         setLoading(false);
       }
@@ -82,6 +113,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         localStorage.removeItem('userEmail');
         localStorage.removeItem('token');
         localStorage.removeItem('userRole');
+        localStorage.removeItem('authType'); // Clear authType on sign out
         setUser(null);
       }
     } catch (error) {
@@ -89,14 +121,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  const signIn = (userId: string, userEmail: string, token: string, userRole: string) => {
-    // Only set token if it's provided. For OIDC, the session is managed by cookies.
+  const signIn = (userId: string, userEmail: string, token: string | null, userRole: string, authType: 'oidc' | 'password') => {
     if (token) {
       localStorage.setItem('token', token);
     }
     localStorage.setItem('userId', userId);
     localStorage.setItem('userEmail', userEmail);
-    localStorage.setItem('userRole', userRole); // Store userRole on sign in
+    localStorage.setItem('userRole', userRole);
+    localStorage.setItem('authType', authType); // Store authType on sign in
     setUser({ id: userId, email: userEmail, role: userRole });
   };
 

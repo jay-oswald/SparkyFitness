@@ -69,7 +69,13 @@ router.post('/register', registerValidation, async (req, res, next) => {
 router.get('/user', authenticateToken, async (req, res, next) => {
   try {
     const user = await authService.getUser(req.userId);
-    res.status(200).json(user);
+    // Ensure the role is included in the response
+    res.status(200).json({
+      userId: user.id,
+      email: user.email,
+      role: user.role,
+      created_at: user.created_at // Include created_at for consistency
+    });
   } catch (error) {
     if (error.message === 'User not found.') {
       return res.status(404).json({ error: error.message });
