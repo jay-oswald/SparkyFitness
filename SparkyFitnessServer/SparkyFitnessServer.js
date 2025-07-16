@@ -65,14 +65,23 @@ app.use(session({
   proxy: true, // Trust the proxy in all environments (like Vite dev server)
   cookie: {
     path: '/', // Ensure cookie is sent for all paths
-    // In development, set secure to false and sameSite to 'none' for cross-origin local development.
-    // In production, secure should be true (HTTPS) and sameSite should be 'none'.
-    secure: isProduction,
     httpOnly: true,
-    sameSite: isProduction ? 'none' : 'lax', // Revert to original logic
     maxAge: 24 * 60 * 60 * 1000 // 1 day
+    // secure and sameSite will be set dynamically
   }
 }));
+
+// Dynamically set cookie properties based on protocol
+app.use((req, res, next) => {
+  if (req.session && req.protocol === 'https') {
+    req.session.cookie.secure = true;
+    req.session.cookie.sameSite = 'none';
+  } else if (req.session) {
+    req.session.cookie.sameSite = 'lax';
+  }
+  log('debug', `[Session Debug] Request Protocol: ${req.protocol}, Secure: ${req.secure}, Host: ${req.headers.host}`);
+  next();
+});
 
 // Apply authentication middleware to all routes except auth
 app.use((req, res, next) => {
