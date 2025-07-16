@@ -436,18 +436,29 @@ const Reports = () => {
     const isConvertibleMeasurement = ['kg', 'lbs', 'cm', 'inches'].includes(category.measurement_type.toLowerCase());
 
     const convertValue = (value: number) => {
+      if (isNaN(value)) {
+        debug(loggingLevel, `Reports: convertValue received NaN or invalid value: ${value}. Returning 0.`);
+        return 0; // Return 0 or another sensible default for NaN values
+      }
       if (isConvertibleMeasurement) {
         // Assuming custom measurements are stored in 'cm' if they are convertible
-        return convertMeasurement(value, 'cm', showMeasurementsInCm ? 'cm' : 'inches');
+        const converted = convertMeasurement(value, 'cm', showMeasurementsInCm ? 'cm' : 'inches');
+        debug(loggingLevel, `Reports: Converted value from ${value} to ${converted} for category.`);
+        return converted;
       }
+      debug(loggingLevel, `Reports: Returning original value ${value} for non-convertible category.`);
       return value;
     };
 
     if (category.frequency === 'Hourly' || category.frequency === 'All') {
-      return data.map(d => ({
-        date: `${d.entry_date} ${d.hour !== null ? String(d.hour).padStart(2, '0') + ':00' : ''}`,
-        value: convertValue(d.value)
-      }));
+      return data.map(d => {
+        const convertedValue = convertValue(d.value);
+        debug(loggingLevel, `Reports: Mapping data point - original value: ${d.value}, converted value: ${convertedValue}`);
+        return {
+          date: `${d.entry_date} ${d.hour !== null ? String(d.hour).padStart(2, '0') + ':00' : ''}`,
+          value: convertedValue
+        };
+      });
     } else {
       // For daily, group by date and take the latest value
       const grouped = data.reduce((acc, d) => {
@@ -457,10 +468,14 @@ const Reports = () => {
         return acc;
       }, {} as Record<string, CustomMeasurementData>);
       
-      return Object.values(grouped).map(d => ({
-        date: d.entry_date,
-        value: convertValue(d.value)
-      }));
+      return Object.values(grouped).map(d => {
+        const convertedValue = convertValue(d.value);
+        debug(loggingLevel, `Reports: Mapping grouped data point - original value: ${d.value}, converted value: ${convertedValue}`);
+        return {
+          date: d.entry_date,
+          value: convertedValue
+        };
+      });
     }
   };
 
@@ -562,29 +577,39 @@ const Reports = () => {
                               {category.measurement_type.toLowerCase() === 'length' || category.measurement_type.toLowerCase() === 'distance'
                                 ? `${category.name} (${showMeasurementsInCm ? 'cm' : 'inches'})`
                                 : `${category.name} (${category.measurement_type})`}
-                            </CardTitle>
-                          </CardHeader>
-                          <CardContent>
-                            <div className="h-80">
-                              <ResponsiveContainer width="100%" height="100%">
-                                <LineChart data={chartData}>
-                                  <CartesianGrid strokeDasharray="3 3" />
-                                  <XAxis dataKey="date" />
-                                  <YAxis
-                                    label={{
-                                      value: showMeasurementsInCm ? 'cm' : 'inches',
-                                      angle: -90,
-                                      position: 'insideLeft',
-                                      offset: 10
-                                    }}
-                                  />
-                                  <Tooltip formatter={(value: number) => [`${value.toFixed(1)} ${showMeasurementsInCm ? 'cm' : 'inches'}`]} />
-                                  <Line type="monotone" dataKey="value" stroke="#8884d8" strokeWidth={2} dot={false} />
-                                </LineChart>
-                              </ResponsiveContainer>
-                            </div>
-                          </CardContent>
-                        </Card>
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="h-80">
+                            <ResponsiveContainer width="100%" height="100%">
+                              <LineChart data={chartData}>
+                                <CartesianGrid strokeDasharray="3 3" />
+                                <XAxis dataKey="date" />
+                                <YAxis
+                                  label={{
+                                    value: category.measurement_type.toLowerCase() === 'length' || category.measurement_type.toLowerCase() === 'distance'
+                                      ? (showMeasurementsInCm ? 'cm' : 'inches')
+                                      : category.measurement_type,
+                                    angle: -90,
+                                    position: 'insideLeft',
+                                    offset: 10
+                                  }}
+                                />
+                                <Tooltip formatter={(value: number, name: string, props: any) => {
+                                  const unit = category.measurement_type.toLowerCase() === 'length' || category.measurement_type.toLowerCase() === 'distance'
+                                    ? (showMeasurementsInCm ? 'cm' : 'inches')
+                                    : category.measurement_type;
+                                  if (typeof value === 'number') {
+                                    return [`${value.toFixed(1)} ${unit}`];
+                                  }
+                                  return ['N/A'];
+                                }} />
+                                <Line type="monotone" dataKey="value" stroke="#8884d8" strokeWidth={2} dot={false} />
+                              </LineChart>
+                            </ResponsiveContainer>
+                          </div>
+                        </CardContent>
+                      </Card>
                       </ZoomableChart>
                     );
                   })}
