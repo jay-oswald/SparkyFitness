@@ -247,9 +247,11 @@ async function createOidcUser(userId, email, fullName, oidcSub) {
     await client.query('BEGIN');
 
     // Insert into auth.users for OIDC
+    // For OIDC users, password_hash is not used, but the column requires a non-null value.
+    // We insert a placeholder (e.g., an empty string) to satisfy the constraint.
     await client.query(
-      'INSERT INTO auth.users (id, email, oidc_sub, created_at, updated_at) VALUES ($1, $2, $3, now(), now())',
-      [userId, email, oidcSub]
+      'INSERT INTO auth.users (id, email, oidc_sub, password_hash, created_at, updated_at) VALUES ($1, $2, $3, $4, now(), now())',
+      [userId, email, oidcSub, '']
     );
 
     // Insert into profiles

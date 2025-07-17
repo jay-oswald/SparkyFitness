@@ -20,11 +20,25 @@ async function initializeOidcClient() {
       return;
     }
 
-    log('info', `Discovering OIDC issuer: ${settings.issuer_url}`);
-    const issuer = await Issuer.discover(settings.issuer_url);
-    context.issuer = issuer;
-    log('info', 'OpenID Connect Issuer discovered:', issuer.issuer);
+    log('info', `Discovering OIDC issuer from: ${settings.issuer_url}`);
+    const discoveredIssuer = await Issuer.discover(settings.issuer_url);
 
+    // To ensure stability and prevent mismatches, we explicitly construct a new Issuer
+    // using the metadata from the discovery endpoint. This makes sure that the issuer
+    // identifier used for token validation is the one advertised by the provider,
+    // not the discovery URL itself.
+    const issuer = new Issuer({
+      issuer: discoveredIssuer.issuer,
+      authorization_endpoint: discoveredIssuer.authorization_endpoint,
+      token_endpoint: discoveredIssuer.token_endpoint,
+      jwks_uri: discoveredIssuer.jwks_uri,
+      userinfo_endpoint: discoveredIssuer.userinfo_endpoint,
+      // Manually carry over other relevant metadata if needed
+      end_session_endpoint: discoveredIssuer.end_session_endpoint,
+    });
+
+    context.issuer = issuer;
+    log('info', 'OIDC Issuer configured successfully from discovered metadata:', issuer.issuer);
     // Explicitly fetch JWKS if not provided by discovery
     if (!issuer.jwks && issuer.jwks_uri) {
       log('debug', `JWKS not found in discovery, fetching from jwks_uri: ${issuer.jwks_uri}`);
@@ -151,11 +165,22 @@ router.post("/callback", async (req, res, next) => {
     );
 
     log('info', "Successfully received and validated tokens from OIDC provider.");
+    
+    // As requested, keeping detailed logs for troubleshooting.
+    if (tokenSet.id_token) {
+      try {
+        const payload = JSON.parse(Buffer.from(tokenSet.id_token.split('.')[1], 'base64url').toString('utf8'));
+        log('info', 'OIDC DEBUG: Decoded ID Token Payload:', payload);
+      } catch (err) {
+        log('error', 'OIDC DEBUG: Failed to decode or parse ID token payload.', err);
+      }
+    }
+    
     log('debug', "Validated ID Token claims:", tokenSet.claims());
  
     const claims = tokenSet.claims();
     // log('info', 'OIDC callback: Received claims:', claims);
-    const userEmail = claims.email;
+    const userEmail = claims.email || claims.preferred_username;
     const oidcSub = claims.sub;
 
     // Auto-registration logic

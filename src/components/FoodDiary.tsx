@@ -165,7 +165,9 @@ const FoodDiary = ({ selectedDate, onDateChange, refreshTrigger: externalRefresh
     debug(loggingLevel, "Handling data change, triggering refresh.");
     _loadFoodEntries();
     _loadGoals();
-  }, [debug, loggingLevel, _loadFoodEntries, _loadGoals]);
+    info(loggingLevel, "Dispatching foodDiaryRefresh event.");
+    window.dispatchEvent(new CustomEvent('foodDiaryRefresh'));
+  }, [debug, loggingLevel, _loadFoodEntries, _loadGoals, info]);
 
   const handleCopyClick = useCallback((mealType: string) => {
     setCopySourceMealType(mealType);

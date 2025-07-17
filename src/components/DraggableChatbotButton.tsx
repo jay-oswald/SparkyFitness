@@ -34,7 +34,7 @@ const DraggableChatbotButton: React.FC = () => {
     const checkAiProviders = async () => {
       if (!loading && user?.id) { // Only fetch if not loading and user is available
         try {
-          const services = await getAIServices(user.id);
+          const services = await getAIServices();
           setHasAiProvider(services && services.length > 0);
         } catch (error) {
           console.error("Failed to fetch AI services:", error);
@@ -117,7 +117,15 @@ const DraggableChatbotButton: React.FC = () => {
   };
 
   const handleTouchEnd = () => {
-    handleInteractionEnd();
+    // Check if a drag was initiated on the button
+    if (isDragging) {
+      handleInteractionEnd();
+      // Manually trigger the click handler.
+      // The `onClick` event won't fire on mobile because `e.preventDefault()` is called
+      // in `handleTouchStart` to prevent scrolling during a drag.
+      // We pass a null event because the event object is not used inside handleClick.
+      handleClick(null as any);
+    }
   };
 
   const handleClick = (e: React.MouseEvent | React.TouchEvent) => {
