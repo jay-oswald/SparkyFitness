@@ -359,7 +359,7 @@ const EditFoodEntryDialog = ({ entry, open, onOpenChange, onSave }: EditFoodEntr
                     </div>
                   </div>
 
-                  <div className="bg-gray-50 p-4 rounded-lg">
+                  <div className="bg-muted p-4 rounded-lg">
                     <h4 className="font-medium mb-2">Base Values (per {selectedVariant?.serving_size} {selectedVariant?.serving_unit}):</h4>
                     <div className="grid grid-cols-4 gap-4 text-sm">
                       <div>{selectedVariant?.calories || 0} cal</div>

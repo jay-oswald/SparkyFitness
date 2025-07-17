@@ -262,7 +262,7 @@ const FoodUnitSelector = ({ food, open, onOpenChange, onSelect, showUnitSelector
             </div>
 
             {nutrition && selectedVariant && (
-              <div className="bg-gray-50 p-3 rounded-lg">
+              <div className="bg-muted p-3 rounded-lg">
                 <h4 className="font-medium mb-2">Nutrition for {quantity} {selectedVariant.serving_unit}:</h4>
                 <div className="grid grid-cols-2 gap-2 text-sm">
                   <div>{nutrition.calories.toFixed(1)} calories</div>

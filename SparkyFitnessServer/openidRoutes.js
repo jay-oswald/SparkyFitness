@@ -154,7 +154,7 @@ router.post("/callback", async (req, res, next) => {
     log('debug', "Validated ID Token claims:", tokenSet.claims());
  
     const claims = tokenSet.claims();
-    log('info', 'OIDC callback: Received claims:', claims);
+    // log('info', 'OIDC callback: Received claims:', claims);
     const userEmail = claims.email;
     const oidcSub = claims.sub;
 
