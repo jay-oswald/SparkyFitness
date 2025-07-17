@@ -68,52 +68,52 @@ const DiaryTopControls = ({
           <CardContent className="pb-4">
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
               <div className="text-center">
-                <div className="text-xl font-bold">{Math.round(dayTotals.calories)}</div>
-                <div className="text-xs text-gray-500">of {goals.calories} cal</div>
+                <div className="text-xl font-bold">{Math.round(Number(dayTotals.calories))}</div>
+                <div className="text-xs text-gray-500">of {goals && goals.calories ? Math.round(Number(goals.calories)) : 0} cal</div>
                 <div className="w-full bg-gray-200 rounded-full h-1.5 mt-1">
                   <div
                     className="bg-green-500 h-1.5 rounded-full"
-                    style={{ width: `${Math.min((dayTotals.calories / goals.calories) * 100, 100)}%` }}
+                    style={{ width: `${goals.calories ? Math.min((Number(dayTotals.calories) / Number(goals.calories)) * 100, 100) : 0}%` }}
                   />
                 </div>
               </div>
               <div className="text-center">
-                <div className="text-xl font-bold text-blue-600">{dayTotals.protein.toFixed(1)}g</div>
-                <div className="text-xs text-gray-500">of {goals.protein}g protein</div>
+                <div className="text-xl font-bold text-blue-600">{Number(dayTotals.protein).toFixed(1)}g</div>
+                <div className="text-xs text-gray-500">of {goals && goals.protein ? Number(goals.protein).toFixed(1) : '0.0'}g protein</div>
                 <div className="w-full bg-gray-200 rounded-full h-1.5 mt-1">
                   <div
                     className="bg-blue-500 h-1.5 rounded-full"
-                    style={{ width: `${Math.min((dayTotals.protein / goals.protein) * 100, 100)}%` }}
+                    style={{ width: `${goals.protein ? Math.min((Number(dayTotals.protein) / Number(goals.protein)) * 100, 100) : 0}%` }}
                   />
                 </div>
               </div>
               <div className="text-center">
-                <div className="text-xl font-bold text-orange-600">{dayTotals.carbs.toFixed(1)}g</div>
-                <div className="text-xs text-gray-500">of {goals.carbs}g carbs</div>
+                <div className="text-xl font-bold text-orange-600">{Number(dayTotals.carbs).toFixed(1)}g</div>
+                <div className="text-xs text-gray-500">of {goals && goals.carbs ? Number(goals.carbs).toFixed(1) : '0.0'}g carbs</div>
                 <div className="w-full bg-gray-200 rounded-full h-1.5 mt-1">
                   <div
                     className="bg-orange-500 h-1.5 rounded-full"
-                    style={{ width: `${Math.min((dayTotals.carbs / goals.carbs) * 100, 100)}%` }}
+                    style={{ width: `${goals.carbs ? Math.min((Number(dayTotals.carbs) / Number(goals.carbs)) * 100, 100) : 0}%` }}
                   />
                 </div>
               </div>
               <div className="text-center">
-                <div className="text-xl font-bold text-yellow-600">{dayTotals.fat.toFixed(1)}g</div>
-                <div className="text-xs text-gray-500">of {goals.fat}g fat</div>
+                <div className="text-xl font-bold text-yellow-600">{Number(dayTotals.fat).toFixed(1)}g</div>
+                <div className="text-xs text-gray-500">of {goals && goals.fat ? Number(goals.fat).toFixed(1) : '0.0'}g fat</div>
                 <div className="w-full bg-gray-200 rounded-full h-1.5 mt-1">
                   <div
                     className="bg-yellow-500 h-1.5 rounded-full"
-                    style={{ width: `${Math.min((dayTotals.fat / goals.fat) * 100, 100)}%` }}
+                    style={{ width: `${goals.fat ? Math.min((Number(dayTotals.fat) / Number(goals.fat)) * 100, 100) : 0}%` }}
                   />
                 </div>
               </div>
               <div className="text-center">
-                <div className="text-xl font-bold text-green-600">{dayTotals.dietary_fiber.toFixed(1)}g</div>
-                <div className="text-xs text-gray-500">of {goals.dietary_fiber}g fiber</div>
+                <div className="text-xl font-bold text-green-600">{Number(dayTotals.dietary_fiber).toFixed(1)}g</div>
+                <div className="text-xs text-gray-500">of {goals && goals.dietary_fiber ? Number(goals.dietary_fiber).toFixed(1) : '0.0'}g fiber</div>
                 <div className="w-full bg-gray-200 rounded-full h-1.5 mt-1">
                   <div
                     className="bg-green-500 h-1.5 rounded-full"
-                    style={{ width: `${Math.min((dayTotals.dietary_fiber / goals.dietary_fiber) * 100, 100)}%` }}
+                    style={{ width: `${goals.dietary_fiber ? Math.min((Number(dayTotals.dietary_fiber) / Number(goals.dietary_fiber)) * 100, 100) : 0}%` }}
                   />
                 </div>
               </div>
