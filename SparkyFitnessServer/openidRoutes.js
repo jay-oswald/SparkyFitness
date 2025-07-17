@@ -197,8 +197,14 @@ router.post("/callback", async (req, res, next) => {
     }
 
     req.session.tokens = tokenSet; // refresh_token if any
-    log('info', 'OIDC authentication successful. Redirecting to /openid/api/me');
-    res.json({ success: true, redirectUrl: "/" });
+    log('info', 'OIDC authentication successful. Saving session and redirecting to /openid/api/me');
+    req.session.save((err) => {
+      if (err) {
+        log('error', 'Failed to save session after OIDC callback:', err);
+        return next(err);
+      }
+      res.json({ success: true, redirectUrl: "/" });
+    });
   } catch (e) {
     log('error', 'OIDC callback error:', e.message);
     next(e);

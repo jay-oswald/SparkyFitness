@@ -273,7 +273,9 @@ const OidcSettings: React.FC = () => {
                         proxy_set_header Host $host;<br/>
                         proxy_set_header X-Real-IP $remote_addr;<br/>
                         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;<br/>
-                        proxy_set_header X-Forwarded-Proto $scheme;
+                        proxy_set_header X-Forwarded-Proto $scheme;<br/>
+                        add_header X-Content-Type-Options "nosniff";<br/>
+                        proxy_set_header X-Forwarded-Ssl on;
                       </code>
                     </pre>
                     <Button
