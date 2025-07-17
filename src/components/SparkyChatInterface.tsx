@@ -76,7 +76,7 @@ const SparkyChatInterface = () => {
       if (coachRef.current) {
         setIsLoading(true);
         try {
-          await clearChatHistory('manual'); // Call clear history function
+          await clearChatHistory('all'); // Call clear history function
           setMessages([]); // Clear local state
           toast({
             title: "Chat Cleared",
