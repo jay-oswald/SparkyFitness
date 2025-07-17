@@ -140,6 +140,27 @@ router.put('/:id', authenticateToken, authorizeAccess('exercise_list'), express.
   }
 });
 
+// Endpoint to get deletion impact for an exercise
+router.get('/:id/deletion-impact', authenticateToken, authorizeAccess('exercise_list'), async (req, res, next) => {
+    const { id } = req.params;
+    const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+    if (!id || !uuidRegex.test(id)) {
+        return res.status(400).json({ error: 'Exercise ID is required and must be a valid UUID.' });
+    }
+    try {
+        const impact = await exerciseService.getExerciseDeletionImpact(req.userId, id);
+        res.status(200).json(impact);
+    } catch (error) {
+        if (error.message.startsWith('Forbidden')) {
+            return res.status(403).json({ error: error.message });
+        }
+        if (error.message === 'Exercise not found.') {
+            return res.status(404).json({ error: error.message });
+        }
+        next(error);
+    }
+});
+
 // Endpoint to delete an exercise
 router.delete('/:id', authenticateToken, authorizeAccess('exercise_list'), async (req, res, next) => {
   const { id } = req.params;

@@ -975,6 +975,7 @@ module.exports = {
   getFoodDataProviderById,
   getFoodEntryByDetails,
   getDailyNutritionSummary, // Add the new function to exports
+  getFoodDeletionImpact,
 };
 
 async function getDailyNutritionSummary(userId, date) {
@@ -992,6 +993,29 @@ async function getDailyNutritionSummary(userId, date) {
       [userId, date]
     );
     return result.rows[0];
+  } finally {
+    client.release();
+  }
+}
+
+async function getFoodDeletionImpact(foodId) {
+  const client = await pool.connect();
+  try {
+    const queries = [
+      client.query('SELECT COUNT(*) FROM food_entries WHERE food_id = $1', [foodId]),
+      client.query('SELECT COUNT(*) FROM meal_foods WHERE food_id = $1', [foodId]),
+      client.query('SELECT COUNT(*) FROM meal_plans WHERE food_id = $1', [foodId]),
+      client.query('SELECT COUNT(*) FROM meal_plan_template_assignments WHERE food_id = $1', [foodId]),
+    ];
+
+    const results = await Promise.all(queries);
+
+    return {
+      foodEntriesCount: parseInt(results[0].rows[0].count, 10),
+      mealFoodsCount: parseInt(results[1].rows[0].count, 10),
+      mealPlansCount: parseInt(results[2].rows[0].count, 10),
+      mealPlanTemplateAssignmentsCount: parseInt(results[3].rows[0].count, 10),
+    };
   } finally {
     client.release();
   }

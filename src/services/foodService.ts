@@ -1,6 +1,6 @@
 import { apiCall } from './api';
 
-import { Food } from '@/types/food';
+import { Food, FoodDeletionImpact } from '@/types/food';
 
 export type FoodFilter = 'all' | 'mine' | 'family' | 'public';
 
@@ -100,6 +100,13 @@ export const createFood = async (payload: FoodPayload): Promise<Food> => {
     method: 'POST',
     body: payload,
   });
+};
+
+export const getFoodDeletionImpact = async (foodId: string): Promise<FoodDeletionImpact> => {
+  const response = await apiCall(`/foods/${foodId}/deletion-impact`, {
+    method: 'GET',
+  });
+  return response;
 };
 
 export const updateFood = async (id: string, payload: Partial<FoodPayload>): Promise<Food> => {

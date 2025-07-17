@@ -725,4 +725,21 @@ module.exports = {
   copyFoodEntries,
   copyFoodEntriesFromYesterday,
   getDailyNutritionSummary, // Add the new function to exports
+  getFoodDeletionImpact,
 };
+
+async function getFoodDeletionImpact(authenticatedUserId, foodId) {
+    try {
+        const foodOwnerId = await foodRepository.getFoodOwnerId(foodId);
+        if (!foodOwnerId) {
+            throw new Error('Food not found.');
+        }
+        if (foodOwnerId !== authenticatedUserId) {
+            throw new Error('Forbidden: You do not have permission to view this food.');
+        }
+        return await foodRepository.getFoodDeletionImpact(foodId);
+    } catch (error) {
+        log('error', `Error getting food deletion impact for food ${foodId} by user ${authenticatedUserId} in foodService:`, error);
+        throw error;
+    }
+}

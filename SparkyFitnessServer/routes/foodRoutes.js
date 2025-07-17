@@ -517,6 +517,25 @@ router.put('/:id', authenticateToken, authorizeAccess('food_list'), async (req, 
   }
 });
 
+router.get('/:id/deletion-impact', authenticateToken, authorizeAccess('food_list'), async (req, res, next) => {
+    const { id } = req.params;
+    if (!id) {
+        return res.status(400).json({ error: 'Food ID is required.' });
+    }
+    try {
+        const impact = await foodService.getFoodDeletionImpact(req.userId, id);
+        res.status(200).json(impact);
+    } catch (error) {
+        if (error.message.startsWith('Forbidden')) {
+            return res.status(403).json({ error: error.message });
+        }
+        if (error.message === 'Food not found.') {
+            return res.status(404).json({ error: error.message });
+        }
+        next(error);
+    }
+});
+
 router.delete('/:id', authenticateToken, authorizeAccess('food_list'), async (req, res, next) => {
   const { id } = req.params;
   if (!id) {

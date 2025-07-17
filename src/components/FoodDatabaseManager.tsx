@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
+import ConfirmationDialog from "@/components/ui/ConfirmationDialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
 import { Search, Edit, Trash2, Plus, Share2, Users, Filter } from "lucide-react";
@@ -16,10 +17,11 @@ import {
   loadFoods,
   togglePublicSharing,
   deleteFood as deleteFoodService,
+  getFoodDeletionImpact,
   FoodFilter,
 } from '@/services/foodService';
 import { createFoodEntry } from '@/services/foodEntryService'; // Import foodEntryService
-import { Food } from '@/types/food';
+import { Food, FoodVariant, FoodDeletionImpact } from '@/types/food';
 import MealManagement from "./MealManagement"; // Import MealManagement
 import MealPlanCalendar from "./MealPlanCalendar"; // Import MealPlanCalendar
 
@@ -40,6 +42,9 @@ const FoodDatabaseManager: React.FC = () => {
   const [sortOrder, setSortOrder] = useState<string>('name:asc');
   const [showFoodUnitSelectorDialog, setShowFoodUnitSelectorDialog] = useState(false); // New state
   const [foodToAddToMeal, setFoodToAddToMeal] = useState<Food | null>(null); // New state
+  const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
+  const [deletionImpact, setDeletionImpact] = useState<FoodDeletionImpact | null>(null);
+  const [foodToDelete, setFoodToDelete] = useState<Food | null>(null);
 
   useEffect(() => {
     if (user && activeUserId) { // Always fetch foods when user and activeUserId are available
@@ -88,20 +93,43 @@ const FoodDatabaseManager: React.FC = () => {
     }
   };
 
-  const deleteFood = async (foodId: string) => {
-
+  const handleDeleteRequest = async (food: Food) => {
+    if (!user || !activeUserId) return;
     try {
-      // Pass activeUserId to the service function
-      await deleteFoodService(foodId, activeUserId); // Use the renamed import
+      const impact = await getFoodDeletionImpact(food.id, activeUserId);
+      setDeletionImpact(impact);
+      setFoodToDelete(food);
+      setShowDeleteConfirmation(true);
+    } catch (error) {
+      console.error("Error fetching deletion impact:", error);
+      toast({
+        title: "Error",
+        description: "Could not fetch deletion impact. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
 
+  const confirmDelete = async () => {
+    if (!foodToDelete || !activeUserId) return;
+    try {
+      await deleteFoodService(foodToDelete.id, activeUserId);
       toast({
         title: "Success",
-        description: "Food deleted successfully",
+        description: "Food deleted successfully.",
       });
-
       fetchFoodsData();
-    } catch (error: any) {
-      console.error('Error:', error);
+    } catch (error) {
+      console.error("Error deleting food:", error);
+      toast({
+        title: "Error",
+        description: "Failed to delete food.",
+        variant: "destructive",
+      });
+    } finally {
+      setShowDeleteConfirmation(false);
+      setFoodToDelete(null);
+      setDeletionImpact(null);
     }
   };
 
@@ -118,7 +146,7 @@ const FoodDatabaseManager: React.FC = () => {
 
   };
 
-  const handleAddFoodToMeal = async (food: Food, quantity: number, unit: string, variantId?: string) => {
+  const handleAddFoodToMeal = async (food: Food, quantity: number, unit: string, selectedVariant: FoodVariant) => {
     if (!user || !activeUserId) {
       toast({
         title: "Error",
@@ -136,7 +164,7 @@ const FoodDatabaseManager: React.FC = () => {
         quantity: quantity,
         unit: unit,
         entry_date: new Date().toISOString().split('T')[0], // Current date
-        variant_id: variantId || null,
+        variant_id: selectedVariant.id || null,
       });
 
       toast({
@@ -374,7 +402,7 @@ const FoodDatabaseManager: React.FC = () => {
                           <Button 
                             size="sm" 
                             variant="ghost" 
-                            onClick={() => deleteFood(food.id)} // No change needed here, as the function signature was updated
+                            onClick={() => handleDeleteRequest(food)}
                           >
                             <Trash2 className="w-4 h-4" />
                           </Button>
@@ -469,6 +497,26 @@ const FoodDatabaseManager: React.FC = () => {
           onOpenChange={setShowFoodUnitSelectorDialog}
           onSelect={handleAddFoodToMeal}
           showUnitSelector={false}
+        />
+      )}
+
+      {deletionImpact && foodToDelete && (
+        <ConfirmationDialog
+          open={showDeleteConfirmation}
+          onOpenChange={setShowDeleteConfirmation}
+          onConfirm={confirmDelete}
+          title={`Delete ${foodToDelete.name}?`}
+          description={
+            <div>
+              <p>This will permanently delete the food and all associated data:</p>
+              <ul className="list-disc pl-5 mt-2">
+                <li>{deletionImpact.foodEntriesCount} diary entries</li>
+                <li>{deletionImpact.mealFoodsCount} meal components</li>
+                <li>{deletionImpact.mealPlansCount} meal plan entries</li>
+                <li>{deletionImpact.mealPlanTemplateAssignmentsCount} meal plan template entries</li>
+              </ul>
+            </div>
+          }
         />
       )}
     </div>

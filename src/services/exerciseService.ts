@@ -13,6 +13,10 @@ export interface Exercise {
   updated_at: string;
 }
 
+export interface ExerciseDeletionImpact {
+    exerciseEntriesCount: number;
+}
+
 interface ExercisePayload {
   name: string;
   category: string;
@@ -70,4 +74,11 @@ export const updateExerciseShareStatus = async (id: string, sharedWithPublic: bo
     method: 'PUT',
     body: { shared_with_public: sharedWithPublic },
   });
+};
+
+export const getExerciseDeletionImpact = async (exerciseId: string): Promise<ExerciseDeletionImpact> => {
+    const response = await apiCall(`/exercises/${exerciseId}/deletion-impact`, {
+        method: 'GET',
+    });
+    return response;
 };

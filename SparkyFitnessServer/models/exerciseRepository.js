@@ -411,4 +411,20 @@ module.exports = {
   updateExercise,
   deleteExercise,
   getExerciseEntriesByDate,
+  getExerciseDeletionImpact,
 };
+
+async function getExerciseDeletionImpact(exerciseId) {
+    const client = await pool.connect();
+    try {
+        const result = await client.query(
+            'SELECT COUNT(*) FROM exercise_entries WHERE exercise_id = $1',
+            [exerciseId]
+        );
+        return {
+            exerciseEntriesCount: parseInt(result.rows[0].count, 10),
+        };
+    } finally {
+        client.release();
+    }
+}

@@ -344,4 +344,21 @@ module.exports = {
   searchExternalExercises,
   addExternalExerciseToUserExercises,
   addNutritionixExerciseToUserExercises, // New export
+  getExerciseDeletionImpact,
 };
+
+async function getExerciseDeletionImpact(authenticatedUserId, exerciseId) {
+    try {
+        const exerciseOwnerId = await exerciseRepository.getExerciseOwnerId(exerciseId);
+        if (!exerciseOwnerId) {
+            throw new Error('Exercise not found.');
+        }
+        if (exerciseOwnerId !== authenticatedUserId) {
+            throw new Error('Forbidden: You do not have permission to view this exercise.');
+        }
+        return await exerciseRepository.getExerciseDeletionImpact(exerciseId);
+    } catch (error) {
+        log('error', `Error getting exercise deletion impact for exercise ${exerciseId} by user ${authenticatedUserId} in exerciseService:`, error);
+        throw error;
+    }
+}

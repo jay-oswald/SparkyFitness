@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
+import ConfirmationDialog from "@/components/ui/ConfirmationDialog";
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
 import { Plus, Edit, Trash2, Share2, Lock, Settings } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
@@ -18,7 +19,9 @@ import {
   updateExercise,
   deleteExercise,
   updateExerciseShareStatus,
+  getExerciseDeletionImpact,
   Exercise,
+  ExerciseDeletionImpact,
 } from '@/services/exerciseService';
 
 
@@ -42,6 +45,9 @@ const ExerciseDatabaseManager = () => {
   const [editExerciseCategory, setEditExerciseCategory] = useState("general");
   const [editExerciseCalories, setEditExerciseCalories] = useState(300);
   const [editExerciseDescription, setEditExerciseDescription] = useState("");
+  const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
+  const [deletionImpact, setDeletionImpact] = useState<ExerciseDeletionImpact | null>(null);
+  const [exerciseToDelete, setExerciseToDelete] = useState<Exercise | null>(null);
 
   useEffect(() => {
     if (user?.id) {
@@ -146,21 +152,43 @@ const ExerciseDatabaseManager = () => {
     }
   };
 
-  const handleDeleteExercise = async (exerciseId: string) => {
+  const handleDeleteRequest = async (exercise: Exercise) => {
+    if (!user) return;
     try {
-      await deleteExercise(exerciseId, user.id);
+      const impact = await getExerciseDeletionImpact(exercise.id);
+      setDeletionImpact(impact);
+      setExerciseToDelete(exercise);
+      setShowDeleteConfirmation(true);
+    } catch (error) {
+      console.error("Error fetching deletion impact:", error);
+      toast({
+        title: "Error",
+        description: "Could not fetch deletion impact. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (!exerciseToDelete || !user) return;
+    try {
+      await deleteExercise(exerciseToDelete.id, user.id);
       toast({
         title: "Success",
-        description: "Exercise deleted successfully",
+        description: "Exercise deleted successfully.",
       });
       loadExercisesData();
     } catch (error) {
       console.error("Error deleting exercise:", error);
       toast({
         title: "Error",
-        description: "Failed to delete exercise",
+        description: "Failed to delete exercise.",
         variant: "destructive",
       });
+    } finally {
+      setShowDeleteConfirmation(false);
+      setExerciseToDelete(null);
+      setDeletionImpact(null);
     }
   };
 
@@ -361,7 +389,7 @@ const ExerciseDatabaseManager = () => {
                   <Button
                     variant="ghost"
                     size="icon"
-                    onClick={() => handleDeleteExercise(exercise.id)}
+                    onClick={() => handleDeleteRequest(exercise)}
                     className="h-8 w-8 hover:bg-gray-200"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -500,6 +528,23 @@ const ExerciseDatabaseManager = () => {
           <Button onClick={handleEditExercise}>Save Changes</Button>
         </DialogContent>
       </Dialog>
+
+      {deletionImpact && exerciseToDelete && (
+        <ConfirmationDialog
+          open={showDeleteConfirmation}
+          onOpenChange={setShowDeleteConfirmation}
+          onConfirm={confirmDelete}
+          title={`Delete ${exerciseToDelete.name}?`}
+          description={
+            <div>
+              <p>This will permanently delete the exercise and all associated data:</p>
+              <ul className="list-disc pl-5 mt-2">
+                <li>{deletionImpact.exerciseEntriesCount} diary entries</li>
+              </ul>
+            </div>
+          }
+        />
+      )}
     </div>
   );
 };
