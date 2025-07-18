@@ -33,7 +33,7 @@ async function searchFoods(name, userId, exactMatch, broadMatch, checkCustom) {
         ) AS default_variant
       FROM foods f
       LEFT JOIN food_variants fv ON f.id = fv.food_id AND fv.is_default = TRUE
-      WHERE `;
+      WHERE f.is_quick_food = FALSE AND `;
     const queryParams = [];
     let paramIndex = 1;
  
@@ -66,10 +66,10 @@ async function createFood(foodData) {
     // 1. Create the food entry
     const foodResult = await client.query(
       `INSERT INTO foods (
-        name, is_custom, user_id, brand, barcode, provider_external_id, shared_with_public, provider_type, created_at, updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, now(), now()) RETURNING id, name, brand, is_custom, user_id, shared_with_public`,
+        name, is_custom, user_id, brand, barcode, provider_external_id, shared_with_public, provider_type, is_quick_food, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, now(), now()) RETURNING id, name, brand, is_custom, user_id, shared_with_public, is_quick_food`,
       [
-        foodData.name, foodData.is_custom, foodData.user_id, foodData.brand, foodData.barcode, foodData.provider_external_id, foodData.shared_with_public, foodData.provider_type
+        foodData.name, foodData.is_custom, foodData.user_id, foodData.brand, foodData.barcode, foodData.provider_external_id, foodData.shared_with_public, foodData.provider_type, foodData.is_quick_food || false
       ]
     );
     const newFood = foodResult.rows[0];
@@ -225,7 +225,7 @@ async function deleteFood(id, userId) {
 async function getFoodsWithPagination(searchTerm, foodFilter, authenticatedUserId, limit, offset, sortBy) {
   const client = await pool.connect();
   try {
-    let whereClauses = ['1=1'];
+    let whereClauses = ["f.is_quick_food = FALSE"];
     const queryParams = [];
     let paramIndex = 1;
 

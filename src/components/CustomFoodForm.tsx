@@ -1,6 +1,7 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
@@ -29,6 +30,7 @@ interface CustomFood {
   iron?: number;
   servingSize: number;
   servingUnit: string;
+  is_quick_food?: boolean;
 }
 
 interface CustomFoodFormProps {
@@ -59,7 +61,8 @@ const CustomFoodForm = ({ onSave }: CustomFoodFormProps) => {
    calcium: 0,
    iron: 0,
    servingSize: 100,
-   servingUnit: "g"
+   servingUnit: "g",
+   is_quick_food: false,
  });
 
  const handleSubmit = (e: React.FormEvent) => {
@@ -93,7 +96,8 @@ const CustomFoodForm = ({ onSave }: CustomFoodFormProps) => {
      calcium: 0,
      iron: 0,
      servingSize: 100,
-     servingUnit: "g"
+     servingUnit: "g",
+     is_quick_food: false,
    });
    info(loggingLevel, "CustomFoodForm: Form data reset.");
  };
@@ -131,6 +135,17 @@ const CustomFoodForm = ({ onSave }: CustomFoodFormProps) => {
                placeholder="e.g., Homemade"
              />
            </div>
+         </div>
+
+         <div className="flex items-center space-x-2 pt-4">
+           <Checkbox
+             id="is_quick_food"
+             checked={formData.is_quick_food}
+             onCheckedChange={(checked) => handleInputChange("is_quick_food", !!checked)}
+           />
+           <Label htmlFor="is_quick_food" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+             Quick Add (don't save to my food list for future use)
+           </Label>
          </div>
 
          <div className="grid grid-cols-2 gap-4">

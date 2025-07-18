@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -36,6 +37,7 @@ const EnhancedCustomFoodForm = ({ onSave, food, initialVariants }: EnhancedCusto
   const [formData, setFormData] = useState({
     name: "",
     brand: "",
+    is_quick_food: false,
   });
 
   useEffect(() => {
@@ -43,6 +45,7 @@ const EnhancedCustomFoodForm = ({ onSave, food, initialVariants }: EnhancedCusto
       setFormData({
         name: food.name || "",
         brand: food.brand || "",
+        is_quick_food: food.is_quick_food || false,
       });
       // If food has variants from the API, use them. Otherwise, load existing variants from the backend.
       if (food.variants && food.variants.length > 0) {
@@ -55,6 +58,7 @@ const EnhancedCustomFoodForm = ({ onSave, food, initialVariants }: EnhancedCusto
       setFormData({
         name: "", // Will be set by the parent component if food is passed
         brand: "", // Will be set by the parent component if food is passed
+        is_quick_food: false,
       });
       setVariants(initialVariants);
     } else {
@@ -62,6 +66,7 @@ const EnhancedCustomFoodForm = ({ onSave, food, initialVariants }: EnhancedCusto
       setFormData({
         name: "",
         brand: "",
+        is_quick_food: false,
       });
       setVariants([{
         serving_size: 100,
@@ -298,27 +303,12 @@ const EnhancedCustomFoodForm = ({ onSave, food, initialVariants }: EnhancedCusto
       }
 
       const foodData: Food = {
+        id: food?.id || '',
         name: formData.name,
         brand: formData.brand,
-        serving_size: primaryVariant.serving_size,
-        serving_unit: primaryVariant.serving_unit,
-        calories: primaryVariant.calories,
-        protein: primaryVariant.protein,
-        carbs: primaryVariant.carbs,
-        fat: primaryVariant.fat,
-        saturated_fat: primaryVariant.saturated_fat,
-        polyunsaturated_fat: primaryVariant.polyunsaturated_fat,
-        monounsaturated_fat: primaryVariant.monounsaturated_fat,
-        trans_fat: primaryVariant.trans_fat,
-        cholesterol: primaryVariant.cholesterol,
-        sodium: primaryVariant.sodium,
-        potassium: primaryVariant.potassium,
-        dietary_fiber: primaryVariant.dietary_fiber,
-        sugars: primaryVariant.sugars,
-        vitamin_a: primaryVariant.vitamin_a,
-        vitamin_c: primaryVariant.vitamin_c,
-        calcium: primaryVariant.calcium,
-        iron: primaryVariant.iron,
+        is_quick_food: formData.is_quick_food,
+        is_custom: true,
+        ...primaryVariant
       };
 
 
@@ -333,6 +323,7 @@ const EnhancedCustomFoodForm = ({ onSave, food, initialVariants }: EnhancedCusto
         setFormData({
           name: "",
           brand: "",
+          is_quick_food: false,
         });
         // When creating a new food, reset variants to include only the default unit
         setVariants([{
@@ -373,7 +364,7 @@ const EnhancedCustomFoodForm = ({ onSave, food, initialVariants }: EnhancedCusto
     }
   };
 
-  const updateField = (field: string, value: string) => {
+  const updateField = (field: string, value: string | boolean) => {
     setFormData(prev => ({
       ...prev,
       [field]: value
@@ -407,6 +398,19 @@ const EnhancedCustomFoodForm = ({ onSave, food, initialVariants }: EnhancedCusto
               />
             </div>
           </div>
+
+          {/* Quick Add Checkbox */}
+          <div className="flex items-center space-x-2 pt-2">
+            <Checkbox
+              id="is_quick_food"
+              checked={formData.is_quick_food}
+              onCheckedChange={(checked) => updateField("is_quick_food", !!checked)}
+            />
+            <Label htmlFor="is_quick_food" className="text-sm font-medium">
+              Quick Add (don't save to my food list for future use)
+            </Label>
+          </div>
+          
           {/* Unit Variants with Individual Nutrition */}
           <div className="space-y-4">
             <div className="flex items-center justify-between">

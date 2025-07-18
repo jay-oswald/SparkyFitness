@@ -1,5 +1,5 @@
 export interface FoodVariant {
-  id: string;
+  id?: string;
   serving_size: number;
   serving_unit: string;
   calories: number;
@@ -20,6 +20,7 @@ export interface FoodVariant {
   calcium?: number;
   iron?: number;
   is_default?: boolean;
+  is_locked?: boolean;
 }
 
 export interface Food {
@@ -32,6 +33,8 @@ export interface Food {
   provider_external_id?: string;
   provider_type?: string;
   default_variant?: FoodVariant;
+  variants?: FoodVariant[];
+  is_quick_food?: boolean;
 }
 
 export interface FoodDeletionImpact {

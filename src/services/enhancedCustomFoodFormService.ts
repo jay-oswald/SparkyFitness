@@ -102,6 +102,7 @@ export const saveFood = async (foodData: Food, variants: FoodVariant[], userId: 
       brand: foodData.brand,
       user_id: userId,
       is_custom: true,
+      is_quick_food: foodData.is_quick_food || false,
       // Pass primary variant details to createFood, which will create the default variant
       serving_size: primaryVariant.serving_size,
       serving_unit: primaryVariant.serving_unit,
