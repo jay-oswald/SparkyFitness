@@ -13,15 +13,30 @@ async function initializeOidcClient() {
   log('info', 'Attempting to initialize OIDC client...');
   try {
     const settings = await oidcSettingsRepository.getOidcSettings();
+    log('debug', `OIDC Settings retrieved: ${JSON.stringify(settings ? { ...settings, client_secret: settings.client_secret ? '***REDACTED***' : 'N/A' } : null)}`);
 
-    if (!settings || !settings.is_active) {
-      log('warn', 'OIDC integration is not active or settings are missing. Client will not be initialized.');
+    if (!settings) {
+      log('warn', 'OIDC settings are missing from the database. Client will not be initialized.');
+      context.client = null; // Ensure client is null if not active
+      return;
+    }
+
+    if (!settings.is_active) {
+      log('warn', 'OIDC integration is not active (is_active is false). Client will not be initialized.');
       context.client = null; // Ensure client is null if not active
       return;
     }
 
     log('info', `Discovering OIDC issuer from: ${settings.issuer_url}`);
-    const discoveredIssuer = await Issuer.discover(settings.issuer_url);
+    let discoveredIssuer;
+    try {
+      discoveredIssuer = await Issuer.discover(settings.issuer_url);
+      log('info', 'OIDC Issuer discovered successfully.');
+    } catch (discoverError) {
+      log('error', `Failed to discover OIDC issuer from ${settings.issuer_url}: ${discoverError.message}`);
+      context.client = null;
+      return;
+    }
 
     // To ensure stability and prevent mismatches, we explicitly construct a new Issuer
     // using the metadata from the discovery endpoint. This makes sure that the issuer
@@ -54,21 +69,27 @@ async function initializeOidcClient() {
     // Debugging: Log client_secret and issuer.jwks
     log('info', `Client Secret (decrypted): ${settings.client_secret ? 'Present' : 'Not Present'}`);
     //log('info', `Issuer JWKS: ${JSON.stringify(issuer.jwks, null, 2)}`);
-    const client = new issuer.Client({
-      client_id: settings.client_id,
-      client_secret: settings.client_secret, // Use decrypted secret
-      redirect_uris: settings.redirect_uris,
-      scope: settings.scope, // Ensure scope is passed to client
-      token_endpoint_auth_method: settings.token_endpoint_auth_method,
-      response_types: settings.response_types,
-      id_token_signed_response_alg: settings.id_token_signed_response_alg,
-      userinfo_signed_response_alg: settings.userinfo_signed_response_alg,
-    }); // The issuer's JWKS are discovered and held on the issuer object, no need to pass them here.
-    context.client = client;
-    context.settings = settings; // Store settings in context for auto-registration
-    log('info', 'OpenID Connect Client registered successfully.');
+    try {
+      const client = new issuer.Client({
+        client_id: settings.client_id,
+        client_secret: settings.client_secret, // Use decrypted secret
+        redirect_uris: settings.redirect_uris,
+        scope: settings.scope, // Ensure scope is passed to client
+        token_endpoint_auth_method: settings.token_endpoint_auth_method,
+        response_types: settings.response_types,
+        id_token_signed_response_alg: settings.id_token_signed_response_alg,
+        userinfo_signed_response_alg: settings.userinfo_signed_response_alg,
+      }); // The issuer's JWKS are discovered and held on the issuer object, no need to pass them here.
+      context.client = client;
+      context.settings = settings; // Store settings in context for auto-registration
+      log('info', 'OpenID Connect Client registered successfully.');
+    } catch (clientError) {
+      log('error', `Error instantiating OIDC client: ${clientError.message}`);
+      context.client = null;
+      return;
+    }
   } catch (error) {
-    log('error', 'Error during OpenID Connect setup:', error.message);
+    log('error', 'Unhandled error during OpenID Connect setup:', error.message);
     context.client = null; // Ensure client is null on error
   }
 }
@@ -78,8 +99,18 @@ router.use(async (req, res, next) => {
   if (!context.client) {
     await initializeOidcClient(); // Attempt to initialize if not already
   }
+  // If OIDC client is still not initialized after attempt, return a specific status
   if (!context.client) {
-    log('error', 'OIDC client not initialized. Denying OIDC request.');
+    log('info', 'OIDC client not initialized. Returning OIDC inactive status.');
+    // For /openid/api/me, return isOidcActive: false
+    if (req.path === '/api/me') {
+      return res.json({ isOidcActive: false });
+    }
+    // For /openid/login, return isOidcActive: false
+    if (req.path === '/login') {
+      return res.json({ isOidcActive: false });
+    }
+    // For any other OIDC route, return 503 as it's an unexpected access
     return res.status(503).send('OIDC service unavailable. Configuration error.');
   }
   next();

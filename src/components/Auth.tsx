@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,6 +19,7 @@ import {
   registerUser,
   loginUser,
   initiateOidcLogin,
+  checkOidcAvailability,
 } from "@/services/authService";
 import { useAuth } from "@/hooks/useAuth";
 import { AuthResponse } from "../types"; // Import AuthResponse type
@@ -34,6 +35,15 @@ const Auth = () => {
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [oidcAvailable, setOidcAvailable] = useState(false);
+
+  useEffect(() => {
+    const checkAvailability = async () => {
+      const available = await checkOidcAvailability();
+      setOidcAvailable(available);
+    };
+    checkAvailability();
+  }, []);
 
   const validatePassword = (pwd: string) => {
     if (pwd.length < 6) {
@@ -222,23 +232,27 @@ const Auth = () => {
                   {loading ? "Signing in..." : "Sign In"}
                 </Button>
               </form>
-              <div className="relative my-6">
-                <div className="absolute inset-0 flex items-center">
-                  <span className="w-full border-t" />
+              {oidcAvailable && (
+                <div className="relative my-6">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-background px-2 text-muted-foreground">
+                      Or continue with
+                    </span>
+                  </div>
                 </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-background px-2 text-muted-foreground">
-                    Or continue with
-                  </span>
-                </div>
-              </div>
-              <Button
-                variant="outline"
-                className="w-full dark:bg-gray-800 dark:hover:bg-gray-600"
-                onClick={initiateOidcLogin}
-              >
-                Sign In with OIDC
-              </Button>
+              )}
+              {oidcAvailable && (
+                <Button
+                  variant="outline"
+                  className="w-full dark:bg-gray-800 dark:hover:bg-gray-600"
+                  onClick={initiateOidcLogin}
+                >
+                  Sign In with OIDC
+                </Button>
+              )}
             </TabsContent>
 
             <TabsContent value="signup">
