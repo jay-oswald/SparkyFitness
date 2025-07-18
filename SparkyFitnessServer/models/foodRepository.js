@@ -944,6 +944,95 @@ async function getFoodDataProviderById(providerId) {
   }
 }
 
+async function getRecentFoods(userId, limit) {
+  const client = await pool.connect();
+  try {
+    const result = await client.query(
+      `SELECT
+        f.id, f.name, f.brand, f.is_custom, f.user_id, f.shared_with_public, f.provider_external_id, f.provider_type,
+        json_build_object(
+          'id', fv.id,
+          'serving_size', fv.serving_size,
+          'serving_unit', fv.serving_unit,
+          'calories', fv.calories,
+          'protein', fv.protein,
+          'carbs', fv.carbs,
+          'fat', fv.fat,
+          'saturated_fat', fv.saturated_fat,
+          'polyunsaturated_fat', fv.polyunsaturated_fat,
+          'monounsaturated_fat', fv.monounsaturated_fat,
+          'trans_fat', fv.trans_fat,
+          'cholesterol', fv.cholesterol,
+          'sodium', fv.sodium,
+          'potassium', fv.potassium,
+          'dietary_fiber', fv.dietary_fiber,
+          'sugars', fv.sugars,
+          'vitamin_a', fv.vitamin_a,
+          'vitamin_c', fv.vitamin_c,
+          'calcium', fv.calcium,
+          'iron', fv.iron,
+          'is_default', fv.is_default
+        ) AS default_variant
+      FROM food_entries fe
+      JOIN foods f ON fe.food_id = f.id
+      LEFT JOIN food_variants fv ON f.id = fv.food_id AND fv.is_default = TRUE
+      WHERE fe.user_id = $1
+      GROUP BY f.id, f.name, f.brand, f.is_custom, f.user_id, f.shared_with_public, f.provider_external_id, f.provider_type, fv.id, fv.serving_size, fv.serving_unit, fv.calories, fv.protein, fv.carbs, fv.fat, fv.saturated_fat, fv.polyunsaturated_fat, fv.monounsaturated_fat, fv.trans_fat, fv.cholesterol, fv.sodium, fv.potassium, fv.dietary_fiber, fv.sugars, fv.vitamin_a, fv.vitamin_c, fv.calcium, fv.iron, fv.is_default
+      ORDER BY MAX(fe.entry_date) DESC, MAX(fe.created_at) DESC
+      LIMIT $2`,
+      [userId, limit]
+    );
+    return result.rows;
+  } finally {
+    client.release();
+  }
+}
+
+async function getTopFoods(userId, limit) {
+  const client = await pool.connect();
+  try {
+    const result = await client.query(
+      `SELECT
+        f.id, f.name, f.brand, f.is_custom, f.user_id, f.shared_with_public, f.provider_external_id, f.provider_type,
+        json_build_object(
+          'id', fv.id,
+          'serving_size', fv.serving_size,
+          'serving_unit', fv.serving_unit,
+          'calories', fv.calories,
+          'protein', fv.protein,
+          'carbs', fv.carbs,
+          'fat', fv.fat,
+          'saturated_fat', fv.saturated_fat,
+          'polyunsaturated_fat', fv.polyunsaturated_fat,
+          'monounsaturated_fat', fv.monounsaturated_fat,
+          'trans_fat', fv.trans_fat,
+          'cholesterol', fv.cholesterol,
+          'sodium', fv.sodium,
+          'potassium', fv.potassium,
+          'dietary_fiber', fv.dietary_fiber,
+          'sugars', fv.sugars,
+          'vitamin_a', fv.vitamin_a,
+          'vitamin_c', fv.vitamin_c,
+          'calcium', fv.calcium,
+          'iron', fv.iron,
+          'is_default', fv.is_default
+        ) AS default_variant,
+        COUNT(fe.food_id) AS usage_count
+      FROM food_entries fe
+      JOIN foods f ON fe.food_id = f.id
+      LEFT JOIN food_variants fv ON f.id = fv.food_id AND fv.is_default = TRUE
+      WHERE fe.user_id = $1
+      GROUP BY f.id, f.name, f.brand, f.is_custom, f.user_id, f.shared_with_public, f.provider_external_id, f.provider_type, fv.id, fv.serving_size, fv.serving_unit, fv.calories, fv.protein, fv.carbs, fv.fat, fv.saturated_fat, fv.polyunsaturated_fat, fv.monounsaturated_fat, fv.trans_fat, fv.cholesterol, fv.sodium, fv.potassium, fv.dietary_fiber, fv.sugars, fv.vitamin_a, fv.vitamin_c, fv.calcium, fv.iron, fv.is_default
+      ORDER BY usage_count DESC
+      LIMIT $2`,
+      [userId, limit]
+    );
+    return result.rows;
+  } finally {
+    client.release();
+  }
+}
+
 module.exports = {
   searchFoods,
   createFood,
@@ -964,18 +1053,20 @@ module.exports = {
   updateFoodEntry,
   deleteFoodEntry,
   getFoodEntriesByDate,
-  getFoodEntriesByDateAndMealType, // Add this new function to the exports
+  getFoodEntriesByDateAndMealType,
   getFoodEntriesByDateRange,
   findFoodByNameAndBrand,
   bulkCreateFoodVariants,
-  bulkCreateFoodEntries, // Add this new function to the exports
+  bulkCreateFoodEntries,
   deleteFoodEntriesByMealPlanId,
   deleteFoodEntriesByTemplateId,
   createFoodEntriesFromTemplate,
   getFoodDataProviderById,
   getFoodEntryByDetails,
-  getDailyNutritionSummary, // Add the new function to exports
+  getDailyNutritionSummary,
   getFoodDeletionImpact,
+  getRecentFoods, // New export
+  getTopFoods,    // New export
 };
 
 async function getDailyNutritionSummary(userId, date) {

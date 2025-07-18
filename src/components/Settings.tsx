@@ -57,6 +57,7 @@ const Settings: React.FC<SettingsProps> = ({ onShowAboutDialog }) => {
     measurementUnit, setMeasurementUnit,
     dateFormat, setDateFormat,
     loggingLevel, setLoggingLevel,
+    foodDisplayLimit, setFoodDisplayLimit, // Add foodDisplayLimit and setFoodDisplayLimit
     loadPreferences: loadUserPreferencesFromContext, // Rename to avoid conflict
     saveAllPreferences, // Add saveAllPreferences from context
     formatDate // Destructure formatDate
@@ -615,6 +616,21 @@ const Settings: React.FC<SettingsProps> = ({ onShowAboutDialog }) => {
               </Select>
             </div>
             <div>
+              <Label htmlFor="food_display_limit">Food Display Limit</Label>
+              <Select
+                value={String(foodDisplayLimit)}
+                onValueChange={(value) => setFoodDisplayLimit(Number(value))}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="5">5 items</SelectItem>
+                  <SelectItem value="10">10 items</SelectItem>
+                  <SelectItem value="15">15 items</SelectItem>
+                  <SelectItem value="20">20 items</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
           <Button onClick={handlePreferencesUpdate} disabled={loading}>

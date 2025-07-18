@@ -1,7 +1,7 @@
 import { api } from './api';
-import { Meal, MealPlanEntry } from '@/types/meal';
+import { Meal, MealPayload, MealPlanTemplate } from '@/types/meal';
 
-export const createMeal = async (userId: string, mealData: Meal): Promise<Meal> => {
+export const createMeal = async (userId: string, mealData: MealPayload): Promise<Meal> => {
   return await api.post(`/meals`, { body: mealData });
 };
 
@@ -13,7 +13,7 @@ export const getMealById = async (userId: string, mealId: string): Promise<Meal>
   return await api.get(`/meals/${mealId}`);
 };
 
-export const updateMeal = async (userId: string, mealId: string, mealData: Meal): Promise<Meal> => {
+export const updateMeal = async (userId: string, mealId: string, mealData: MealPayload): Promise<Meal> => {
   return await api.put(`/meals/${mealId}`, { body: mealData });
 };
 
@@ -21,16 +21,16 @@ export const deleteMeal = async (userId: string, mealId: string): Promise<void> 
   await api.delete(`/meals/${mealId}`);
 };
 
-export const createMealPlanEntry = async (userId: string, planData: MealPlanEntry): Promise<MealPlanEntry> => {
+export const createMealPlanEntry = async (userId: string, planData: MealPlanTemplate): Promise<MealPlanTemplate> => {
   return await api.post(`/meals/plan`, { body: planData });
 };
 
-export const getMealPlanEntries = async (userId: string, startDate: string, endDate: string): Promise<MealPlanEntry[]> => {
+export const getMealPlanEntries = async (userId: string, startDate: string, endDate: string): Promise<MealPlanTemplate[]> => {
   const response = await api.get(`/meals/plan`, { params: { startDate, endDate } });
   return Array.isArray(response) ? response : [];
 };
 
-export const updateMealPlanEntry = async (userId: string, planId: string, planData: MealPlanEntry): Promise<MealPlanEntry> => {
+export const updateMealPlanEntry = async (userId: string, planId: string, planData: MealPlanTemplate): Promise<MealPlanTemplate> => {
   return await api.put(`/meals/plan/${planId}`, { body: planData });
 };
 

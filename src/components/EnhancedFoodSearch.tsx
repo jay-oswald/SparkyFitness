@@ -46,10 +46,12 @@ interface EnhancedFoodSearchProps {
 const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
   const { user } = useAuth();
   const { activeUserId } = useActiveUser();
-  const { defaultFoodDataProviderId, setDefaultFoodDataProviderId, loggingLevel } = usePreferences(); // Get loggingLevel
+  const { defaultFoodDataProviderId, setDefaultFoodDataProviderId, loggingLevel, foodDisplayLimit } = usePreferences(); // Get loggingLevel and foodDisplayLimit
   const [searchTerm, setSearchTerm] = useState('');
   const [foods, setFoods] = useState<Food[]>([]);
   const [meals, setMeals] = useState<Meal[]>([]); // New state for meal results
+  const [recentFoods, setRecentFoods] = useState<Food[]>([]); // New state for recent foods
+  const [topFoods, setTopFoods] = useState<Food[]>([]); // New state for top foods
   const [openFoodFactsResults, setOpenFoodFactsResults] = useState<OpenFoodFactsProduct[]>([]);
   const [nutritionixResults, setNutritionixResults] = useState<any[]>([]); // To store Nutritionix search results
   const [fatSecretResults, setFatSecretResults] = useState<FatSecretFoodItem[]>([]); // To store FatSecret search results
@@ -91,26 +93,32 @@ const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
   }, [user, defaultFoodDataProviderId]);
 
   const searchDatabase = useCallback(async (term: string) => {
-    if (!term.trim()) {
-      setFoods([]); // Clear results if search term is empty
-      return;
-    }
-    
     setLoading(true);
-    const data = await apiCall(`/foods?name=${encodeURIComponent(term)}&broadMatch=true`); // This is for internal food search, remains the same
-    const error = null; // apiCall handles errors internally with toast, so we can assume data is valid if no error is thrown
+    setFoods([]); // Clear previous search results
+    setRecentFoods([]); // Clear previous recent foods
+    setTopFoods([]); // Clear previous top foods
 
-    if (error) {
+    try {
+      if (!term.trim()) {
+        // If search term is empty, fetch recent and top foods
+        const data = await apiCall(`/foods?limit=${foodDisplayLimit}`);
+        setRecentFoods(data.recentFoods || []);
+        setTopFoods(data.topFoods || []);
+      } else {
+        // Otherwise, perform a regular search
+        const data = await apiCall(`/foods?name=${encodeURIComponent(term)}&broadMatch=true`);
+        setFoods(data.searchResults || []);
+      }
+    } catch (err: any) {
       toast({
         title: 'Search failed',
-        description: error.message,
+        description: err.message,
         variant: 'destructive',
       });
-    } else {
-      setFoods(data || []);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
-  }, []); // Empty dependency array means this function is created once
+  }, [foodDisplayLimit]); // Add foodDisplayLimit to dependency array
 
   // Debounce effect for database search
   useEffect(() => {
@@ -520,9 +528,79 @@ const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
           </div>
         )}
 
-        {!loading && activeTab === 'database' && foods.length === 0 && searchTerm.trim() && (
+        {!loading && activeTab === 'database' && searchTerm.trim() === '' && (
+          <>
+            {recentFoods.length > 0 && (
+              <div className="space-y-2">
+                <h3 className="text-lg font-semibold">Recent Foods</h3>
+                {recentFoods.map((food) => (
+                  <Card key={food.id} className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700" onClick={() => onFoodSelect(food)}>
+                    <CardContent className="p-4">
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-2 mb-2">
+                            <h3 className="font-medium">{food.name}</h3>
+                            {food.brand && <Badge variant="secondary" className="text-xs">{food.brand}</Badge>}
+                            {food.is_custom && <Badge variant="outline" className="text-xs">Custom</Badge>}
+                          </div>
+                          <div className="grid grid-cols-4 gap-2 text-sm text-gray-600">
+                            <span><strong>{food.default_variant?.calories || 0}</strong> cal</span>
+                            <span><strong>{food.default_variant?.protein || 0}g</strong> protein</span>
+                            <span><strong>{food.default_variant?.carbs || 0}g</strong> carbs</span>
+                            <span><strong>{food.default_variant?.fat || 0}g</strong> fat</span>
+                          </div>
+                          <p className="text-xs text-gray-500 mt-1">
+                            Per {food.default_variant?.serving_size}{food.default_variant?.serving_unit}
+                          </p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+
+            {topFoods.length > 0 && (
+              <div className="space-y-2 mt-4">
+                <h3 className="text-lg font-semibold">Top Foods</h3>
+                {topFoods.map((food) => (
+                  <Card key={food.id} className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700" onClick={() => onFoodSelect(food)}>
+                    <CardContent className="p-4">
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-2 mb-2">
+                            <h3 className="font-medium">{food.name}</h3>
+                            {food.brand && <Badge variant="secondary" className="text-xs">{food.brand}</Badge>}
+                            {food.is_custom && <Badge variant="outline" className="text-xs">Custom</Badge>}
+                          </div>
+                          <div className="grid grid-cols-4 gap-2 text-sm text-gray-600">
+                            <span><strong>{food.default_variant?.calories || 0}</strong> cal</span>
+                            <span><strong>{food.default_variant?.protein || 0}g</strong> protein</span>
+                            <span><strong>{food.default_variant?.carbs || 0}g</strong> carbs</span>
+                            <span><strong>{food.default_variant?.fat || 0}g</strong> fat</span>
+                          </div>
+                          <p className="text-xs text-gray-500 mt-1">
+                            Per {food.default_variant?.serving_size}{food.default_variant?.serving_unit}
+                          </p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+
+            {recentFoods.length === 0 && topFoods.length === 0 && (
+              <div className="text-center py-8 text-gray-500">
+                No recent or top foods found. Start logging foods to see them here.
+              </div>
+            )}
+          </>
+        )}
+
+        {!loading && activeTab === 'database' && searchTerm.trim() !== '' && foods.length === 0 && (
           <div className="text-center py-8 text-gray-500">
-            No foods found in your database.
+            No foods found in your database for "{searchTerm}".
           </div>
         )}
 
@@ -538,7 +616,7 @@ const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
           </div>
         )}
 
-        {activeTab === 'database' && meals.map((meal) => (
+        {activeTab === 'database' && searchTerm.trim() !== '' && meals.map((meal) => (
           <Card key={meal.id} className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700" onClick={() => onFoodSelect(meal as any)}> {/* Cast to any for now, will refine */}
             <CardContent className="p-4">
               <div className="flex justify-between items-start">
@@ -557,7 +635,7 @@ const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
           </Card>
         ))}
 
-        {activeTab === 'database' && foods.map((food) => (
+        {activeTab === 'database' && searchTerm.trim() !== '' && foods.map((food) => (
           <Card key={food.id} className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700" onClick={() => onFoodSelect(food)}>
             <CardContent className="p-4">
               <div className="flex justify-between items-start">

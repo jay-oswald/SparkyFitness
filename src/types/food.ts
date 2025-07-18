@@ -43,3 +43,9 @@ export interface FoodDeletionImpact {
     mealPlansCount: number;
     mealPlanTemplateAssignmentsCount: number;
 }
+
+export interface FoodSearchResult {
+  recentFoods?: Food[];
+  topFoods?: Food[];
+  searchResults?: Food[];
+}

@@ -147,12 +147,40 @@ async function getFatSecretNutrients(foodId, clientId, clientSecret) {
   }
 }
 
-async function searchFoods(authenticatedUserId, name, targetUserId, exactMatch, broadMatch, checkCustom) {
+/**
+ * @typedef {object} FoodSearchResult
+ * @property {Food[]} [recentFoods] - Array of recently logged foods.
+ * @property {Food[]} [topFoods] - Array of most frequently logged foods.
+ * @property {Food[]} [searchResults] - Array of foods matching the search criteria.
+ */
+
+/**
+ * Searches for foods based on a search term, or returns recent/top foods if no search term is provided.
+ * @param {string} authenticatedUserId - The ID of the authenticated user.
+ * @param {string} [name] - The search term for food names.
+ * @param {string} [targetUserId] - The ID of the user whose foods are being searched (if different from authenticatedUser).
+ * @param {boolean} exactMatch - Whether to perform an exact match search.
+ * @param {boolean} broadMatch - Whether to perform a broad match search.
+ * @param {boolean} checkCustom - Whether to include custom foods in the search.
+ * @param {number} [limit=10] - The maximum number of recent/top foods to return.
+ * @returns {Promise<FoodSearchResult>} An object containing recentFoods, topFoods, or searchResults.
+ */
+async function searchFoods(authenticatedUserId, name, targetUserId, exactMatch, broadMatch, checkCustom, limit = 10) {
   try {
     if (targetUserId && targetUserId !== authenticatedUserId) {
+      // Authorization check for targetUserId if needed
     }
-    const foods = await foodRepository.searchFoods(name, targetUserId || authenticatedUserId, exactMatch, broadMatch, checkCustom);
-    return foods;
+
+    if (!name) {
+      // If no search term, return recent and top foods
+      const recentFoods = await foodRepository.getRecentFoods(authenticatedUserId, limit);
+      const topFoods = await foodRepository.getTopFoods(authenticatedUserId, limit);
+      return { recentFoods, topFoods };
+    } else {
+      // Otherwise, perform a regular search
+      const foods = await foodRepository.searchFoods(name, targetUserId || authenticatedUserId, exactMatch, broadMatch, checkCustom);
+      return { searchResults: foods };
+    }
   } catch (error) {
     log('error', `Error searching foods for user ${authenticatedUserId} with name "${name}" in foodService:`, error);
     throw error;
@@ -702,7 +730,7 @@ module.exports = {
   getFoodDataProviderDetails,
   searchFatSecretFoods,
   getFatSecretNutrients,
-  searchFoods,
+  searchFoods, // Modified to return recent/top foods
   createFood,
   getFoodById,
   updateFood,
@@ -724,7 +752,7 @@ module.exports = {
   addMealFoodsToDiary,
   copyFoodEntries,
   copyFoodEntriesFromYesterday,
-  getDailyNutritionSummary, // Add the new function to exports
+  getDailyNutritionSummary,
   getFoodDeletionImpact,
 };
 

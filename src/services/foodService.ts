@@ -1,6 +1,6 @@
 import { apiCall } from './api';
 
-import { Food, FoodDeletionImpact } from '@/types/food';
+import { Food, FoodDeletionImpact, FoodSearchResult, FoodVariant } from '@/types/food';
 
 export type FoodFilter = 'all' | 'mine' | 'family' | 'public';
 
@@ -33,23 +33,29 @@ interface FoodPayload {
 
 export const searchFoods = async (
   userId: string,
-  name: string,
+  name: string = '', // Make name optional with a default empty string
   targetUserId: string,
   exactMatch: boolean,
   broadMatch: boolean,
-  checkCustom: boolean
-): Promise<Food[]> => {
-  const params = new URLSearchParams({
-    name,
-    targetUserId,
-    exactMatch: exactMatch.toString(),
-    broadMatch: broadMatch.toString(),
-    checkCustom: checkCustom.toString(),
-  });
+  checkCustom: boolean,
+  limit?: number // Make limit optional
+): Promise<FoodSearchResult> => {
+  const params = new URLSearchParams();
+  if (name) {
+    params.append('name', name);
+    params.append('targetUserId', targetUserId);
+    params.append('exactMatch', exactMatch.toString());
+    params.append('broadMatch', broadMatch.toString());
+    params.append('checkCustom', checkCustom.toString());
+  }
+  if (limit !== undefined) {
+    params.append('limit', limit.toString());
+  }
+
   const response = await apiCall(`/foods?${params.toString()}`, {
     method: 'GET',
   });
-  return response;
+  return response as FoodSearchResult; // Cast the response to FoodSearchResult
 };
 
 export const getFoodVariantsByFoodId = async (userId: string, foodId: string): Promise<FoodVariant[]> => {

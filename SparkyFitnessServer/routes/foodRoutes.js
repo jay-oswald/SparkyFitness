@@ -157,15 +157,11 @@ router.get('/search', authenticateToken, authorizeAccess('food_list', (req) => r
 
 // General food search route (should come before specific ID routes)
 router.get('/', authenticateToken, authorizeAccess('food_list', (req) => req.userId), async (req, res, next) => {
-  const { name, exactMatch, broadMatch, checkCustom } = req.query;
- 
-  if (!name) {
-    return res.status(400).json({ error: 'Food name is required.' });
-  }
+  const { name, exactMatch, broadMatch, checkCustom, limit } = req.query;
  
   try {
-    const foods = await foodService.searchFoods(req.userId, name, req.userId, exactMatch === 'true', broadMatch === 'true', checkCustom === 'true');
-    res.status(200).json(foods);
+    const result = await foodService.searchFoods(req.userId, name, req.userId, exactMatch === 'true', broadMatch === 'true', checkCustom === 'true', parseInt(limit, 10));
+    res.status(200).json(result);
   } catch (error) {
     if (error.message.startsWith('Forbidden')) {
       return res.status(403).json({ error: error.message });

@@ -9,7 +9,7 @@ import { useActiveUser } from '@/contexts/ActiveUserContext';
 import { usePreferences } from '@/contexts/PreferencesContext';
 import { toast } from '@/hooks/use-toast';
 import { debug, info, warn, error } from '@/utils/logging';
-import { Food, FoodVariant } from '@/types/food';
+import { Food, FoodVariant, FoodSearchResult } from '@/types/food'; // Import FoodSearchResult
 import { Meal, MealFood, MealPayload } from '@/types/meal'; // Assuming you'll create this type
 import { createMeal, updateMeal, getMealById } from '@/services/mealService'; // Assuming you'll create this service
 import { searchFoods } from '@/services/foodService'; // Existing food service
@@ -21,15 +21,18 @@ interface MealBuilderProps {
   onCancel?: () => void;
 }
 
+
 const MealBuilder: React.FC<MealBuilderProps> = ({ mealId, onSave, onCancel }) => {
   const { activeUserId } = useActiveUser();
-  const { loggingLevel } = usePreferences();
+  const { loggingLevel, foodDisplayLimit } = usePreferences(); // Get foodDisplayLimit
   const [mealName, setMealName] = useState('');
   const [mealDescription, setMealDescription] = useState('');
   const [isPublic, setIsPublic] = useState(false);
   const [mealFoods, setMealFoods] = useState<MealFood[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState<Food[]>([]);
+  const [recentFoods, setRecentFoods] = useState<Food[]>([]); // New state for recent foods
+  const [topFoods, setTopFoods] = useState<Food[]>([]); // New state for top foods
   const [isFoodUnitSelectorOpen, setIsFoodUnitSelectorOpen] = useState(false);
   const [selectedFoodForUnitSelection, setSelectedFoodForUnitSelection] = useState<Food | null>(null);
 
@@ -58,13 +61,21 @@ const MealBuilder: React.FC<MealBuilderProps> = ({ mealId, onSave, onCancel }) =
   }, [mealId, activeUserId, loggingLevel]);
 
   const handleSearchFoods = useCallback(async () => {
-    if (!searchTerm.trim()) {
-      setSearchResults([]);
-      return;
-    }
+    setSearchResults([]); // Clear previous search results
+    setRecentFoods([]); // Clear previous recent foods
+    setTopFoods([]); // Clear previous top foods
+
     try {
-      const foods = await searchFoods(activeUserId!, searchTerm, activeUserId!, false, true, true);
-      setSearchResults(foods);
+      if (!searchTerm.trim()) {
+        // If search term is empty, fetch recent and top foods
+        const data = await searchFoods(activeUserId!, '', activeUserId!, false, true, true, foodDisplayLimit) as FoodSearchResult;
+        setRecentFoods(data.recentFoods || []);
+        setTopFoods(data.topFoods || []);
+      } else {
+        // Otherwise, perform a regular search
+        const data = await searchFoods(activeUserId!, searchTerm, activeUserId!, false, true, true) as FoodSearchResult;
+        setSearchResults(data.searchResults || []);
+      }
     } catch (err) {
       error(loggingLevel, 'Error searching foods:', err);
       toast({
@@ -73,7 +84,7 @@ const MealBuilder: React.FC<MealBuilderProps> = ({ mealId, onSave, onCancel }) =
         variant: 'destructive',
       });
     }
-  }, [searchTerm, activeUserId, loggingLevel]);
+  }, [searchTerm, activeUserId, loggingLevel, foodDisplayLimit]);
 
   const handleAddFoodToMeal = useCallback((food: Food) => {
     setSelectedFoodForUnitSelection(food);
@@ -137,9 +148,16 @@ const MealBuilder: React.FC<MealBuilderProps> = ({ mealId, onSave, onCancel }) =
       is_public: isPublic,
       foods: mealFoods.map(mf => ({
         food_id: mf.food_id,
+        food_name: mf.food_name,
         variant_id: mf.variant_id,
         quantity: mf.quantity,
         unit: mf.unit,
+        calories: mf.calories,
+        protein: mf.protein,
+        carbs: mf.carbs,
+        fat: mf.fat,
+        serving_size: mf.serving_size,
+        serving_unit: mf.serving_unit,
       })),
     };
 
@@ -259,17 +277,53 @@ const MealBuilder: React.FC<MealBuilderProps> = ({ mealId, onSave, onCancel }) =
             </Button>
           </div>
 
-          {searchResults.length > 0 && (
-            <div className="space-y-2 max-h-48 overflow-y-auto border rounded-md p-2">
-              {searchResults.map(food => (
-                <div key={food.id} className="flex items-center justify-between p-1 hover:bg-accent rounded-sm">
-                  <span>{food.name} {food.brand ? `(${food.brand})` : ''}</span>
-                  <Button variant="outline" size="sm" onClick={() => handleAddFoodToMeal(food)}>
-                    Add
-                  </Button>
+          {searchTerm.trim() === '' && (recentFoods.length > 0 || topFoods.length > 0) ? (
+            <>
+              {recentFoods.length > 0 && (
+                <div className="space-y-2">
+                  <h4 className="text-md font-semibold">Recent Foods</h4>
+                  <div className="space-y-2 max-h-48 overflow-y-auto border rounded-md p-2">
+                    {recentFoods.map(food => (
+                      <div key={food.id} className="flex items-center justify-between p-1 hover:bg-accent rounded-sm">
+                        <span>{food.name} {food.brand ? `(${food.brand})` : ''}</span>
+                        <Button variant="outline" size="sm" onClick={() => handleAddFoodToMeal(food)}>
+                          Add
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              ))}
-            </div>
+              )}
+
+              {topFoods.length > 0 && (
+                <div className="space-y-2 mt-4">
+                  <h4 className="text-md font-semibold">Top Foods</h4>
+                  <div className="space-y-2 max-h-48 overflow-y-auto border rounded-md p-2">
+                    {topFoods.map(food => (
+                      <div key={food.id} className="flex items-center justify-between p-1 hover:bg-accent rounded-sm">
+                        <span>{food.name} {food.brand ? `(${food.brand})` : ''}</span>
+                        <Button variant="outline" size="sm" onClick={() => handleAddFoodToMeal(food)}>
+                          Add
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          ) : (
+            searchResults.length > 0 && (
+              <div className="space-y-2 max-h-48 overflow-y-auto border rounded-md p-2">
+                {searchResults.map(food => (
+                  <div key={food.id} className="flex items-center justify-between p-1 hover:bg-accent rounded-sm">
+                    <span>{food.name} {food.brand ? `(${food.brand})` : ''}</span>
+                    <Button variant="outline" size="sm" onClick={() => handleAddFoodToMeal(food)}>
+                      Add
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )
           )}
 
           {selectedFoodForUnitSelection && (

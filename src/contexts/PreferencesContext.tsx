@@ -50,6 +50,7 @@ interface PreferencesContextType {
   loggingLevel: 'DEBUG' | 'INFO' | 'WARN' | 'ERROR' | 'SILENT'; // Add logging level
   defaultFoodDataProviderId: string | null; // Add default food data provider ID
   timezone: string; // Add timezone
+  foodDisplayLimit: number;
   setWeightUnit: (unit: 'kg' | 'lbs') => void;
   setMeasurementUnit: (unit: 'cm' | 'inches') => void;
   setDateFormat: (format: string) => void;
@@ -57,6 +58,7 @@ interface PreferencesContextType {
   setLoggingLevel: (level: 'DEBUG' | 'INFO' | 'WARN' | 'ERROR' | 'SILENT') => void; // Add setter for logging level
   setDefaultFoodDataProviderId: (id: string | null) => void; // Add setter for default food data provider ID
   setTimezone: (timezone: string) => void; // Add setter for timezone
+  setFoodDisplayLimit: (limit: number) => void;
   convertWeight: (value: number, from: 'kg' | 'lbs', to: 'kg' | 'lbs') => number;
   convertMeasurement: (value: number, from: 'cm' | 'inches', to: 'cm' | 'inches') => number;
   formatDate: (date: string | Date) => string;
@@ -85,6 +87,7 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const [loggingLevel, setLoggingLevelState] = useState<'DEBUG' | 'INFO' | 'WARN' | 'ERROR' | 'SILENT'>('ERROR'); // Change default to ERROR
   const [defaultFoodDataProviderId, setDefaultFoodDataProviderIdState] = useState<string | null>(null); // Default food data provider ID
   const [timezone, setTimezoneState] = useState<string>(Intl.DateTimeFormat().resolvedOptions().timeZone); // Add state for timezone
+  const [foodDisplayLimit, setFoodDisplayLimitState] = useState<number>(10);
 
   // Log initial state
   useEffect(() => {
@@ -140,6 +143,7 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
         setLoggingLevelState((data.logging_level || 'INFO') as 'DEBUG' | 'INFO' | 'WARN' | 'ERROR' | 'SILENT'); // Set logging level state
         setDefaultFoodDataProviderIdState(data.default_food_data_provider_id || null); // Set default food data provider ID state
         setTimezoneState(data.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone); // Set timezone state
+        setFoodDisplayLimitState(data.food_display_limit || 10);
         info(loggingLevel, 'PreferencesContext: Preferences states updated from database.');
       } else {
         info(loggingLevel, 'PreferencesContext: No preferences found, creating default preferences.');
@@ -169,6 +173,7 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
         logging_level: 'ERROR' as 'DEBUG' | 'INFO' | 'WARN' | 'ERROR' | 'SILENT', // Add default logging level with type assertion
         default_food_data_provider_id: null, // Default to no specific food data provider
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, // Add default timezone
+        food_display_limit: 10,
       };
 
 
@@ -200,6 +205,7 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
     logging_level: 'DEBUG' | 'INFO' | 'WARN' | 'ERROR' | 'SILENT'; // Add logging level to updates type
     default_food_data_provider_id: string | null; // Add default food data provider ID to updates type
     timezone: string; // Add timezone to updates type
+    food_display_limit: number;
   }>) => {
     debug(loggingLevel, "PreferencesProvider: Attempting to update preferences with:", updates);
     if (!user) {
@@ -217,7 +223,7 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
         localStorage.setItem('dateFormat', updates.date_format);
         debug(loggingLevel, "PreferencesProvider: Saved dateFormat to localStorage:", updates.date_format);
       }
-      // default_food_data_provider_id and logging_level are not stored in localStorage
+      // default_food_data_provider_id, logging_level and food_display_limit are not stored in localStorage
       return;
     }
     info(loggingLevel, "PreferencesProvider: Updating preferences for user:", user.id);
@@ -357,6 +363,11 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
     setTimezoneState(newTimezone);
   };
 
+  const setFoodDisplayLimit = (limit: number) => {
+    info(loggingLevel, "PreferencesProvider: Setting food display limit to:", limit);
+    setFoodDisplayLimitState(limit);
+  };
+
   const saveAllPreferences = async () => {
     info(loggingLevel, "PreferencesProvider: Saving all preferences to backend.");
     try {
@@ -368,6 +379,7 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
         logging_level: loggingLevel,
         default_food_data_provider_id: defaultFoodDataProviderId,
         timezone: timezone,
+        food_display_limit: foodDisplayLimit,
       });
       info(loggingLevel, "PreferencesProvider: All preferences saved successfully.");
     } catch (err) {
@@ -385,6 +397,7 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
       loggingLevel, // Expose loggingLevel
       defaultFoodDataProviderId, // Expose defaultFoodDataProviderId
       timezone, // Expose timezone
+      foodDisplayLimit,
       setWeightUnit,
       setMeasurementUnit,
       setDateFormat,
@@ -392,6 +405,7 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
       setLoggingLevel, // Expose setLoggingLevel
       setDefaultFoodDataProviderId, // Expose setDefaultFoodDataProviderId
       setTimezone, // Expose setTimezone
+      setFoodDisplayLimit,
       convertWeight,
       convertMeasurement,
       formatDate,
