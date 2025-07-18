@@ -180,7 +180,7 @@ router.post("/callback", async (req, res, next) => {
  
     const claims = tokenSet.claims();
     // log('info', 'OIDC callback: Received claims:', claims);
-    const userEmail = claims.email || claims.preferred_username;
+    const userEmail = (claims.email || claims.preferred_username)?.toLowerCase();
     const oidcSub = claims.sub;
 
     // Auto-registration logic

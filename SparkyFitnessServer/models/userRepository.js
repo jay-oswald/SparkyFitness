@@ -37,7 +37,7 @@ async function findUserByEmail(email) {
   const client = await pool.connect();
   try {
     const result = await client.query(
-      'SELECT id, password_hash, role, oidc_sub FROM auth.users WHERE email = $1',
+      'SELECT id, password_hash, role, oidc_sub FROM auth.users WHERE LOWER(email) = LOWER($1)',
       [email]
     );
     return result.rows[0];
@@ -63,7 +63,7 @@ async function findUserIdByEmail(email) {
   const client = await pool.connect();
   try {
     const result = await client.query(
-      'SELECT id FROM auth.users WHERE email = $1',
+      'SELECT id FROM auth.users WHERE LOWER(email) = LOWER($1)',
       [email]
     );
     return result.rows[0];
