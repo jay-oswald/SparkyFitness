@@ -27,11 +27,19 @@ import FoodUnitSelector from '@/components/FoodUnitSelector';
    const [isFoodUnitSelectorOpen, setIsFoodUnitSelectorOpen] = useState(false);
    const [selectedFoodForUnitSelection, setSelectedFoodForUnitSelection] = useState<Food | null>(null);
  
+   useEffect(() => {
+     if (open) {
+       // When the dialog opens, clear search term and load recent/top foods
+       setSearchTerm('');
+       handleSearchFoods();
+     }
+   }, [open]); // Depend on 'open' prop
+ 
    const handleSearchFoods = useCallback(async () => {
      setSearchResults([]); // Clear previous search results
      setRecentFoods([]); // Clear previous recent foods
      setTopFoods([]); // Clear previous top foods
-
+ 
      try {
        if (!searchTerm.trim()) {
          // If search term is empty, fetch recent and top foods
@@ -40,7 +48,7 @@ import FoodUnitSelector from '@/components/FoodUnitSelector';
          setTopFoods(data.topFoods || []);
        } else {
          // Otherwise, perform a regular search
-         const data = await searchFoods(activeUserId!, searchTerm, activeUserId!, false, true, true) as FoodSearchResult;
+         const data = await searchFoods(activeUserId!, searchTerm, activeUserId!, false, true, true, foodDisplayLimit) as FoodSearchResult;
          setSearchResults(data.searchResults || []);
        }
      } catch (err) {

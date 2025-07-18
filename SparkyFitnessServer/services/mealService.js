@@ -17,9 +17,16 @@ async function createMeal(userId, mealData) {
   }
 }
 
-async function getMeals(userId, isPublic = false) {
+async function getMeals(userId, isPublic = false, isRecent = false, isTop = false, limit = null) {
   try {
-    const meals = await mealRepository.getMeals(userId, isPublic);
+    let meals;
+    if (isRecent) {
+      meals = await mealRepository.getRecentMeals(userId, limit);
+    } else if (isTop) {
+      meals = await mealRepository.getTopMeals(userId, limit);
+    } else {
+      meals = await mealRepository.getMeals(userId, isPublic);
+    }
     return meals;
   } catch (error) {
     log('error', `Error in mealService.getMeals for user ${userId}:`, error);
@@ -231,9 +238,9 @@ async function logDayMealPlanToDiary(userId, planDate, targetDate) {
   }
 }
 
-async function searchMeals(userId, searchTerm) {
+async function searchMeals(userId, searchTerm, limit = null) {
   try {
-    const meals = await mealRepository.searchMeals(searchTerm, userId);
+    const meals = await mealRepository.searchMeals(searchTerm, userId, limit);
     return meals;
   } catch (error) {
     log('error', `Error in mealService.searchMeals for user ${userId} with term "${searchTerm}":`, error);

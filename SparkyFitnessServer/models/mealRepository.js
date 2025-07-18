@@ -59,16 +59,23 @@ async function getMeals(userId, isPublic = false) {
   }
 }
 
-async function searchMeals(searchTerm, userId) {
+async function searchMeals(searchTerm, userId, limit = null) {
   const client = await pool.connect();
   try {
-    const query = `
+    let query = `
       SELECT id, user_id, name, description, is_public
       FROM meals
       WHERE (user_id = $1 OR is_public = TRUE)
       AND name ILIKE $2
       ORDER BY name ASC`;
-    const result = await client.query(query, [userId, `%${searchTerm}%`]);
+    const queryParams = [userId, `%${searchTerm}%`];
+
+    if (limit !== null) {
+      query += ` LIMIT $3`;
+      queryParams.push(limit);
+    }
+
+    const result = await client.query(query, queryParams);
     const meals = result.rows;
 
     // For each meal, fetch its associated foods
@@ -358,7 +365,88 @@ module.exports = {
   getMealOwnerId,
   getMealPlanOwnerId,
   searchMeals,
+  getRecentMeals,
+  getTopMeals,
 };
+
+async function getRecentMeals(userId, limit = null) {
+  const client = await pool.connect();
+  try {
+    let query = `
+      SELECT id, user_id, name, description, is_public, created_at, updated_at
+      FROM meals
+      WHERE user_id = $1 OR is_public = TRUE
+      ORDER BY updated_at DESC`;
+    const queryParams = [userId];
+
+    if (limit !== null) {
+      query += ` LIMIT $2`;
+      queryParams.push(limit);
+    }
+
+    const result = await client.query(query, queryParams);
+    const meals = result.rows;
+
+    for (const meal of meals) {
+      const mealFoodsResult = await client.query(
+        `SELECT mf.id, mf.food_id, mf.variant_id, mf.quantity, mf.unit,
+                f.name AS food_name, f.brand,
+                fv.serving_size, fv.serving_unit, fv.calories, fv.protein, fv.carbs, fv.fat
+         FROM meal_foods mf
+         JOIN foods f ON mf.food_id = f.id
+         LEFT JOIN food_variants fv ON mf.variant_id = fv.id
+         WHERE mf.meal_id = $1`,
+        [meal.id]
+      );
+      meal.foods = mealFoodsResult.rows;
+    }
+    return meals;
+  } finally {
+    client.release();
+  }
+}
+
+async function getTopMeals(userId, limit = null) {
+  const client = await pool.connect();
+  try {
+    // For "top meals", we'll use a simple heuristic: meals with more foods,
+    // or more recently created public meals. This can be refined later.
+    let query = `
+      SELECT m.id, m.user_id, m.name, m.description, m.is_public, m.created_at, m.updated_at,
+             COUNT(mf.id) AS food_count
+      FROM meals m
+      LEFT JOIN meal_foods mf ON m.id = mf.meal_id
+      WHERE m.user_id = $1 OR m.is_public = TRUE
+      GROUP BY m.id
+      ORDER BY food_count DESC, m.created_at DESC`;
+    const queryParams = [userId];
+
+    if (limit !== null) {
+      query += ` LIMIT $2`;
+      queryParams.push(limit);
+    }
+
+    const result = await client.query(query, queryParams);
+    const meals = result.rows;
+
+    for (const meal of meals) {
+      const mealFoodsResult = await client.query(
+        `SELECT mf.id, mf.food_id, mf.variant_id, mf.quantity, mf.unit,
+                f.name AS food_name, f.brand,
+                fv.serving_size, fv.serving_unit, fv.calories, fv.protein, fv.carbs, fv.fat
+         FROM meal_foods mf
+         JOIN foods f ON mf.food_id = f.id
+         LEFT JOIN food_variants fv ON mf.variant_id = fv.id
+         WHERE mf.meal_id = $1`,
+        [meal.id]
+      );
+      meal.foods = mealFoodsResult.rows;
+    }
+    return meals;
+  } finally {
+    client.release();
+  }
+}
 
 async function getMealOwnerId(mealId) {
   const client = await pool.connect();
