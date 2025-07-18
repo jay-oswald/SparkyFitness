@@ -206,11 +206,12 @@ router.post("/callback", async (req, res, next) => {
         }
 
         if (user && user.id) {
-          req.session.user = { ...claims, userId: user.id };
+          // Ensure the role is included in the session user object
+          req.session.user = { ...claims, userId: user.id, role: user.role || 'user' };
         } else {
           log('error', `OIDC callback: Failed to create or find a valid user for ${userEmail}. Cannot set session.`);
-          // Fallback to storing claims directly if user object is invalid
-          req.session.user = claims;
+          // Fallback to storing claims directly if user object is invalid, and default role
+          req.session.user = { ...claims, role: 'user' };
         }
       } catch (regError) {
         log('error', `OIDC callback: Error during auto-registration for ${userEmail}:`, regError.message);

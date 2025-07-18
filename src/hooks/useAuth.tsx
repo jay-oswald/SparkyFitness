@@ -40,7 +40,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if (response.ok) {
           const userData = await response.json();
           if (userData && userData.userId && userData.email) {
-            setUser({ id: userData.userId, email: userData.email, role: userData.role || 'user' });
+            const role = userData.role || localStorage.getItem('userRole') || 'user';
+            setUser({ id: userData.userId, email: userData.email, role: role });
           } else {
             setUser(null);
             if (authType === 'password') {

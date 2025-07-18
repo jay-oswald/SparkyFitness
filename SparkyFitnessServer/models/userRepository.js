@@ -50,7 +50,7 @@ async function findUserById(userId) {
   const client = await pool.connect();
   try {
     const result = await client.query(
-      'SELECT id, email, created_at FROM auth.users WHERE id = $1',
+      'SELECT id, email, role, created_at FROM auth.users WHERE id = $1',
       [userId]
     );
     return result.rows[0];
