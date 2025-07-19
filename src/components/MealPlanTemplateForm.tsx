@@ -12,7 +12,8 @@ import { MealPlanTemplate, Meal, MealPlanTemplateAssignment } from '@/types/meal
 import { Food, FoodVariant } from '@/types/food';
 import { getMeals } from '@/services/mealService';
 import MealSelection from './MealSelection';
-import FoodPlanSelector from './FoodPlanSelector';
+import FoodSearchDialog from './FoodSearchDialog';
+import FoodUnitSelector from './FoodUnitSelector';
 
 interface MealPlanTemplateFormProps {
     template?: MealPlanTemplate;
@@ -31,6 +32,8 @@ const MealPlanTemplateForm: React.FC<MealPlanTemplateFormProps> = ({ template, o
     const [assignments, setAssignments] = useState<MealPlanTemplateAssignment[]>(template?.assignments || []);
     const [isMealSelectionOpen, setIsMealSelectionOpen] = useState(false);
     const [isFoodSelectionOpen, setIsFoodSelectionOpen] = useState(false);
+    const [isFoodUnitSelectorOpen, setIsFoodUnitSelectorOpen] = useState(false);
+    const [selectedFood, setSelectedFood] = useState<Food | null>(null);
     const [currentDay, setCurrentDay] = useState<number | null>(null);
     const [currentMealType, setCurrentMealType] = useState<string | null>(null);
 
@@ -52,19 +55,26 @@ const MealPlanTemplateForm: React.FC<MealPlanTemplateFormProps> = ({ template, o
         setIsMealSelectionOpen(false);
     };
 
-    const handleFoodSelected = (food: Food, quantity: number, unit: string, selectedVariant: FoodVariant) => {
-        if (currentDay === null || currentMealType === null) return;
-        setAssignments(prev => [...prev, {
-            item_type: 'food',
-            day_of_week: currentDay,
-            meal_type: currentMealType,
-            food_id: food.id,
-            food_name: food.name,
-            variant_id: selectedVariant.id,
-            quantity: quantity,
-            unit: unit,
-        }]);
-        setIsFoodSelectionOpen(false);
+    const handleFoodSelected = (food: Food) => {
+      setSelectedFood(food);
+      setIsFoodSelectionOpen(false);
+      setIsFoodUnitSelectorOpen(true);
+    };
+  
+    const handleFoodUnitSelected = (food: Food, quantity: number, unit: string, selectedVariant: FoodVariant) => {
+      if (currentDay === null || currentMealType === null) return;
+      setAssignments(prev => [...prev, {
+          item_type: 'food',
+          day_of_week: currentDay,
+          meal_type: currentMealType,
+          food_id: food.id,
+          food_name: food.name,
+          variant_id: selectedVariant.id,
+          quantity: quantity,
+          unit: unit,
+      }]);
+      setIsFoodUnitSelectorOpen(false);
+      setSelectedFood(null);
     };
 
     const handleRemoveAssignment = (index: number) => {
@@ -179,12 +189,21 @@ const MealPlanTemplateForm: React.FC<MealPlanTemplateFormProps> = ({ template, o
                 </Dialog>
             )}
 
-            {isFoodSelectionOpen && (
-                <FoodPlanSelector
-                    open={isFoodSelectionOpen}
-                    onOpenChange={setIsFoodSelectionOpen}
-                    onFoodSelect={handleFoodSelected}
-                />
+            <FoodSearchDialog
+              open={isFoodSelectionOpen}
+              onOpenChange={setIsFoodSelectionOpen}
+              onFoodSelect={handleFoodSelected}
+              title="Add Food to Meal Plan"
+              description="Search for a food to add to this day's meal plan."
+            />
+      
+            {selectedFood && (
+              <FoodUnitSelector
+                food={selectedFood}
+                open={isFoodUnitSelectorOpen}
+                onOpenChange={setIsFoodUnitSelectorOpen}
+                onSelect={handleFoodUnitSelected}
+              />
             )}
         </>
     );

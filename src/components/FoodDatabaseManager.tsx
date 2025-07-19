@@ -12,6 +12,7 @@ import { useActiveUser } from "@/contexts/ActiveUserContext";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "@/hooks/use-toast";
 import EnhancedCustomFoodForm from "./EnhancedCustomFoodForm";
+import FoodSearchDialog from "./FoodSearchDialog";
 import FoodUnitSelector from "./FoodUnitSelector"; // Import FoodUnitSelector
 import {
   loadFoods,
@@ -33,7 +34,7 @@ const FoodDatabaseManager: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [editingFood, setEditingFood] = useState<Food | null>(null);
   const [loading, setLoading] = useState(true);
-  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [showFoodSearchDialog, setShowFoodSearchDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
@@ -51,6 +52,14 @@ const FoodDatabaseManager: React.FC = () => {
       fetchFoodsData();
     }
   }, [user, activeUserId, searchTerm, currentPage, itemsPerPage, foodFilter, sortOrder]); // Removed activeTab from dependencies
+
+  useEffect(() => {
+    const handleRefresh = () => fetchFoodsData();
+    window.addEventListener('foodDatabaseRefresh', handleRefresh);
+    return () => {
+      window.removeEventListener('foodDatabaseRefresh', handleRefresh);
+    };
+  }, []);
 
   const fetchFoodsData = async () => {
     try {
@@ -96,7 +105,7 @@ const FoodDatabaseManager: React.FC = () => {
   const handleDeleteRequest = async (food: Food) => {
     if (!user || !activeUserId) return;
     try {
-      const impact = await getFoodDeletionImpact(food.id, activeUserId);
+      const impact = await getFoodDeletionImpact(food.id);
       setDeletionImpact(impact);
       setFoodToDelete(food);
       setShowDeleteConfirmation(true);
@@ -140,10 +149,17 @@ const FoodDatabaseManager: React.FC = () => {
 
   const handleSaveComplete = (savedFood: Food) => {
     fetchFoodsData();
-    setShowAddDialog(false);
     setShowEditDialog(false);
     setEditingFood(null);
+  };
 
+  const handleFoodSelected = (food: Food) => {
+    setShowFoodSearchDialog(false);
+    fetchFoodsData();
+    toast({
+      title: "Food Added",
+      description: `${food.name} has been added to your database.`,
+    });
   };
 
   const handleAddFoodToMeal = async (food: Food, quantity: number, unit: string, selectedVariant: FoodVariant) => {
@@ -256,23 +272,10 @@ const FoodDatabaseManager: React.FC = () => {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-2xl font-bold">Food Database</CardTitle>
-          <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-            <DialogTrigger asChild>
-              <Button className="whitespace-nowrap">
-                <Plus className="w-4 h-4 mr-2" />
-                Add New Food
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>Add New Food</DialogTitle>
-                <DialogDescription>
-                  Enter the details for a new food item to add to your database.
-                </DialogDescription>
-              </DialogHeader>
-              <EnhancedCustomFoodForm onSave={handleSaveComplete} />
-            </DialogContent>
-          </Dialog>
+          <Button className="whitespace-nowrap" onClick={() => setShowFoodSearchDialog(true)}>
+            <Plus className="w-4 h-4 mr-2" />
+            Add New Food
+          </Button>
         </CardHeader>
         <CardContent>
           {/* Controls in a single row: Search, Filter, Items per page, Add button */}
@@ -519,6 +522,15 @@ const FoodDatabaseManager: React.FC = () => {
           }
         />
       )}
+
+      <FoodSearchDialog
+        open={showFoodSearchDialog}
+        onOpenChange={setShowFoodSearchDialog}
+        onFoodSelect={handleFoodSelected}
+        title="Add Food to Database"
+        description="Search for foods to add to your personal database."
+        hideDatabaseTab={true}
+      />
     </div>
   );
 };

@@ -13,7 +13,8 @@ import { Food, FoodVariant, FoodSearchResult } from '@/types/food'; // Import Fo
 import { Meal, MealFood, MealPayload } from '@/types/meal'; // Assuming you'll create this type
 import { createMeal, updateMeal, getMealById } from '@/services/mealService'; // Assuming you'll create this service
 import { searchFoods } from '@/services/foodService'; // Existing food service
-import FoodUnitSelector from '@/components/FoodUnitSelector'; // Import FoodUnitSelector
+import FoodUnitSelector from '@/components/FoodUnitSelector';
+import FoodSearchDialog from './FoodSearchDialog';
 
 interface MealBuilderProps {
   mealId?: string; // Optional: if editing an existing meal
@@ -29,11 +30,8 @@ const MealBuilder: React.FC<MealBuilderProps> = ({ mealId, onSave, onCancel }) =
   const [mealDescription, setMealDescription] = useState('');
   const [isPublic, setIsPublic] = useState(false);
   const [mealFoods, setMealFoods] = useState<MealFood[]>([]);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [searchResults, setSearchResults] = useState<Food[]>([]);
-  const [recentFoods, setRecentFoods] = useState<Food[]>([]); // New state for recent foods
-  const [topFoods, setTopFoods] = useState<Food[]>([]); // New state for top foods
   const [isFoodUnitSelectorOpen, setIsFoodUnitSelectorOpen] = useState(false);
+  const [showFoodSearchDialog, setShowFoodSearchDialog] = useState(false);
   const [selectedFoodForUnitSelection, setSelectedFoodForUnitSelection] = useState<Food | null>(null);
 
   useEffect(() => {
@@ -60,31 +58,6 @@ const MealBuilder: React.FC<MealBuilderProps> = ({ mealId, onSave, onCancel }) =
     }
   }, [mealId, activeUserId, loggingLevel]);
 
-  const handleSearchFoods = useCallback(async () => {
-    setSearchResults([]); // Clear previous search results
-    setRecentFoods([]); // Clear previous recent foods
-    setTopFoods([]); // Clear previous top foods
-
-    try {
-      if (!searchTerm.trim()) {
-        // If search term is empty, fetch recent and top foods
-        const data = await searchFoods(activeUserId!, '', activeUserId!, false, true, true, foodDisplayLimit) as FoodSearchResult;
-        setRecentFoods(data.recentFoods || []);
-        setTopFoods(data.topFoods || []);
-      } else {
-        // Otherwise, perform a regular search
-        const data = await searchFoods(activeUserId!, searchTerm, activeUserId!, false, true, true) as FoodSearchResult;
-        setSearchResults(data.searchResults || []);
-      }
-    } catch (err) {
-      error(loggingLevel, 'Error searching foods:', err);
-      toast({
-        title: 'Error',
-        description: 'Failed to search foods.',
-        variant: 'destructive',
-      });
-    }
-  }, [searchTerm, activeUserId, loggingLevel, foodDisplayLimit]);
 
   const handleAddFoodToMeal = useCallback((food: Food) => {
     setSelectedFoodForUnitSelection(food);
@@ -108,8 +81,6 @@ const MealBuilder: React.FC<MealBuilderProps> = ({ mealId, onSave, onCancel }) =
     setMealFoods(prev => [...prev, newMealFood]);
     setIsFoodUnitSelectorOpen(false);
     setSelectedFoodForUnitSelection(null);
-    setSearchTerm('');
-    setSearchResults([]);
     toast({
       title: 'Success',
       description: `${food.name} added to meal.`,
@@ -260,81 +231,30 @@ const MealBuilder: React.FC<MealBuilderProps> = ({ mealId, onSave, onCancel }) =
 
         <div className="space-y-4">
           <h3 className="text-lg font-semibold">Add Food to Meal</h3>
-          <div className="flex space-x-2">
-            <Input
-              placeholder="Search for food..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              onKeyPress={(e) => {
-                if (e.key === 'Enter') {
-                  handleSearchFoods();
-                }
-              }}
-              className="flex-1"
-            />
-            <Button onClick={handleSearchFoods}>
-              <Search className="h-4 w-4 mr-2" /> Search
-            </Button>
-          </div>
-
-          {searchTerm.trim() === '' && (recentFoods.length > 0 || topFoods.length > 0) ? (
-            <>
-              {recentFoods.length > 0 && (
-                <div className="space-y-2">
-                  <h4 className="text-md font-semibold">Recent Foods</h4>
-                  <div className="space-y-2 max-h-48 overflow-y-auto border rounded-md p-2">
-                    {recentFoods.map(food => (
-                      <div key={food.id} className="flex items-center justify-between p-1 hover:bg-accent rounded-sm">
-                        <span>{food.name} {food.brand ? `(${food.brand})` : ''}</span>
-                        <Button variant="outline" size="sm" onClick={() => handleAddFoodToMeal(food)}>
-                          Add
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {topFoods.length > 0 && (
-                <div className="space-y-2 mt-4">
-                  <h4 className="text-md font-semibold">Top Foods</h4>
-                  <div className="space-y-2 max-h-48 overflow-y-auto border rounded-md p-2">
-                    {topFoods.map(food => (
-                      <div key={food.id} className="flex items-center justify-between p-1 hover:bg-accent rounded-sm">
-                        <span>{food.name} {food.brand ? `(${food.brand})` : ''}</span>
-                        <Button variant="outline" size="sm" onClick={() => handleAddFoodToMeal(food)}>
-                          Add
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </>
-          ) : (
-            searchResults.length > 0 && (
-              <div className="space-y-2 max-h-48 overflow-y-auto border rounded-md p-2">
-                {searchResults.map(food => (
-                  <div key={food.id} className="flex items-center justify-between p-1 hover:bg-accent rounded-sm">
-                    <span>{food.name} {food.brand ? `(${food.brand})` : ''}</span>
-                    <Button variant="outline" size="sm" onClick={() => handleAddFoodToMeal(food)}>
-                      Add
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            )
-          )}
-
-          {selectedFoodForUnitSelection && (
-            <FoodUnitSelector
-              food={selectedFoodForUnitSelection}
-              open={isFoodUnitSelectorOpen}
-              onOpenChange={setIsFoodUnitSelectorOpen}
-              onSelect={handleFoodUnitSelected}
-            />
-          )}
+          <Button onClick={() => setShowFoodSearchDialog(true)}>
+            <Plus className="h-4 w-4 mr-2" /> Add Food
+          </Button>
         </div>
+
+        {selectedFoodForUnitSelection && (
+          <FoodUnitSelector
+            food={selectedFoodForUnitSelection}
+            open={isFoodUnitSelectorOpen}
+            onOpenChange={setIsFoodUnitSelectorOpen}
+            onSelect={handleFoodUnitSelected}
+          />
+        )}
+
+        <FoodSearchDialog
+          open={showFoodSearchDialog}
+          onOpenChange={setShowFoodSearchDialog}
+          onFoodSelect={(food) => {
+            setShowFoodSearchDialog(false);
+            handleAddFoodToMeal(food);
+          }}
+          title="Add Food to Meal"
+          description="Search for a food to add to this meal."
+        />
 
         <div className="flex justify-end space-x-2">
           <Button variant="outline" onClick={onCancel}>Cancel</Button>

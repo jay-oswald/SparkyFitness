@@ -41,9 +41,10 @@ interface OpenFoodFactsProduct {
 
 interface EnhancedFoodSearchProps {
   onFoodSelect: (food: Food) => void;
+  hideDatabaseTab?: boolean;
 }
 
-const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
+const EnhancedFoodSearch = ({ onFoodSelect, hideDatabaseTab = false }: EnhancedFoodSearchProps) => {
   const { user } = useAuth();
   const { activeUserId } = useActiveUser();
   const { defaultFoodDataProviderId, setDefaultFoodDataProviderId, loggingLevel, foodDisplayLimit } = usePreferences(); // Get loggingLevel and foodDisplayLimit
@@ -56,7 +57,7 @@ const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
   const [nutritionixResults, setNutritionixResults] = useState<any[]>([]); // To store Nutritionix search results
   const [fatSecretResults, setFatSecretResults] = useState<FatSecretFoodItem[]>([]); // To store FatSecret search results
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<'database' | 'online' | 'barcode'>('database');
+  const [activeTab, setActiveTab] = useState<'database' | 'online' | 'barcode'>(hideDatabaseTab ? 'online' : 'database');
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [editingProduct, setEditingProduct] = useState<OpenFoodFactsProduct | Food | null>(null);
   const [showBarcodeScanner, setShowBarcodeScanner] = useState(false);
@@ -223,19 +224,8 @@ const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
       is_custom: false,
       provider_external_id: product.code,
       provider_type: 'openfoodfacts',
-      // Assign the default variant's properties directly to the food for display purposes
-      serving_size: defaultVariant.serving_size,
-      serving_unit: defaultVariant.serving_unit,
-      calories: defaultVariant.calories,
-      protein: defaultVariant.protein,
-      carbs: defaultVariant.carbs,
-      fat: defaultVariant.fat,
-      saturated_fat: defaultVariant.saturated_fat,
-      sodium: defaultVariant.sodium,
-      dietary_fiber: defaultVariant.dietary_fiber,
-      sugars: defaultVariant.sugars,
-      // Include the variants array
-      variants: [defaultVariant],
+      default_variant: defaultVariant,
+      variants: [defaultVariant]
     };
     return convertedFood;
   };
@@ -252,6 +242,7 @@ const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
         title: 'Food added',
         description: `${foodData.name} has been added and is ready to be added to your meal`,
       });
+      window.dispatchEvent(new CustomEvent('foodDatabaseRefresh'));
     } catch (error) {
       console.error('Error handling edited food:', error);
       toast({
@@ -348,17 +339,8 @@ const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
       is_custom: false,
       provider_external_id: item.id,
       provider_type: 'nutritionix',
-      // Assign the default variant's properties directly to the food for display purposes
-      serving_size: defaultVariant.serving_size,
-      serving_unit: defaultVariant.serving_unit,
-      calories: defaultVariant.calories,
-      protein: defaultVariant.protein,
-      carbs: defaultVariant.carbs,
-      fat: defaultVariant.fat,
-      saturated_fat: defaultVariant.saturated_fat,
-      sodium: defaultVariant.sodium,
-      // Include the variants array
-      variants: [defaultVariant],
+      default_variant: defaultVariant,
+      variants: [defaultVariant]
     };
   };
 
@@ -418,17 +400,8 @@ const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
       is_custom: false,
       provider_external_id: item.food_id, // Use food_id from FatSecretFoodItem
       provider_type: 'fatsecret',
-      // Assign the default variant's properties directly to the food for display purposes
-      serving_size: defaultVariant.serving_size,
-      serving_unit: defaultVariant.serving_unit,
-      calories: defaultVariant.calories,
-      protein: defaultVariant.protein,
-      carbs: defaultVariant.carbs,
-      fat: defaultVariant.fat,
-      saturated_fat: defaultVariant.saturated_fat,
-      sodium: defaultVariant.sodium,
-      // Include the variants array
-      variants: [defaultVariant],
+      default_variant: defaultVariant,
+      variants: [defaultVariant]
     };
   };
 
@@ -454,12 +427,14 @@ const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
   return (
     <div className="space-y-4">
       <div className="flex space-x-2">
-        <Button
-          variant={activeTab === 'database' ? 'default' : 'outline'}
-          onClick={() => setActiveTab('database')}
-        >
-          Database
-        </Button>
+        {!hideDatabaseTab && (
+          <Button
+            variant={activeTab === 'database' ? 'default' : 'outline'}
+            onClick={() => setActiveTab('database')}
+          >
+            Database
+          </Button>
+        )}
         <Button
           variant={activeTab === 'online' ? 'default' : 'outline'}
           onClick={() => setActiveTab('online')}
@@ -476,7 +451,7 @@ const EnhancedFoodSearch = ({ onFoodSelect }: EnhancedFoodSearchProps) => {
           <Camera className="w-4 h-4 mr-2" /> Scan Barcode
         </Button>
         <Button onClick={() => setShowAddFoodDialog(true)} className="whitespace-nowrap">
-          <Plus className="w-4 h-4 mr-2" /> Add New Food
+          <Plus className="w-4 h-4 mr-2" /> Custom Food
         </Button>
       </div>
 
