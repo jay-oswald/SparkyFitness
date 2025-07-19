@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ExpandedGoals } from '@/types/goals';
 import MealPercentageManager from './MealPercentageManager';
 import { Separator } from "@/components/ui/separator";
+import { usePreferences } from "@/contexts/PreferencesContext";
 
 
 interface EditGoalsProps {
@@ -25,6 +26,7 @@ interface EditGoalsProps {
 
 const EditGoals = ({ selectedDate, onGoalsUpdated }: EditGoalsProps) => {
   const { user } = useAuth();
+  const { formatDate } = usePreferences();
   const [goals, setGoals] = useState<ExpandedGoals>({
     calories: 2000,
     protein: 150,
@@ -168,13 +170,11 @@ const EditGoals = ({ selectedDate, onGoalsUpdated }: EditGoalsProps) => {
       }
 
       console.log("Goals to save:", goalsToSave); // Add this line for debugging
-      await saveGoals(selectedDate, goalsToSave);
+      await saveGoals(selectedDate, goalsToSave, false);
 
       toast({
         title: "Success",
-        description: selectedDate >= new Date().toISOString().split('T')[0]
-          ? "Goals updated and will apply for the next 6 months (or until your next future goal)"
-          : "Goal updated for this specific date",
+        description: "Goal updated for this specific date",
       });
       
       setOpen(false);
@@ -250,7 +250,7 @@ const EditGoals = ({ selectedDate, onGoalsUpdated }: EditGoalsProps) => {
         target_exercise_calories_burned: 0, target_exercise_duration_minutes: 0,
         protein_percentage: null, carbs_percentage: null, fat_percentage: null,
         breakfast_percentage: 25, lunch_percentage: 25, dinner_percentage: 25, snacks_percentage: 25
-      });
+      }, false);
       toast({
         title: "Success",
         description: "Date-specific goal cleared. Default or weekly plan will now apply.",
@@ -283,11 +283,9 @@ const EditGoals = ({ selectedDate, onGoalsUpdated }: EditGoalsProps) => {
       </DialogTrigger>
       <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Edit Goals for {selectedDate}</DialogTitle>
+          <DialogTitle>Edit Goals for {formatDate(selectedDate)}</DialogTitle>
           <DialogDescription>
-            {selectedDate >= new Date().toISOString().split('T')[0] 
-              ? "Changes will cascade for 6 months or until your next future goal"
-              : "Changes will only apply to this specific date"}
+            Changes will only apply to this specific date.
           </DialogDescription>
         </DialogHeader>
         {loading ? (

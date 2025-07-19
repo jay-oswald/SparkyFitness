@@ -92,7 +92,7 @@ async function getUserGoals(targetUserId, selectedDate) {
 async function manageGoalTimeline(authenticatedUserId, goalData) {
   try {
     const {
-      p_start_date, p_calories, p_protein, p_carbs, p_fat, p_water_goal,
+      p_start_date, p_cascade, p_calories, p_protein, p_carbs, p_fat, p_water_goal,
       p_saturated_fat, p_polyunsaturated_fat, p_monounsaturated_fat, p_trans_fat,
       p_cholesterol, p_sodium, p_potassium, p_dietary_fiber, p_sugars,
       p_vitamin_a, p_vitamin_c, p_calcium, p_iron,
@@ -133,88 +133,63 @@ async function manageGoalTimeline(authenticatedUserId, goalData) {
       return isNaN(value) ? (allow_null ? null : 0) : value;
     };
 
-    // If editing a past date (before today), only update that specific date
-    if (new Date(p_start_date) < new Date(format(new Date(), 'yyyy-MM-dd'))) {
-      log('debug', `manageGoalTimeline - Updating goal for past date: ${p_start_date}`);
-      await goalRepository.upsertGoal({
-        user_id: authenticatedUserId, goal_date: p_start_date,
-        calories: cleanNumber(p_calories),
-        protein: cleanNumber(protein_to_store),
-        carbs: cleanNumber(carbs_to_store),
-        fat: cleanNumber(fat_to_store),
-        water_goal: cleanNumber(p_water_goal),
-        saturated_fat: cleanNumber(p_saturated_fat),
-        polyunsaturated_fat: cleanNumber(p_polyunsaturated_fat),
-        monounsaturated_fat: cleanNumber(p_monounsaturated_fat),
-        trans_fat: cleanNumber(p_trans_fat),
-        cholesterol: cleanNumber(p_cholesterol),
-        sodium: cleanNumber(p_sodium),
-        potassium: cleanNumber(p_potassium),
-        dietary_fiber: cleanNumber(p_dietary_fiber),
-        sugars: cleanNumber(p_sugars),
-        vitamin_a: cleanNumber(p_vitamin_a),
-        vitamin_c: cleanNumber(p_vitamin_c),
-        calcium: cleanNumber(p_calcium),
-        iron: cleanNumber(p_iron),
-        target_exercise_calories_burned: cleanNumber(p_target_exercise_calories_burned),
-        target_exercise_duration_minutes: cleanNumber(p_target_exercise_duration_minutes),
-        protein_percentage: cleanNumber(p_protein_percentage, true),
-        carbs_percentage: cleanNumber(p_carbs_percentage, true),
-        fat_percentage: cleanNumber(p_fat_percentage, true),
-        breakfast_percentage: cleanNumber(p_breakfast_percentage, true),
-        lunch_percentage: cleanNumber(p_lunch_percentage, true),
-        dinner_percentage: cleanNumber(p_dinner_percentage, true),
-        snacks_percentage: cleanNumber(p_snacks_percentage, true)
-      });
-      return { message: 'Goal for past date updated successfully.' };
+    const goalPayload = {
+      user_id: authenticatedUserId,
+      goal_date: p_start_date,
+      calories: cleanNumber(p_calories),
+      protein: cleanNumber(protein_to_store),
+      carbs: cleanNumber(carbs_to_store),
+      fat: cleanNumber(fat_to_store),
+      water_goal: cleanNumber(p_water_goal),
+      saturated_fat: cleanNumber(p_saturated_fat),
+      polyunsaturated_fat: cleanNumber(p_polyunsaturated_fat),
+      monounsaturated_fat: cleanNumber(p_monounsaturated_fat),
+      trans_fat: cleanNumber(p_trans_fat),
+      cholesterol: cleanNumber(p_cholesterol),
+      sodium: cleanNumber(p_sodium),
+      potassium: cleanNumber(p_potassium),
+      dietary_fiber: cleanNumber(p_dietary_fiber),
+      sugars: cleanNumber(p_sugars),
+      vitamin_a: cleanNumber(p_vitamin_a),
+      vitamin_c: cleanNumber(p_vitamin_c),
+      calcium: cleanNumber(p_calcium),
+      iron: cleanNumber(p_iron),
+      target_exercise_calories_burned: cleanNumber(p_target_exercise_calories_burned),
+      target_exercise_duration_minutes: cleanNumber(p_target_exercise_duration_minutes),
+      protein_percentage: cleanNumber(p_protein_percentage, true),
+      carbs_percentage: cleanNumber(p_carbs_percentage, true),
+      fat_percentage: cleanNumber(p_fat_percentage, true),
+      breakfast_percentage: cleanNumber(p_breakfast_percentage, true),
+      lunch_percentage: cleanNumber(p_lunch_percentage, true),
+      dinner_percentage: cleanNumber(p_dinner_percentage, true),
+      snacks_percentage: cleanNumber(p_snacks_percentage, true)
+    };
+
+    // If cascade is false, or if editing a past date, only update that specific date
+    if (!p_cascade || new Date(p_start_date) < new Date(format(new Date(), 'yyyy-MM-dd'))) {
+      log('debug', `manageGoalTimeline - Upserting single goal for date: ${p_start_date}`);
+      await goalRepository.upsertGoal(goalPayload);
+      return { message: 'Goal for the specified date updated successfully.' };
+    } else {
+      // For today or future dates with cascade: delete 6 months and insert new goals
+      log('info', `manageGoalTimeline - Updating goal for today or future date: ${p_start_date}. Applying 6-month cascade.`);
+      const startDate = new Date(p_start_date);
+      const endDate = new Date(startDate);
+      endDate.setMonth(endDate.getMonth() + 6);
+
+      // Delete existing goals in the range to prevent conflicts and ensure clean slate
+      await goalRepository.deleteGoalsInRange(authenticatedUserId, p_start_date, format(endDate, 'yyyy-MM-dd'));
+
+      // Insert the new goal, which will act as the template for the cascade
+      await goalRepository.upsertGoal(goalPayload);
+      
+      // The getMostRecentGoalBeforeDate function will now handle the cascading logic,
+      // so we don't need to loop and insert for every single day.
+      // We also remove the default goal to ensure this new goal becomes the baseline.
+      await goalRepository.deleteDefaultGoal(authenticatedUserId);
+
+      return { message: 'Goal timeline managed successfully with cascade.' };
     }
-
-    // For today or future dates: delete 6 months and insert new goals
-    log('info', `manageGoalTimeline - Updating goal for today or future date: ${p_start_date}. Applying 6-month cascade.`);
-    const startDate = new Date(p_start_date);
-    const endDate = new Date(startDate);
-    endDate.setMonth(endDate.getMonth() + 6);
-
-    await goalRepository.deleteGoalsInRange(authenticatedUserId, p_start_date, format(endDate, 'yyyy-MM-dd'));
-
-    let currentDate = new Date(startDate);
-    while (currentDate < endDate) {
-      await goalRepository.upsertGoal({
-        user_id: authenticatedUserId, goal_date: format(currentDate, 'yyyy-MM-dd'),
-        calories: cleanNumber(p_calories),
-        protein: cleanNumber(protein_to_store),
-        carbs: cleanNumber(carbs_to_store),
-        fat: cleanNumber(fat_to_store),
-        water_goal: cleanNumber(p_water_goal),
-        saturated_fat: cleanNumber(p_saturated_fat),
-        polyunsaturated_fat: cleanNumber(p_polyunsaturated_fat),
-        monounsaturated_fat: cleanNumber(p_monounsaturated_fat),
-        trans_fat: cleanNumber(p_trans_fat),
-        cholesterol: cleanNumber(p_cholesterol),
-        sodium: cleanNumber(p_sodium),
-        potassium: cleanNumber(p_potassium),
-        dietary_fiber: cleanNumber(p_dietary_fiber),
-        sugars: cleanNumber(p_sugars),
-        vitamin_a: cleanNumber(p_vitamin_a),
-        vitamin_c: cleanNumber(p_vitamin_c),
-        calcium: cleanNumber(p_calcium),
-        iron: cleanNumber(p_iron),
-        target_exercise_calories_burned: cleanNumber(p_target_exercise_calories_burned),
-        target_exercise_duration_minutes: cleanNumber(p_target_exercise_duration_minutes),
-        protein_percentage: cleanNumber(p_protein_percentage, true),
-        carbs_percentage: cleanNumber(p_carbs_percentage, true),
-        fat_percentage: cleanNumber(p_fat_percentage, true),
-        breakfast_percentage: cleanNumber(p_breakfast_percentage, true),
-        lunch_percentage: cleanNumber(p_lunch_percentage, true),
-        dinner_percentage: cleanNumber(p_dinner_percentage, true),
-        snacks_percentage: cleanNumber(p_snacks_percentage, true)
-      });
-      currentDate.setDate(currentDate.getDate() + 1);
-    }
-
-    await goalRepository.deleteDefaultGoal(authenticatedUserId);
-
-    return { message: 'Goal timeline managed successfully.' };
   } catch (error) {
     log('error', `Error managing goal timeline for user ${authenticatedUserId}:`, error);
     throw error;

@@ -38,11 +38,12 @@ export const loadGoals = async (selectedDate: string): Promise<ExpandedGoals> =>
   };
 };
 
-export const saveGoals = async (selectedDate: string, goals: ExpandedGoals): Promise<void> => {
+export const saveGoals = async (selectedDate: string, goals: ExpandedGoals, cascade: boolean): Promise<void> => {
   await apiCall('/goals/manage-timeline', {
     method: 'POST',
     body: {
       p_start_date: selectedDate,
+      p_cascade: cascade,
       p_calories: goals.calories,
       p_protein: goals.protein,
       p_carbs: goals.carbs,

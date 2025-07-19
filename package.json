@@ -1,7 +1,7 @@
 {
   "name": "vite_react_shadcn_ts",
   "private": true,
-  "version": "0.14.7",
+  "version": "0.14.8",
   "homepage": "https://github.com/CodeWithCJ/SparkyFitness",
   "type": "module",
   "scripts": {
