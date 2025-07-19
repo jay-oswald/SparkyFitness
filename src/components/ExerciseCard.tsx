@@ -345,7 +345,7 @@ const ExerciseCard = ({ selectedDate, onExerciseChange }: ExerciseCardProps) => 
                     <div
                       key={exercise.id}
                       className={`flex items-center justify-between p-3 border rounded-lg cursor-pointer ${
-                        selectedExerciseId === exercise.id ? 'bg-blue-100 border-blue-300' : 'hover:bg-gray-50'
+                        selectedExerciseId === exercise.id ? 'bg-accent text-accent-foreground' : 'hover:bg-accent/90'
                       }`}
                       onClick={() => handleExerciseSelect(exercise)}
                     >
@@ -392,7 +392,7 @@ const ExerciseCard = ({ selectedDate, onExerciseChange }: ExerciseCardProps) => 
                   </label>
                   <textarea
                     id="notes"
-                    className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                    className="shadow appearance-none border rounded w-full py-2 px-3 bg-background text-foreground leading-tight focus:outline-none focus:shadow-outline"
                     value={notes}
                     onChange={(e) => {
                       debug(loggingLevel, "Exercise notes changed:", e.target.value);

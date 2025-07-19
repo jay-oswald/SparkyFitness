@@ -8,7 +8,7 @@ async function getReportsData(authenticatedUserId, targetUserId, startDate, endD
   try {
 
     const [
-      nutritionData,
+      fetchedNutritionData,
       tabularDataRaw,
       measurementData,
       customCategoriesResult
@@ -49,6 +49,27 @@ async function getReportsData(authenticatedUserId, targetUserId, startDate, endD
         iron: row.iron,
         serving_size: row.serving_size,
       }
+    }));
+
+    const nutritionData = fetchedNutritionData.map(item => ({
+      date: item.date,
+      calories: parseFloat(item.calories) || 0,
+      protein: parseFloat(item.protein) || 0,
+      carbs: parseFloat(item.carbs) || 0,
+      fat: parseFloat(item.fat) || 0,
+      saturated_fat: parseFloat(item.saturated_fat) || 0,
+      polyunsaturated_fat: parseFloat(item.polyunsaturated_fat) || 0,
+      monounsaturated_fat: parseFloat(item.monounsaturated_fat) || 0,
+      trans_fat: parseFloat(item.trans_fat) || 0,
+      cholesterol: parseFloat(item.cholesterol) || 0,
+      sodium: parseFloat(item.sodium) || 0,
+      potassium: parseFloat(item.potassium) || 0,
+      dietary_fiber: parseFloat(item.dietary_fiber) || 0,
+      sugars: parseFloat(item.sugars) || 0,
+      vitamin_a: parseFloat(item.vitamin_a) || 0,
+      vitamin_c: parseFloat(item.vitamin_c) || 0,
+      calcium: parseFloat(item.calcium) || 0,
+      iron: parseFloat(item.iron) || 0,
     }));
 
     return {
