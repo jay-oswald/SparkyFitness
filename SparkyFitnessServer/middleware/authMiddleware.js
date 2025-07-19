@@ -4,6 +4,11 @@ const { JWT_SECRET } = require('../security/encryption');
 const userRepository = require('../models/userRepository'); // Import userRepository
 
 const authenticateToken = (req, res, next) => {
+  // Allow public access to the /api/auth/settings endpoint
+  if (req.path === '/settings') {
+    return next();
+  }
+
   // Check for JWT token in Authorization header (for traditional login)
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN

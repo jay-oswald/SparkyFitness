@@ -8,7 +8,7 @@ import { usePreferences } from '@/contexts/PreferencesContext';
 import { useAuth } from '@/hooks/useAuth'; // Import useAuth
 import Index from '@/pages/Index';
 import NotFound from '@/pages/NotFound';
-import OidcSettings from '@/pages/Admin/OidcSettings'; // Import OidcSettings
+import AuthenticationSettings from '@/pages/Admin/AuthenticationSettings'; // Import AuthenticationSettings
 import OidcCallback from '@/components/OidcCallback'; // Import OidcCallback
 import Auth from '@/components/Auth'; // Import Auth component
 import MealManagement from './MealManagement'; // Import MealManagement
@@ -37,7 +37,7 @@ const AppContent: React.FC<AppContentProps> = ({ onShowAboutDialog }) => {
             <Route path="/oidc-callback" element={<OidcCallback />} />
             <Route path="/meals" element={user ? <MealManagement /> : <Navigate to="/" />} />
             <Route path="/meal-plan" element={user ? <MealPlanCalendar /> : <Navigate to="/" />} />
-            <Route path="/admin/oidc-settings" element={user ? <OidcSettings /> : <Navigate to="/" />} />
+            <Route path="/admin/oidc-settings" element={user ? <AuthenticationSettings /> : <Navigate to="/" />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </TooltipProvider>

@@ -19,9 +19,18 @@ router.post('/login', loginValidation, async (req, res, next) => {
     const { userId, token, role } = await authService.loginUser(email, password);
     res.status(200).json({ message: 'Login successful', userId, token, role });
   } catch (error) {
-    if (error.message === 'Invalid credentials.') {
+    if (error.message === 'Invalid credentials.' || error.message === 'Email/Password login is disabled.') {
       return res.status(401).json({ error: error.message });
     }
+    next(error);
+  }
+});
+
+router.get('/settings', async (req, res, next) => {
+  try {
+    const settings = await authService.getLoginSettings();
+    res.status(200).json(settings);
+  } catch (error) {
     next(error);
   }
 });

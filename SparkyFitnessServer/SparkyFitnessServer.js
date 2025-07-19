@@ -89,6 +89,7 @@ app.use((req, res, next) => {
   const publicRoutes = [
     '/auth/login',
     '/auth/register',
+    '/auth/settings',
     '/health-data',
     '/health',
     '/openid', // All OIDC routes are handled by session, not JWT token

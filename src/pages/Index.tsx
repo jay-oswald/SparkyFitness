@@ -19,7 +19,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useActiveUser } from "@/contexts/ActiveUserContext";
 import { Home, Activity, BarChart3, Utensils, Settings as SettingsIcon, LogOut, Dumbbell, Target, Shield } from "lucide-react"; // Import Target and Shield icons
 import { toast } from "@/hooks/use-toast";
-import OidcSettings from '@/pages/Admin/OidcSettings'; // Import OidcSettings
+import AuthenticationSettings from '@/pages/Admin/AuthenticationSettings'; // Import AuthenticationSettings
 import axios from 'axios'; // Import axios
 
 import { API_BASE_URL } from "@/services/api";
@@ -155,7 +155,7 @@ const Index: React.FC<IndexProps> = ({ onShowAboutDialog }) => {
      // Add Admin tab if user is an admin
      if (user?.role === 'admin') {
        debug(loggingLevel, "Index: User is admin, adding Admin tab.");
-       tabs.push({ value: "admin", label: "Admin", icon: Shield, component: OidcSettings });
+       tabs.push({ value: "admin", label: "Admin", icon: Shield, component: AuthenticationSettings });
      }
      
      info(loggingLevel, "Index: Available tabs calculated:", tabs.map(tab => tab.value));

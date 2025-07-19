@@ -48,3 +48,14 @@ export const checkOidcAvailability = async (): Promise<boolean> => {
     return false;
   }
 };
+
+export const getLoginSettings = async (): Promise<{ oidc: { enabled: boolean }, email: { enabled: boolean } }> => {
+  try {
+    const response = await apiCall('/auth/settings');
+    return response;
+  } catch (error) {
+    console.error('Error fetching login settings:', error);
+    // Fallback to a safe default (email enabled) if the API call fails
+    return { oidc: { enabled: false }, email: { enabled: true } };
+  }
+};

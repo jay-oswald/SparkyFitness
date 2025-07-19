@@ -5,6 +5,7 @@ const { log } = require('../config/logging');
 const { JWT_SECRET } = require('../security/encryption');
 const userRepository = require('../models/userRepository');
 const familyAccessRepository = require('../models/familyAccessRepository');
+const oidcSettingsRepository = require('../models/oidcSettingsRepository');
 
 async function registerUser(email, password, full_name) {
   try {
@@ -24,6 +25,11 @@ async function registerUser(email, password, full_name) {
 
 async function loginUser(email, password) {
   try {
+    const loginSettings = await getLoginSettings();
+    if (!loginSettings.email.enabled) {
+      throw new Error('Email/Password login is disabled.');
+    }
+
     const user = await userRepository.findUserByEmail(email);
 
     if (!user || !(await bcrypt.compare(password, user.password_hash))) {
@@ -261,10 +267,55 @@ async function deleteFamilyAccessEntry(authenticatedUserId, id) {
   }
 }
 
+async function getLoginSettings() {
+  try {
+    const settings = await oidcSettingsRepository.getOidcSettings();
+    const forceEmailLogin = process.env.SPARKY_FITNESS_FORCE_EMAIL_LOGIN === 'true';
+
+    // Placeholder for OIDC health check logic
+    // In a real scenario, this would check if the OIDC provider is reachable
+    const isOidcHealthy = settings && settings.issuer_url; // Simplified check
+
+    let emailEnabled = true; // Default to true if no settings exist
+    if (settings) {
+      emailEnabled = settings.enable_email_password_login;
+    }
+
+    // If OIDC is enabled but unhealthy, enable email login as a fallback
+    if (settings && settings.is_active && !isOidcHealthy) {
+      log('warn', 'OIDC is configured but appears unhealthy. Enabling email/password login as a fallback.');
+      emailEnabled = true;
+    }
+
+    // The environment variable is the ultimate override
+    if (forceEmailLogin) {
+      log('warn', 'SPARKY_FITNESS_FORCE_EMAIL_LOGIN is set. Forcing email/password login to be enabled.');
+      emailEnabled = true;
+    }
+
+    return {
+      oidc: {
+        enabled: settings ? settings.is_active : false,
+      },
+      email: {
+        enabled: emailEnabled,
+      },
+    };
+  } catch (error) {
+    log('error', 'Error fetching login settings:', error);
+    // In case of error, default to enabling email login as a safe fallback
+    return {
+      oidc: { enabled: false },
+      email: { enabled: true },
+    };
+  }
+}
+
 module.exports = {
   registerUser,
   registerOidcUser,
   loginUser,
+  getLoginSettings,
   getUser,
   findUserIdByEmail,
   generateUserApiKey,

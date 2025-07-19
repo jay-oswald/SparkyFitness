@@ -14,6 +14,7 @@ export interface OidcSettings {
     userinfo_signed_response_alg?: string;
     request_timeout?: number;
     auto_register?: boolean;
+    enable_email_password_login?: boolean;
 }
 
 export const oidcSettingsService = {

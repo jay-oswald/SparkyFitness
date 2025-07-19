@@ -20,6 +20,7 @@ import {
   loginUser,
   initiateOidcLogin,
   checkOidcAvailability,
+  getLoginSettings,
 } from "@/services/authService";
 import { useAuth } from "@/hooks/useAuth";
 import { AuthResponse } from "../types"; // Import AuthResponse type
@@ -35,15 +36,26 @@ const Auth = () => {
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [passwordError, setPasswordError] = useState<string | null>(null);
-  const [oidcAvailable, setOidcAvailable] = useState(false);
+  const [loginSettings, setLoginSettings] = useState({ oidc: { enabled: false }, email: { enabled: true } });
 
   useEffect(() => {
-    const checkAvailability = async () => {
-      const available = await checkOidcAvailability();
-      setOidcAvailable(available);
+    const fetchLoginSettings = async () => {
+      try {
+        const settings = await getLoginSettings();
+        setLoginSettings(settings);
+
+        // If only OIDC is enabled, redirect immediately
+        if (settings.oidc.enabled && !settings.email.enabled) {
+          initiateOidcLogin();
+        }
+      } catch (err) {
+        error(loggingLevel, "Auth: Failed to fetch login settings:", err);
+        // Fallback to default settings
+        setLoginSettings({ oidc: { enabled: false }, email: { enabled: true } });
+      }
     };
-    checkAvailability();
-  }, []);
+    fetchLoginSettings();
+  }, [loggingLevel]);
 
   const validatePassword = (pwd: string) => {
     if (pwd.length < 6) {
@@ -160,30 +172,31 @@ const Auth = () => {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Tabs defaultValue="signin" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger
-                value="signin"
-                onClick={() =>
-                  debug(loggingLevel, "Auth: Switched to Sign In tab.")
-                }
-              >
-                Sign In
-              </TabsTrigger>
-              <TabsTrigger
-                value="signup"
-                onClick={() =>
-                  debug(loggingLevel, "Auth: Switched to Sign Up tab.")
-                }
-              >
-                Sign Up
-              </TabsTrigger>
-            </TabsList>
+          {loginSettings.email.enabled ? (
+            <Tabs defaultValue="signin" className="w-full">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger
+                  value="signin"
+                  onClick={() =>
+                    debug(loggingLevel, "Auth: Switched to Sign In tab.")
+                  }
+                >
+                  Sign In
+                </TabsTrigger>
+                <TabsTrigger
+                  value="signup"
+                  onClick={() =>
+                    debug(loggingLevel, "Auth: Switched to Sign Up tab.")
+                  }
+                >
+                  Sign Up
+                </TabsTrigger>
+              </TabsList>
 
-            <TabsContent value="signin">
-              <form onSubmit={handleSignIn} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="signin-email">Email</Label>
+              <TabsContent value="signin">
+                <form onSubmit={handleSignIn} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="signin-email">Email</Label>
                   <Input
                     id="signin-email"
                     type="email"
@@ -231,34 +244,34 @@ const Auth = () => {
                 >
                   {loading ? "Signing in..." : "Sign In"}
                 </Button>
-              </form>
-              {oidcAvailable && (
-                <div className="relative my-6">
-                  <div className="absolute inset-0 flex items-center">
-                    <span className="w-full border-t" />
-                  </div>
-                  <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-background px-2 text-muted-foreground">
-                      Or continue with
-                    </span>
-                  </div>
-                </div>
-              )}
-              {oidcAvailable && (
-                <Button
-                  variant="outline"
-                  className="w-full dark:bg-gray-800 dark:hover:bg-gray-600"
-                  onClick={initiateOidcLogin}
-                >
-                  Sign In with OIDC
-                </Button>
-              )}
-            </TabsContent>
+                </form>
+                {loginSettings.oidc.enabled && (
+                  <>
+                    <div className="relative my-6">
+                      <div className="absolute inset-0 flex items-center">
+                        <span className="w-full border-t" />
+                      </div>
+                      <div className="relative flex justify-center text-xs uppercase">
+                        <span className="bg-background px-2 text-muted-foreground">
+                          Or continue with
+                        </span>
+                      </div>
+                    </div>
+                    <Button
+                      variant="outline"
+                      className="w-full dark:bg-gray-800 dark:hover:bg-gray-600"
+                      onClick={initiateOidcLogin}
+                    >
+                      Sign In with OIDC
+                    </Button>
+                  </>
+                )}
+              </TabsContent>
 
-            <TabsContent value="signup">
-              <form onSubmit={handleSignUp} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="signup-name">Full Name</Label>
+              <TabsContent value="signup">
+                <form onSubmit={handleSignUp} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-name">Full Name</Label>
                   <Input
                     id="signup-name"
                     type="text"
@@ -318,9 +331,26 @@ const Auth = () => {
                 >
                   {loading ? "Creating account..." : "Sign Up"}
                 </Button>
-              </form>
-            </TabsContent>
-          </Tabs>
+                </form>
+              </TabsContent>
+            </Tabs>
+          ) : (
+            <div>
+              {loginSettings.oidc.enabled ? (
+                <Button
+                  variant="outline"
+                  className="w-full dark:bg-gray-800 dark:hover:bg-gray-600"
+                  onClick={initiateOidcLogin}
+                >
+                  Sign In with OIDC
+                </Button>
+              ) : (
+                <p className="text-center text-red-500">
+                  No login methods are currently enabled. Please contact an administrator.
+                </p>
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

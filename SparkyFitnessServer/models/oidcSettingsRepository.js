@@ -10,7 +10,7 @@ async function getOidcSettings() {
                 id, issuer_url, client_id,
                 encrypted_client_secret, client_secret_iv, client_secret_tag,
                 redirect_uris, scope, token_endpoint_auth_method, response_types, is_active,
-                id_token_signed_response_alg, userinfo_signed_response_alg, request_timeout, auto_register
+                id_token_signed_response_alg, userinfo_signed_response_alg, request_timeout, auto_register, enable_email_password_login
             FROM oidc_settings
             ORDER BY created_at DESC
             LIMIT 1`
@@ -49,6 +49,7 @@ async function getOidcSettings() {
             userinfo_signed_response_alg: settings.userinfo_signed_response_alg,
             request_timeout: settings.request_timeout,
             auto_register: settings.auto_register,
+            enable_email_password_login: settings.enable_email_password_login,
         };
     } finally {
         client.release();
@@ -95,8 +96,9 @@ async function saveOidcSettings(settingsData) {
                     encrypted_client_secret = $3, client_secret_iv = $4, client_secret_tag = $5,
                     redirect_uris = $6, scope = $7, token_endpoint_auth_method = $8, response_types = $9, is_active = $10,
                     id_token_signed_response_alg = $11, userinfo_signed_response_alg = $12, request_timeout = $13, auto_register = $14,
+                    enable_email_password_login = $15,
                     updated_at = NOW()
-                WHERE id = $15
+                WHERE id = $16
                 RETURNING id`,
                 [
                     settingsData.issuer_url,
@@ -113,6 +115,7 @@ async function saveOidcSettings(settingsData) {
                     settingsData.userinfo_signed_response_alg,
                     settingsData.request_timeout,
                     settingsData.auto_register,
+                    settingsData.enable_email_password_login,
                     existingSettings.id // Use the ID of the existing record
                 ]
             );
@@ -124,8 +127,8 @@ async function saveOidcSettings(settingsData) {
                     issuer_url, client_id,
                     encrypted_client_secret, client_secret_iv, client_secret_tag,
                     redirect_uris, scope, token_endpoint_auth_method, response_types, is_active,
-                    id_token_signed_response_alg, userinfo_signed_response_alg, request_timeout, auto_register
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+                    id_token_signed_response_alg, userinfo_signed_response_alg, request_timeout, auto_register, enable_email_password_login
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
                 RETURNING id`,
                 [
                     settingsData.issuer_url,
@@ -142,6 +145,7 @@ async function saveOidcSettings(settingsData) {
                     settingsData.userinfo_signed_response_alg,
                     settingsData.request_timeout,
                     settingsData.auto_register,
+                    settingsData.enable_email_password_login,
                 ]
             );
             return result.rows[0];
