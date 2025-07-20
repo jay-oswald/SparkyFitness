@@ -37,6 +37,8 @@ jobs:
           images: |
             jay-oswald/SparkyFitness
             ghcr.io/${{ github.repository }}
+      - name: setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
       - name: Build and push Docker images
         id: push
