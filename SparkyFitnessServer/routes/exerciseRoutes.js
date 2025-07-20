@@ -19,6 +19,19 @@ router.get('/', authenticateToken, authorizeAccess('exercise_list', (req) => req
   }
 });
 
+// Endpoint to get suggested exercises
+router.get('/suggested', authenticateToken, authorizeAccess('exercise_list', (req) => req.userId), async (req, res, next) => {
+  const { limit } = req.query;
+  try {
+    const suggestedExercises = await exerciseService.getSuggestedExercises(req.userId, limit);
+    res.status(200).json(suggestedExercises);
+  } catch (error) {
+    if (error.message.startsWith('Forbidden')) {
+      return res.status(403).json({ error: error.message });
+    }
+    next(error);
+  }
+});
 // Endpoint to search for exercises
 router.get('/search/:name', authenticateToken, authorizeAccess('exercise_list', (req) => req.userId), async (req, res, next) => {
   const { name } = req.params;

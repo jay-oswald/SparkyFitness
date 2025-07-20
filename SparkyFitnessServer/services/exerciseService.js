@@ -327,6 +327,16 @@ async function addNutritionixExerciseToUserExercises(authenticatedUserId, nutrit
   }
 }
 
+async function getSuggestedExercises(authenticatedUserId, limit) {
+  try {
+    const recentExercises = await exerciseRepository.getRecentExercises(authenticatedUserId, limit);
+    const topExercises = await exerciseRepository.getTopExercises(authenticatedUserId, limit);
+    return { recentExercises, topExercises };
+  } catch (error) {
+    log('error', `Error fetching suggested exercises for user ${authenticatedUserId}:`, error);
+    throw error;
+  }
+}
 module.exports = {
   getExercisesWithPagination,
   searchExercises,
@@ -345,6 +355,7 @@ module.exports = {
   addExternalExerciseToUserExercises,
   addNutritionixExerciseToUserExercises, // New export
   getExerciseDeletionImpact,
+  getSuggestedExercises,
 };
 
 async function getExerciseDeletionImpact(authenticatedUserId, exerciseId) {

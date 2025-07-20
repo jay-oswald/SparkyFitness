@@ -82,3 +82,8 @@ export const getExerciseDeletionImpact = async (exerciseId: string): Promise<Exe
     });
     return response;
 };
+export const getSuggestedExercises = async (limit: number): Promise<{ recentExercises: Exercise[]; topExercises: Exercise[] }> => {
+  return apiCall(`/exercises/suggested?limit=${limit}`, {
+    method: 'GET',
+  });
+};

@@ -394,6 +394,46 @@ async function getExerciseEntriesByDate(userId, selectedDate) {
   }
 }
 
+async function getRecentExercises(userId, limit) {
+  const client = await pool.connect();
+  try {
+    const result = await client.query(
+      `SELECT
+        e.*
+      FROM exercise_entries ee
+      JOIN exercises e ON ee.exercise_id = e.id
+      WHERE ee.user_id = $1
+      GROUP BY e.id
+      ORDER BY MAX(ee.entry_date) DESC, MAX(ee.created_at) DESC
+      LIMIT $2`,
+      [userId, limit]
+    );
+    return result.rows;
+  } finally {
+    client.release();
+  }
+}
+
+async function getTopExercises(userId, limit) {
+  const client = await pool.connect();
+  try {
+    const result = await client.query(
+      `SELECT
+        e.*,
+        COUNT(ee.exercise_id) AS usage_count
+      FROM exercise_entries ee
+      JOIN exercises e ON ee.exercise_id = e.id
+      WHERE ee.user_id = $1
+      GROUP BY e.id
+      ORDER BY usage_count DESC
+      LIMIT $2`,
+      [userId, limit]
+    );
+    return result.rows;
+  } finally {
+    client.release();
+  }
+}
 module.exports = {
   getExerciseById,
   getExerciseOwnerId,
@@ -412,6 +452,8 @@ module.exports = {
   deleteExercise,
   getExerciseEntriesByDate,
   getExerciseDeletionImpact,
+  getRecentExercises,
+  getTopExercises,
 };
 
 async function getExerciseDeletionImpact(exerciseId) {

@@ -48,7 +48,7 @@ interface EnhancedFoodSearchProps {
 const EnhancedFoodSearch = ({ onFoodSelect, hideDatabaseTab = false }: EnhancedFoodSearchProps) => {
   const { user } = useAuth();
   const { activeUserId } = useActiveUser();
-  const { defaultFoodDataProviderId, setDefaultFoodDataProviderId, loggingLevel, foodDisplayLimit, nutrientDisplayPreferences } = usePreferences(); // Get loggingLevel and foodDisplayLimit
+  const { defaultFoodDataProviderId, setDefaultFoodDataProviderId, loggingLevel, itemDisplayLimit, nutrientDisplayPreferences } = usePreferences(); // Get loggingLevel and itemDisplayLimit
   const isMobile = useIsMobile();
   const platform = isMobile ? 'mobile' : 'desktop';
   const [searchTerm, setSearchTerm] = useState('');
@@ -105,7 +105,7 @@ const EnhancedFoodSearch = ({ onFoodSelect, hideDatabaseTab = false }: EnhancedF
     try {
       if (!term.trim()) {
         // If search term is empty, fetch recent and top foods
-        const data = await apiCall(`/foods?limit=${foodDisplayLimit}`);
+        const data = await apiCall(`/foods?limit=${itemDisplayLimit}`);
         setRecentFoods(data.recentFoods || []);
         setTopFoods(data.topFoods || []);
       } else {
@@ -122,7 +122,7 @@ const EnhancedFoodSearch = ({ onFoodSelect, hideDatabaseTab = false }: EnhancedF
     } finally {
       setLoading(false);
     }
-  }, [foodDisplayLimit]); // Add foodDisplayLimit to dependency array
+  }, [itemDisplayLimit]); // Add itemDisplayLimit to dependency array
 
   // Debounce effect for database search
   useEffect(() => {

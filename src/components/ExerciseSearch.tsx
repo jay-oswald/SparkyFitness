@@ -78,7 +78,7 @@ const ExerciseSearch = ({ onExerciseSelect, showInternalTab = true }: ExerciseSe
       }
       
       if (newExercise) {
-        onExerciseSelect(exercise);
+        onExerciseSelect(newExercise);
         toast({
           title: "Success",
           description: `${exercise.name} added to your exercises.`,

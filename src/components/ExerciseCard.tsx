@@ -16,12 +16,13 @@ import {
   fetchExerciseEntries,
   addExerciseEntry,
   deleteExerciseEntry,
-  searchExercises, // Keep searchExercises for internal search
   ExerciseEntry,
 } from '@/services/exerciseEntryService';
+import { getSuggestedExercises, loadExercises, createExercise, Exercise } from "@/services/exerciseService";
 import ExerciseSearch from "./ExerciseSearch"; // New import for ExerciseSearch
-import { Exercise } from '@/services/exerciseSearchService'; // Import Exercise type from exerciseSearchService
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"; // New import for tabs
+import { Label } from "./ui/label";
+import { Textarea } from "./ui/textarea";
 
 interface ExerciseCardProps {
   selectedDate: string;
@@ -31,7 +32,7 @@ interface ExerciseCardProps {
 const ExerciseCard = ({ selectedDate, onExerciseChange }: ExerciseCardProps) => {
   const { user } = useAuth();
   const { activeUserId } = useActiveUser();
-  const { loggingLevel } = usePreferences(); // Get logging level
+  const { loggingLevel, itemDisplayLimit } = usePreferences(); // Get logging level
   debug(loggingLevel, "ExerciseCard component rendered for date:", selectedDate);
   const [exerciseEntries, setExerciseEntries] = useState<ExerciseEntry[]>([]);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -43,10 +44,17 @@ const ExerciseCard = ({ selectedDate, onExerciseChange }: ExerciseCardProps) => 
   const [loading, setLoading] = useState(true);
   const [editingEntry, setEditingEntry] = useState<ExerciseEntry | null>(null);
   const [searchTerm, setSearchTerm] = useState(""); // Keep for internal search
-  const [exercises, setExercises] = useState<Exercise[]>([]); // Keep for internal search
   const [searchLoading, setSearchLoading] = useState(false); // Keep for internal search
   const [filterType, setFilterType] = useState<string>("all"); // Keep for internal search
-  const [searchMode, setSearchMode] = useState<'internal' | 'external'>('internal'); // New state for search mode
+  const [searchMode, setSearchMode] = useState<'internal' | 'external' | 'custom'>('internal'); // New state for search mode
+  const [recentExercises, setRecentExercises] = useState<Exercise[]>([]);
+  const [topExercises, setTopExercises] = useState<Exercise[]>([]);
+  const [searchResults, setSearchResults] = useState<Exercise[]>([]);
+  const [newExerciseName, setNewExerciseName] = useState("");
+  const [newExerciseCategory, setNewExerciseCategory] = useState("general");
+  const [newExerciseCalories, setNewExerciseCalories] = useState(300);
+  const [newExerciseDescription, setNewExerciseDescription] = useState("");
+  const [showDurationDialog, setShowDurationDialog] = useState(false);
 
   const currentUserId = activeUserId || user?.id;
   debug(loggingLevel, "Current user ID:", currentUserId);
@@ -78,9 +86,9 @@ const ExerciseCard = ({ selectedDate, onExerciseChange }: ExerciseCardProps) => 
 
       setSearchLoading(true);
       try {
-        const results = await searchExercises(searchTerm, filterType);
-        setExercises(results);
-        info(loggingLevel, "Internal exercise search results:", results);
+        const { exercises } = await loadExercises(currentUserId, searchTerm, filterType);
+        setSearchResults(exercises);
+        info(loggingLevel, "Internal exercise search results:", exercises);
       } catch (err) {
         error(loggingLevel, "Error during internal exercise search:", err);
       } finally {
@@ -88,15 +96,28 @@ const ExerciseCard = ({ selectedDate, onExerciseChange }: ExerciseCardProps) => 
       }
     };
 
-    // Only perform search if searchMode is 'internal'
-    if (searchMode === 'internal') {
-      const delayDebounceFn = setTimeout(() => {
-        performInternalSearch();
-      }, 300); // Debounce search to avoid excessive API calls
+    const fetchSuggested = async () => {
+      if (currentUserId) {
+        debug(loggingLevel, "Fetching suggested exercises with limit:", itemDisplayLimit);
+        const { recentExercises, topExercises } = await getSuggestedExercises(itemDisplayLimit);
+        info(loggingLevel, "Suggested exercises data:", { recentExercises, topExercises });
+        setRecentExercises(recentExercises);
+        setTopExercises(topExercises);
+      }
+    };
 
-      return () => clearTimeout(delayDebounceFn);
+    if (isAddDialogOpen && searchMode === 'internal') {
+      if (searchTerm.trim() === "") {
+        fetchSuggested();
+        setSearchResults([]);
+      } else {
+        const delayDebounceFn = setTimeout(() => {
+          performInternalSearch();
+        }, 300); // Debounce search to avoid excessive API calls
+        return () => clearTimeout(delayDebounceFn);
+      }
     }
-  }, [searchTerm, filterType, currentUserId, loggingLevel, searchMode]);
+  }, [searchTerm, filterType, currentUserId, loggingLevel, searchMode, isAddDialogOpen, itemDisplayLimit]);
 
   const handleOpenAddDialog = () => {
     debug(loggingLevel, "Opening add exercise dialog.");
@@ -120,15 +141,42 @@ const ExerciseCard = ({ selectedDate, onExerciseChange }: ExerciseCardProps) => 
     debug(loggingLevel, "Exercise selected in search:", exercise.id);
     setSelectedExerciseId(exercise.id);
     setSelectedExercise(exercise); // Store the full exercise object
-    if (exercise.duration_min) {
-      setDuration(exercise.duration_min); // Pre-fill duration if available from external provider
-    } else {
-      setDuration(30); // Default to 30 minutes if not provided
+    setShowDurationDialog(true);
+  };
+
+  const handleAddCustomExercise = async () => {
+    if (!user) return;
+    try {
+      const newExercise = {
+        name: newExerciseName,
+        category: newExerciseCategory,
+        calories_per_hour: newExerciseCalories,
+        description: newExerciseDescription,
+        user_id: user.id,
+        is_custom: true,
+      };
+      const createdExercise = await createExercise(newExercise);
+      toast({
+        title: "Success",
+        description: "Exercise added successfully",
+      });
+      handleExerciseSelect(createdExercise);
+      setNewExerciseName("");
+      setNewExerciseCategory("general");
+      setNewExerciseCalories(300);
+      setNewExerciseDescription("");
+    } catch (error) {
+      console.error("Error adding exercise:", error);
+      toast({
+        title: "Error",
+        description: "Failed to add exercise",
+        variant: "destructive",
+      });
     }
   };
 
-  const handleSubmit = async () => {
-    debug(loggingLevel, "Handling submit add exercise.");
+  const handleAddToDiary = async () => {
+    debug(loggingLevel, "Handling add to diary.");
     if (!selectedExerciseId || !selectedExercise) { // Check for selectedExercise object
       warn(loggingLevel, "Submit called with no exercise selected.");
       toast({
@@ -158,6 +206,7 @@ const ExerciseCard = ({ selectedDate, onExerciseChange }: ExerciseCardProps) => 
       });
       _fetchExerciseEntries(); // Call the memoized local function
       onExerciseChange();
+      setShowDurationDialog(false);
       handleCloseAddDialog();
     } catch (err) {
       error(loggingLevel, "Error adding exercise entry:", err);
@@ -305,10 +354,11 @@ const ExerciseCard = ({ selectedDate, onExerciseChange }: ExerciseCardProps) => 
                 Add a new exercise entry for the selected date.
               </DialogDescription>
             </DialogHeader>
-            <Tabs value={searchMode} onValueChange={(value) => setSearchMode(value as 'internal' | 'external')}>
-              <TabsList className="grid w-full grid-cols-2">
+            <Tabs value={searchMode} onValueChange={(value) => setSearchMode(value as 'internal' | 'external' | 'custom')}>
+              <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="internal">My Exercises</TabsTrigger>
                 <TabsTrigger value="external">Online</TabsTrigger>
+                <TabsTrigger value="custom">Add Custom</TabsTrigger>
               </TabsList>
               <TabsContent value="internal" className="mt-4 space-y-4">
                 <div className="mb-4">
@@ -341,76 +391,173 @@ const ExerciseCard = ({ selectedDate, onExerciseChange }: ExerciseCardProps) => 
                 {searchLoading && <div>Searching...</div>}
 
                 <div className="max-h-60 overflow-y-auto space-y-2 mb-4">
-                  {exercises.map((exercise) => (
-                    <div
-                      key={exercise.id}
-                      className={`flex items-center justify-between p-3 border rounded-lg cursor-pointer ${
-                        selectedExerciseId === exercise.id ? 'bg-accent text-accent-foreground' : 'hover:bg-accent/90'
-                      }`}
-                      onClick={() => handleExerciseSelect(exercise)}
-                    >
-                      <div>
-                        <div className="font-medium">{exercise.name}</div>
-                        <div className="text-sm text-gray-500">
-                          {exercise.category} • {exercise.calories_per_hour} cal/hour
+                  {searchTerm.trim() === "" ? (
+                    <>
+                      {recentExercises.length > 0 && (
+                        <div className="mb-4">
+                          <h3 className="text-lg font-semibold mb-2">Recent Exercises</h3>
+                          {recentExercises.map((exercise) => (
+                            <Card key={exercise.id} className="mb-2 cursor-pointer" onClick={() => handleExerciseSelect(exercise)}>
+                              <CardContent className="p-3">
+                                <p className="font-semibold">{exercise.name}</p>
+                                <p className="text-sm text-gray-500">{exercise.category}</p>
+                              </CardContent>
+                            </Card>
+                          ))}
                         </div>
-                        {exercise.description && (
-                          <div className="text-xs text-gray-400">{exercise.description}</div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
+                      )}
+                      {topExercises.length > 0 && (
+                        <div>
+                          <h3 className="text-lg font-semibold mb-2">Top Exercises</h3>
+                          {topExercises.map((exercise) => (
+                            <Card key={exercise.id} className="mb-2 cursor-pointer" onClick={() => handleExerciseSelect(exercise)}>
+                              <CardContent className="p-3">
+                                <p className="font-semibold">{exercise.name}</p>
+                                <p className="text-sm text-gray-500">{exercise.category}</p>
+                              </CardContent>
+                            </Card>
+                          ))}
+                        </div>
+                      )}
+                      {topExercises.length === 0 && recentExercises.length === 0 && (
+                        <div className="text-center text-gray-500">No recent or top exercises found.</div>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      {searchResults.map((exercise) => (
+                        <div
+                          key={exercise.id}
+                          className={`flex items-center justify-between p-3 border rounded-lg cursor-pointer ${
+                            selectedExerciseId === exercise.id ? 'bg-accent text-accent-foreground' : 'hover:bg-accent/90'
+                          }`}
+                          onClick={() => handleExerciseSelect(exercise)}
+                        >
+                          <div>
+                            <div className="font-medium">{exercise.name}</div>
+                            <div className="text-sm text-gray-500">
+                              {exercise.category} • {exercise.calories_per_hour} cal/hour
+                            </div>
+                            {exercise.description && (
+                              <div className="text-xs text-gray-400">{exercise.description}</div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                      {searchTerm && !searchLoading && searchResults.length === 0 && (
+                        <div className="text-center text-gray-500 mb-4">No exercises found</div>
+                      )}
+                    </>
+                  )}
                 </div>
-
-                {searchTerm && !searchLoading && exercises.length === 0 && (
-                  <div className="text-center text-gray-500 mb-4">No exercises found</div>
-                )}
               </TabsContent>
               <TabsContent value="external" className="mt-4 space-y-4">
                 <ExerciseSearch onExerciseSelect={handleExerciseSelect} showInternalTab={false} /> {/* Now expects Exercise object */}
               </TabsContent>
+              <TabsContent value="custom">
+                <div className="grid gap-4 py-4">
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="name" className="text-right">
+                      Name
+                    </Label>
+                    <Input
+                      id="name"
+                      value={newExerciseName}
+                      onChange={(e) => setNewExerciseName(e.target.value)}
+                      className="col-span-3"
+                    />
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="category" className="text-right">
+                      Category
+                    </Label>
+                    <Select onValueChange={setNewExerciseCategory} defaultValue={newExerciseCategory}>
+                      <SelectTrigger className="col-span-3">
+                        <SelectValue placeholder="Select a category" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="general">General</SelectItem>
+                        <SelectItem value="strength">Strength</SelectItem>
+                        <SelectItem value="cardio">Cardio</SelectItem>
+                        <SelectItem value="yoga">Yoga</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="calories" className="text-right">
+                      Calories/Hour
+                    </Label>
+                    <Input
+                      id="calories"
+                      type="number"
+                      value={newExerciseCalories.toString()}
+                      onChange={(e) => setNewExerciseCalories(Number(e.target.value))}
+                      className="col-span-3"
+                    />
+                  </div>
+                  <div className="grid grid-cols-4 items-start gap-4">
+                    <Label htmlFor="description" className="text-right mt-1">
+                      Description
+                    </Label>
+                    <Textarea
+                      id="description"
+                      value={newExerciseDescription}
+                      onChange={(e) => setNewExerciseDescription(e.target.value)}
+                      className="col-span-3"
+                    />
+                  </div>
+                </div>
+                <Button onClick={handleAddCustomExercise}>Add Exercise</Button>
+              </TabsContent>
             </Tabs>
-            {searchMode === 'internal' && (
-              <>
-                <div className="mt-4">
-                  <label htmlFor="duration" className="block text-gray-700 text-sm font-bold mb-2">
-                    Duration (minutes):
-                  </label>
-                  <Input
-                    type="number"
-                    id="duration"
-                    value={duration}
-                    onChange={(e) => {
-                      debug(loggingLevel, "Exercise duration changed:", e.target.value);
-                      setDuration(Number(e.target.value));
-                    }}
-                  />
-                </div>
-                <div className="mt-4">
-                  <label htmlFor="notes" className="block text-gray-700 text-sm font-bold mb-2">
-                    Notes:
-                  </label>
-                  <textarea
-                    id="notes"
-                    className="shadow appearance-none border rounded w-full py-2 px-3 bg-background text-foreground leading-tight focus:outline-none focus:shadow-outline"
-                    value={notes}
-                    onChange={(e) => {
-                      debug(loggingLevel, "Exercise notes changed:", e.target.value);
-                      setNotes(e.target.value);
-                    }}
-                  />
-                </div>
-              </>
-            )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Duration Dialog */}
+        <Dialog open={showDurationDialog} onOpenChange={setShowDurationDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Log "{selectedExercise?.name}"</DialogTitle>
+              <DialogDescription>
+                {selectedExercise?.description}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="mt-4">
+              <label htmlFor="duration" className="block text-gray-700 text-sm font-bold mb-2">
+                Duration (minutes):
+              </label>
+              <Input
+                type="number"
+                id="duration"
+                value={duration}
+                onChange={(e) => {
+                  debug(loggingLevel, "Exercise duration changed:", e.target.value);
+                  setDuration(Number(e.target.value));
+                }}
+              />
+            </div>
+            <div className="mt-4">
+              <label htmlFor="notes" className="block text-gray-700 text-sm font-bold mb-2">
+                Notes:
+              </label>
+              <textarea
+                id="notes"
+                className="shadow appearance-none border rounded w-full py-2 px-3 bg-background text-foreground leading-tight focus:outline-none focus:shadow-outline"
+                value={notes}
+                onChange={(e) => {
+                  debug(loggingLevel, "Exercise notes changed:", e.target.value);
+                  setNotes(e.target.value);
+                }}
+              />
+            </div>
             <div className="items-center px-4 py-3">
               <Button
                 size="default"
-                onClick={handleSubmit}
-                disabled={!selectedExerciseId}
+                onClick={handleAddToDiary}
               >
-                <Plus className="w-4 h-4" />
+                Add to Diary
               </Button>
-              <Button variant="ghost" className="mt-2 px-4 py-2 text-gray-500 text-base font-medium rounded-md w-full shadow-sm hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-300" onClick={handleCloseAddDialog}>
+              <Button variant="ghost" className="mt-2 px-4 py-2 text-gray-500 text-base font-medium rounded-md w-full shadow-sm hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-300" onClick={() => setShowDurationDialog(false)}>
                 Cancel
               </Button>
             </div>
