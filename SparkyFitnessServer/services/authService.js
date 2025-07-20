@@ -6,6 +6,7 @@ const { JWT_SECRET } = require('../security/encryption');
 const userRepository = require('../models/userRepository');
 const familyAccessRepository = require('../models/familyAccessRepository');
 const oidcSettingsRepository = require('../models/oidcSettingsRepository');
+const nutrientDisplayPreferenceService = require('./nutrientDisplayPreferenceService');
 
 async function registerUser(email, password, full_name) {
   try {
@@ -14,6 +15,8 @@ async function registerUser(email, password, full_name) {
     const userId = uuidv4();
 
     await userRepository.createUser(userId, email, hashedPassword, full_name);
+
+    await nutrientDisplayPreferenceService.createDefaultNutrientPreferencesForUser(userId);
 
     const token = jwt.sign({ userId: userId }, JWT_SECRET, { expiresIn: '1h' });
     return { userId, token };
@@ -338,6 +341,7 @@ async function registerOidcUser(email, fullName, oidcSub) {
   try {
     const userId = uuidv4();
     await userRepository.createOidcUser(userId, email, fullName, oidcSub);
+    await nutrientDisplayPreferenceService.createDefaultNutrientPreferencesForUser(userId);
     return userId;
   } catch (error) {
     log('error', 'Error during OIDC user registration in authService:', error);

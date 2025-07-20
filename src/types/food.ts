@@ -49,3 +49,15 @@ export interface FoodSearchResult {
   topFoods?: Food[];
   searchResults?: Food[];
 }
+export interface FoodEntry {
+  id: string;
+  food_id: string;
+  meal_type: string;
+  quantity: number;
+  unit: string;
+  variant_id?: string;
+  foods: Food;
+  food_variants?: FoodVariant;
+  entry_date: string;
+  meal_plan_template_id?: string;
+}

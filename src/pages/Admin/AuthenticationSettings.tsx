@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { oidcSettingsService, type OidcSettings } from '../../services/oidcSettingsService';
 import { toast } from '@/hooks/use-toast';
-import { ClipboardCopy } from 'lucide-react';
+import { ClipboardCopy, Info } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
@@ -158,6 +158,12 @@ const AuthenticationSettings: React.FC = () => {
                   onCheckedChange={(checked) => handleSwitchChange('is_active', checked)}
                 />
               </div>
+               <div className="flex items-start p-4 mt-2 text-sm text-muted-foreground bg-secondary/20 border border-secondary/40 rounded-lg">
+                 <Info className="h-5 w-5 mr-3 mt-1 flex-shrink-0" />
+                 <div>
+                   <strong>Emergency Fail-Safe:</strong> If you are ever locked out of your account, you can force email/password login to be enabled by setting the following environment variable on your server and restarting it: <code className="font-mono bg-gray-200 dark:bg-gray-700 p-1 rounded">SPARKY_FITNESS_FORCE_EMAIL_LOGIN=true</code>
+                 </div>
+               </div>
             </CardContent>
           </Card>
 

@@ -10,6 +10,7 @@ import { toast } from '@/hooks/use-toast';
 import EnhancedCustomFoodForm from './EnhancedCustomFoodForm';
 import BarcodeScanner from './BarcodeScanner';
 import { usePreferences } from "@/contexts/PreferencesContext";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { debug, error } from '@/utils/logging'; // Import logging functions
 import { searchNutritionixFoods, getNutritionixNutrients, getNutritionixBrandedNutrients } from "@/services/NutritionixService";
 import { getMeals } from '@/services/mealService'; // Import getMeals
@@ -47,7 +48,9 @@ interface EnhancedFoodSearchProps {
 const EnhancedFoodSearch = ({ onFoodSelect, hideDatabaseTab = false }: EnhancedFoodSearchProps) => {
   const { user } = useAuth();
   const { activeUserId } = useActiveUser();
-  const { defaultFoodDataProviderId, setDefaultFoodDataProviderId, loggingLevel, foodDisplayLimit } = usePreferences(); // Get loggingLevel and foodDisplayLimit
+  const { defaultFoodDataProviderId, setDefaultFoodDataProviderId, loggingLevel, foodDisplayLimit, nutrientDisplayPreferences } = usePreferences(); // Get loggingLevel and foodDisplayLimit
+  const isMobile = useIsMobile();
+  const platform = isMobile ? 'mobile' : 'desktop';
   const [searchTerm, setSearchTerm] = useState('');
   const [foods, setFoods] = useState<Food[]>([]);
   const [meals, setMeals] = useState<Meal[]>([]); // New state for meal results
@@ -423,6 +426,27 @@ const EnhancedFoodSearch = ({ onFoodSelect, hideDatabaseTab = false }: EnhancedF
     }
   };
 
+  const foodSearchPreferences = nutrientDisplayPreferences.find(p => p.view_group === 'food_search' && p.platform === platform);
+  const visibleNutrients = foodSearchPreferences ? foodSearchPreferences.visible_nutrients : ['calories', 'protein', 'carbs', 'fat'];
+
+  const nutrientDetails: { [key: string]: { label: string, unit: string } } = {
+      calories: { label: 'cal', unit: '' },
+      protein: { label: 'protein', unit: 'g' },
+      carbs: { label: 'carbs', unit: 'g' },
+      fat: { label: 'fat', unit: 'g' },
+      dietary_fiber: { label: 'fiber', unit: 'g' },
+      sugars: { label: 'sugar', unit: 'g' },
+      sodium: { label: 'sodium', unit: 'mg' },
+      cholesterol: { label: 'cholesterol', unit: 'mg' },
+      saturated_fat: { label: 'sat fat', unit: 'g' },
+      trans_fat: { label: 'trans fat', unit: 'g' },
+      potassium: { label: 'potassium', unit: 'mg' },
+      vitamin_a: { label: 'vit a', unit: 'mcg' },
+      vitamin_c: { label: 'vit c', unit: 'mg' },
+      iron: { label: 'iron', unit: 'mg' },
+      calcium: { label: 'calcium', unit: 'mg' },
+  };
+
 
   return (
     <div className="space-y-4">
@@ -518,11 +542,15 @@ const EnhancedFoodSearch = ({ onFoodSelect, hideDatabaseTab = false }: EnhancedF
                             {food.brand && <Badge variant="secondary" className="text-xs">{food.brand}</Badge>}
                             {food.is_custom && <Badge variant="outline" className="text-xs">Custom</Badge>}
                           </div>
-                          <div className="grid grid-cols-4 gap-2 text-sm text-gray-600">
-                            <span><strong>{food.default_variant?.calories || 0}</strong> cal</span>
-                            <span><strong>{food.default_variant?.protein || 0}g</strong> protein</span>
-                            <span><strong>{food.default_variant?.carbs || 0}g</strong> carbs</span>
-                            <span><strong>{food.default_variant?.fat || 0}g</strong> fat</span>
+                          <div className={`grid grid-cols-${visibleNutrients.length} gap-2 text-sm text-gray-600`}>
+                            {visibleNutrients.map(nutrient => {
+                                const details = nutrientDetails[nutrient];
+                                if (!details) return null;
+                                const value = food.default_variant?.[nutrient as keyof FoodVariant] as number || 0;
+                                return (
+                                    <span key={nutrient}><strong>{value.toFixed(nutrient === 'calories' ? 0 : 1)}{details.unit}</strong> {details.label}</span>
+                                );
+                            })}
                           </div>
                           <p className="text-xs text-gray-500 mt-1">
                             Per {food.default_variant?.serving_size}{food.default_variant?.serving_unit}
@@ -548,11 +576,15 @@ const EnhancedFoodSearch = ({ onFoodSelect, hideDatabaseTab = false }: EnhancedF
                             {food.brand && <Badge variant="secondary" className="text-xs">{food.brand}</Badge>}
                             {food.is_custom && <Badge variant="outline" className="text-xs">Custom</Badge>}
                           </div>
-                          <div className="grid grid-cols-4 gap-2 text-sm text-gray-600">
-                            <span><strong>{food.default_variant?.calories || 0}</strong> cal</span>
-                            <span><strong>{food.default_variant?.protein || 0}g</strong> protein</span>
-                            <span><strong>{food.default_variant?.carbs || 0}g</strong> carbs</span>
-                            <span><strong>{food.default_variant?.fat || 0}g</strong> fat</span>
+                          <div className={`grid grid-cols-${visibleNutrients.length} gap-2 text-sm text-gray-600`}>
+                            {visibleNutrients.map(nutrient => {
+                                const details = nutrientDetails[nutrient];
+                                if (!details) return null;
+                                const value = food.default_variant?.[nutrient as keyof FoodVariant] as number || 0;
+                                return (
+                                    <span key={nutrient}><strong>{value.toFixed(nutrient === 'calories' ? 0 : 1)}{details.unit}</strong> {details.label}</span>
+                                );
+                            })}
                           </div>
                           <p className="text-xs text-gray-500 mt-1">
                             Per {food.default_variant?.serving_size}{food.default_variant?.serving_unit}
@@ -620,11 +652,15 @@ const EnhancedFoodSearch = ({ onFoodSelect, hideDatabaseTab = false }: EnhancedF
                     {food.brand && <Badge variant="secondary" className="text-xs">{food.brand}</Badge>}
                     {food.is_custom && <Badge variant="outline" className="text-xs">Custom</Badge>}
                   </div>
-                  <div className="grid grid-cols-4 gap-2 text-sm text-gray-600">
-                    <span><strong>{food.default_variant?.calories || 0}</strong> cal</span>
-                    <span><strong>{food.default_variant?.protein || 0}g</strong> protein</span>
-                    <span><strong>{food.default_variant?.carbs || 0}g</strong> carbs</span>
-                    <span><strong>{food.default_variant?.fat || 0}g</strong> fat</span>
+                  <div className={`grid grid-cols-${visibleNutrients.length} gap-2 text-sm text-gray-600`}>
+                    {visibleNutrients.map(nutrient => {
+                        const details = nutrientDetails[nutrient];
+                        if (!details) return null;
+                        const value = food.default_variant?.[nutrient as keyof FoodVariant] as number || 0;
+                        return (
+                            <span key={nutrient}><strong>{value.toFixed(nutrient === 'calories' ? 0 : 1)}{details.unit}</strong> {details.label}</span>
+                        );
+                    })}
                   </div>
                   <p className="text-xs text-gray-500 mt-1">
                     Per {food.default_variant?.serving_size}{food.default_variant?.serving_unit}
@@ -645,11 +681,22 @@ const EnhancedFoodSearch = ({ onFoodSelect, hideDatabaseTab = false }: EnhancedF
                     {product.brands && <Badge variant="secondary" className="text-xs">{product.brands.split(',')[0]}</Badge>}
                     <Badge variant="outline" className="text-xs">OpenFoodFacts</Badge>
                   </div>
-                  <div className="grid grid-cols-4 gap-2 text-sm text-gray-600">
-                    <span><strong>{Math.round(product.nutriments['energy-kcal_100g'] || 0)}</strong> cal</span>
-                    <span><strong>{Math.round(product.nutriments['proteins_100g'] || 0)}g</strong> protein</span>
-                    <span><strong>{Math.round(product.nutriments['carbohydrates_100g'] || 0)}g</strong> carbs</span>
-                    <span><strong>{Math.round(product.nutriments['fat_100g'] || 0)}g</strong> fat</span>
+                  <div className={`grid grid-cols-${visibleNutrients.length} gap-2 text-sm text-gray-600`}>
+                      {visibleNutrients.map(nutrient => {
+                          const details = nutrientDetails[nutrient];
+                          if (!details) return null;
+                          let value = 0;
+                          switch(nutrient) {
+                              case 'calories': value = product.nutriments['energy-kcal_100g'] || 0; break;
+                              case 'protein': value = product.nutriments['proteins_100g'] || 0; break;
+                              case 'carbs': value = product.nutriments['carbohydrates_100g'] || 0; break;
+                              case 'fat': value = product.nutriments['fat_100g'] || 0; break;
+                              case 'dietary_fiber': value = product.nutriments['fiber_100g'] || 0; break;
+                          }
+                          return (
+                              <span key={nutrient}><strong>{Math.round(value)}</strong> {details.label}</span>
+                          );
+                      })}
                   </div>
                   <p className="text-xs text-gray-500 mt-1">Per 100g</p>
                 </div>
@@ -680,11 +727,14 @@ const EnhancedFoodSearch = ({ onFoodSelect, hideDatabaseTab = false }: EnhancedF
                     <img src={item.image} alt={item.name} className="w-16 h-16 object-cover rounded-md mr-4" />
                   )}
                   {item.calories && (
-                    <div className="grid grid-cols-4 gap-2 text-sm text-gray-600 mt-1">
-                      <span><strong>{Math.round(item.calories)}</strong> cal</span>
-                      {item.protein && <span><strong>{Math.round(item.protein)}g</strong> protein</span>}
-                      {item.carbs && <span><strong>{Math.round(item.carbs)}g</strong> carbs</span>}
-                      {item.fat && <span><strong>{Math.round(item.fat)}g</strong> fat</span>}
+                    <div className={`grid grid-cols-${visibleNutrients.length} gap-2 text-sm text-gray-600 mt-1`}>
+                        {visibleNutrients.map(nutrient => {
+                            const details = nutrientDetails[nutrient];
+                            if (!details || !item[nutrient]) return null;
+                            return (
+                                <span key={nutrient}><strong>{Math.round(item[nutrient])}{details.unit}</strong> {details.label}</span>
+                            );
+                        })}
                     </div>
                   )}
                   {item.serving_size && item.serving_unit && (
@@ -717,11 +767,14 @@ const EnhancedFoodSearch = ({ onFoodSelect, hideDatabaseTab = false }: EnhancedF
                     <Badge variant="outline" className="text-xs">FatSecret</Badge>
                   </div>
                   {item.calories !== undefined && item.protein !== undefined && item.carbs !== undefined && item.fat !== undefined && (
-                    <div className="grid grid-cols-4 gap-2 text-sm text-gray-600 mt-1">
-                      <span><strong>{Math.round(item.calories)}</strong> cal</span>
-                      <span><strong>{Math.round(item.protein)}g</strong> protein</span>
-                      <span><strong>{Math.round(item.carbs)}g</strong> carbs</span>
-                      <span><strong>{Math.round(item.fat)}g</strong> fat</span>
+                    <div className={`grid grid-cols-${visibleNutrients.length} gap-2 text-sm text-gray-600 mt-1`}>
+                        {visibleNutrients.map(nutrient => {
+                            const details = nutrientDetails[nutrient];
+                            if (!details || item[nutrient] === undefined) return null;
+                            return (
+                                <span key={nutrient}><strong>{Math.round(item[nutrient])}{details.unit}</strong> {details.label}</span>
+                            );
+                        })}
                     </div>
                   )}
                   {item.serving_size && item.serving_unit && (

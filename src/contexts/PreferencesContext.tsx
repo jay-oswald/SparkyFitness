@@ -42,6 +42,12 @@ const upsertUserPreferences = async (payload: any) => {
   }
 };
 
+interface NutrientPreference {
+  view_group: string;
+  platform: 'desktop' | 'mobile';
+  visible_nutrients: string[];
+}
+
 interface PreferencesContextType {
   weightUnit: 'kg' | 'lbs';
   measurementUnit: 'cm' | 'inches';
@@ -51,6 +57,7 @@ interface PreferencesContextType {
   defaultFoodDataProviderId: string | null; // Add default food data provider ID
   timezone: string; // Add timezone
   foodDisplayLimit: number;
+  nutrientDisplayPreferences: NutrientPreference[];
   setWeightUnit: (unit: 'kg' | 'lbs') => void;
   setMeasurementUnit: (unit: 'cm' | 'inches') => void;
   setDateFormat: (format: string) => void;
@@ -59,6 +66,7 @@ interface PreferencesContextType {
   setDefaultFoodDataProviderId: (id: string | null) => void; // Add setter for default food data provider ID
   setTimezone: (timezone: string) => void; // Add setter for timezone
   setFoodDisplayLimit: (limit: number) => void;
+  loadNutrientDisplayPreferences: () => Promise<void>;
   convertWeight: (value: number, from: 'kg' | 'lbs', to: 'kg' | 'lbs') => number;
   convertMeasurement: (value: number, from: 'cm' | 'inches', to: 'cm' | 'inches') => number;
   formatDate: (date: string | Date) => string;
@@ -88,6 +96,7 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const [defaultFoodDataProviderId, setDefaultFoodDataProviderIdState] = useState<string | null>(null); // Default food data provider ID
   const [timezone, setTimezoneState] = useState<string>(Intl.DateTimeFormat().resolvedOptions().timeZone); // Add state for timezone
   const [foodDisplayLimit, setFoodDisplayLimitState] = useState<number>(10);
+  const [nutrientDisplayPreferences, setNutrientDisplayPreferences] = useState<NutrientPreference[]>([]);
 
   // Log initial state
   useEffect(() => {
@@ -100,6 +109,7 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
       if (user) {
         info(loggingLevel, "PreferencesProvider: User logged in, loading preferences from database.");
         loadPreferences();
+        loadNutrientDisplayPreferences();
       } else {
         info(loggingLevel, "PreferencesProvider: User not logged in, loading preferences from localStorage.");
         // Load from localStorage when not logged in
@@ -151,6 +161,16 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
       }
     } catch (err) {
       error(loggingLevel, 'PreferencesContext: Unexpected error in loadPreferences:', err);
+    }
+  };
+
+  const loadNutrientDisplayPreferences = async () => {
+    if (!user) return;
+    try {
+      const data = await apiCall('/preferences/nutrient-display');
+      setNutrientDisplayPreferences(data);
+    } catch (error: any) {
+      console.error("Error fetching nutrient display preferences:", error);
     }
   };
 
@@ -398,6 +418,7 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
       defaultFoodDataProviderId, // Expose defaultFoodDataProviderId
       timezone, // Expose timezone
       foodDisplayLimit,
+      nutrientDisplayPreferences,
       setWeightUnit,
       setMeasurementUnit,
       setDateFormat,
@@ -406,6 +427,7 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
       setDefaultFoodDataProviderId, // Expose setDefaultFoodDataProviderId
       setTimezone, // Expose setTimezone
       setFoodDisplayLimit,
+      loadNutrientDisplayPreferences,
       convertWeight,
       convertMeasurement,
       formatDate,

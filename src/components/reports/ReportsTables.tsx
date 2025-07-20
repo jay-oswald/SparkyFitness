@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Download } from "lucide-react";
 import { usePreferences } from "@/contexts/PreferencesContext";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { debug, info, warn, error } from "@/utils/logging";
 import { parseISO } from "date-fns";
 import { formatNutrientValue, getNutrientUnit } from '@/lib/utils';
@@ -84,7 +85,12 @@ const ReportsTables = ({
   onExportBodyMeasurements,
   onExportCustomMeasurements,
 }: ReportsTablesProps) => {
-  const { loggingLevel, dateFormat, formatDateInUserTimezone } = usePreferences();
+  const { loggingLevel, dateFormat, formatDateInUserTimezone, nutrientDisplayPreferences } = usePreferences();
+  const isMobile = useIsMobile();
+  const platform = isMobile ? 'mobile' : 'desktop';
+  const reportTabularPreferences = nutrientDisplayPreferences.find(p => p.view_group === 'report_tabular' && p.platform === platform);
+  const visibleNutrients = reportTabularPreferences ? reportTabularPreferences.visible_nutrients : ['calories', 'protein', 'carbs', 'fat'];
+
   info(loggingLevel, 'ReportsTables: Rendering component.');
 
   // Sort tabular data by date descending, then by meal type
@@ -221,23 +227,9 @@ const ReportsTables = ({
                   <TableHead>Meal</TableHead>
                   <TableHead className="min-w-[250px]">Food</TableHead>
                   <TableHead>Quantity</TableHead>
-                  <TableHead>Calories ({getNutrientUnit('calories')})</TableHead>
-                  <TableHead>Protein ({getNutrientUnit('protein')})</TableHead>
-                  <TableHead>Carbs ({getNutrientUnit('carbs')})</TableHead>
-                  <TableHead>Fat ({getNutrientUnit('fat')})</TableHead>
-                  <TableHead>Sat Fat ({getNutrientUnit('saturated_fat')})</TableHead>
-                  <TableHead>Poly Fat ({getNutrientUnit('polyunsaturated_fat')})</TableHead>
-                  <TableHead>Mono Fat ({getNutrientUnit('monounsaturated_fat')})</TableHead>
-                  <TableHead>Trans Fat ({getNutrientUnit('trans_fat')})</TableHead>
-                  <TableHead>Cholesterol ({getNutrientUnit('cholesterol')})</TableHead>
-                  <TableHead>Sodium ({getNutrientUnit('sodium')})</TableHead>
-                  <TableHead>Potassium ({getNutrientUnit('potassium')})</TableHead>
-                  <TableHead>Fiber ({getNutrientUnit('dietary_fiber')})</TableHead>
-                  <TableHead>Sugars ({getNutrientUnit('sugars')})</TableHead>
-                  <TableHead>Vitamin A ({getNutrientUnit('vitamin_a')})</TableHead>
-                  <TableHead>Vitamin C ({getNutrientUnit('vitamin_c')})</TableHead>
-                  <TableHead>Calcium ({getNutrientUnit('calcium')})</TableHead>
-                  <TableHead>Iron ({getNutrientUnit('iron')})</TableHead>
+                  {visibleNutrients.map(nutrient => (
+                    <TableHead key={nutrient}>{nutrient.replace(/_/g, ' ')} ({getNutrientUnit(nutrient)})</TableHead>
+                  ))}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -258,23 +250,10 @@ const ReportsTables = ({
                         )}
                       </TableCell>
                       <TableCell>{entry.isTotal ? '' : `${entry.quantity} ${entry.unit}`}</TableCell>
-                      <TableCell>{formatNutrientValue((food.calories || 0) * multiplier, 'calories')}</TableCell>
-                      <TableCell>{formatNutrientValue((food.protein || 0) * multiplier, 'protein')}</TableCell>
-                      <TableCell>{formatNutrientValue((food.carbs || 0) * multiplier, 'carbs')}</TableCell>
-                      <TableCell>{formatNutrientValue((food.fat || 0) * multiplier, 'fat')}</TableCell>
-                      <TableCell>{formatNutrientValue((food.saturated_fat || 0) * multiplier, 'saturated_fat')}</TableCell>
-                      <TableCell>{formatNutrientValue((food.polyunsaturated_fat || 0) * multiplier, 'polyunsaturated_fat')}</TableCell>
-                      <TableCell>{formatNutrientValue((food.monounsaturated_fat || 0) * multiplier, 'monounsaturated_fat')}</TableCell>
-                      <TableCell>{formatNutrientValue((food.trans_fat || 0) * multiplier, 'trans_fat')}</TableCell>
-                      <TableCell>{formatNutrientValue((food.cholesterol || 0) * multiplier, 'cholesterol')}</TableCell>
-                      <TableCell>{formatNutrientValue((food.sodium || 0) * multiplier, 'sodium')}</TableCell>
-                      <TableCell>{formatNutrientValue((food.potassium || 0) * multiplier, 'potassium')}</TableCell>
-                      <TableCell>{formatNutrientValue((food.dietary_fiber || 0) * multiplier, 'dietary_fiber')}</TableCell>
-                      <TableCell>{formatNutrientValue((food.sugars || 0) * multiplier, 'sugars')}</TableCell>
-                      <TableCell>{formatNutrientValue((food.vitamin_a || 0) * multiplier, 'vitamin_a')}</TableCell>
-                      <TableCell>{formatNutrientValue((food.vitamin_c || 0) * multiplier, 'vitamin_c')}</TableCell>
-                      <TableCell>{formatNutrientValue((food.calcium || 0) * multiplier, 'calcium')}</TableCell>
-                      <TableCell>{formatNutrientValue((food.iron || 0) * multiplier, 'iron')}</TableCell>
+                      {visibleNutrients.map(nutrient => {
+                        const value = (food[nutrient as keyof typeof food] as number || 0) * multiplier;
+                        return <TableCell key={nutrient}>{formatNutrientValue(value, nutrient)}</TableCell>
+                      })}
                     </TableRow>
                   );
                 })}

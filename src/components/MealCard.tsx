@@ -10,9 +10,10 @@ import EnhancedFoodSearch from "./EnhancedFoodSearch";
 import EnhancedCustomFoodForm from "./EnhancedCustomFoodForm";
 import MealSelectionDialog from "./MealSelectionDialog"; // Import MealSelectionDialog
 import { usePreferences } from "@/contexts/PreferencesContext"; // Import usePreferences
+import { useIsMobile } from "@/hooks/use-mobile";
 import { debug, info, warn, error } from '@/utils/logging'; // Import logging utility
 
-import { Food, FoodVariant, FoodEntry } from '@/types/food';
+import type { Food, FoodVariant, FoodEntry } from '@/types/food';
 
 // import { Meal as MealType } from '@/types/meal'; // No longer needed as we define Meal directly
 
@@ -30,6 +31,16 @@ interface MealTotals {
   carbs: number;
   fat: number;
   dietary_fiber: number;
+  sugar?: number;
+  sodium?: number;
+  cholesterol?: number;
+  saturated_fat?: number;
+  trans_fat?: number;
+  potassium?: number;
+  vitamin_a?: number;
+  vitamin_c?: number;
+  iron?: number;
+  calcium?: number;
 }
 
 interface MealCardProps {
@@ -58,7 +69,9 @@ const MealCard = ({
   onCopyFromYesterday // Destructure new prop
 }: MealCardProps) => {
   const { user } = useAuth();
-  const { loggingLevel } = usePreferences(); // Get logging level
+  const { loggingLevel, nutrientDisplayPreferences } = usePreferences(); // Get logging level
+  const isMobile = useIsMobile();
+  const platform = isMobile ? 'mobile' : 'desktop';
   debug(loggingLevel, "MealCard: Component rendered for meal:", meal.name);
   const [editingFoodEntry, setEditingFoodEntry] = useState<FoodEntry | null>(null);
 
@@ -79,6 +92,29 @@ const MealCard = ({
     debug(loggingLevel, "MealCard: Handling cancel food.");
     setEditingFoodEntry(null);
     info(loggingLevel, "MealCard: Food edit cancelled.");
+  };
+
+  const quickInfoPreferences = nutrientDisplayPreferences.find(p => p.view_group === 'quick_info' && p.platform === platform);
+  const foodDatabasePreferences = nutrientDisplayPreferences.find(p => p.view_group === 'food_database' && p.platform === platform);
+  const visibleNutrients = quickInfoPreferences ? quickInfoPreferences.visible_nutrients : ['calories', 'protein', 'carbs', 'fat', 'dietary_fiber'];
+  const foodDatabaseVisibleNutrients = foodDatabasePreferences ? foodDatabasePreferences.visible_nutrients : visibleNutrients;
+
+  const nutrientDetails: { [key: string]: { color: string, label: string, unit: string } } = {
+      calories: { color: 'text-gray-900 dark:text-gray-100', label: 'cal', unit: '' },
+      protein: { color: 'text-blue-600', label: 'protein', unit: 'g' },
+      carbs: { color: 'text-orange-600', label: 'carbs', unit: 'g' },
+      fat: { color: 'text-yellow-600', label: 'fat', unit: 'g' },
+      dietary_fiber: { color: 'text-green-600', label: 'fiber', unit: 'g' },
+      sugar: { color: 'text-pink-500', label: 'sugar', unit: 'g' },
+      sodium: { color: 'text-purple-500', label: 'sodium', unit: 'mg' },
+      cholesterol: { color: 'text-indigo-500', label: 'cholesterol', unit: 'mg' },
+      saturated_fat: { color: 'text-red-500', label: 'sat fat', unit: 'g' },
+      trans_fat: { color: 'text-red-700', label: 'trans fat', unit: 'g' },
+      potassium: { color: 'text-teal-500', label: 'potassium', unit: 'mg' },
+      vitamin_a: { color: 'text-yellow-400', label: 'vit a', unit: 'mcg' },
+      vitamin_c: { color: 'text-orange-400', label: 'vit c', unit: 'mg' },
+      iron: { color: 'text-gray-500', label: 'iron', unit: 'mg' },
+      calcium: { color: 'text-blue-400', label: 'calcium', unit: 'mg' },
   };
 
   return (
@@ -203,32 +239,19 @@ const MealCard = ({
                           </Badge>
                         )}
                       </div>
-                      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 sm:gap-4 text-xs sm:text-sm text-gray-600 dark:text-gray-400">
-                        <div>
-                          <span className="font-medium text-gray-900 dark:text-gray-100">
-                            {Math.round(entryNutrition.calories)}
-                          </span> cal
-                        </div>
-                        <div>
-                          <span className="font-medium text-blue-600">
-                            {entryNutrition.protein.toFixed(1)}g
-                          </span> protein
-                        </div>
-                        <div>
-                          <span className="font-medium text-orange-600">
-                            {entryNutrition.carbs.toFixed(1)}g
-                          </span> carbs
-                        </div>
-                        <div>
-                          <span className="font-medium text-yellow-600">
-                            {entryNutrition.fat.toFixed(1)}g
-                          </span> fat
-                        </div>
-                        <div>
-                          <span className="font-medium text-green-600">
-                            {entryNutrition.dietary_fiber.toFixed(1)}g
-                          </span> fiber
-                        </div>
+                      <div className={`grid grid-cols-${visibleNutrients.length} gap-x-4 text-xs sm:text-sm text-gray-600 dark:text-gray-400`}>
+                        {visibleNutrients.map(nutrient => {
+                            const details = nutrientDetails[nutrient];
+                            if (!details) return null;
+                            const value = entryNutrition[nutrient as keyof MealTotals] || 0;
+                            return (
+                                <div key={nutrient} className="whitespace-nowrap">
+                                    <span className={`font-medium ${details.color}`}>
+                                        {value.toFixed(nutrient === 'calories' ? 0 : 1)}{details.unit}
+                                    </span> {details.label}
+                                </div>
+                            );
+                        })}
                       </div>
                     </div>
                     <div className="flex items-center space-x-2">
@@ -275,27 +298,18 @@ const MealCard = ({
 
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center pt-2 gap-4">
                 <span className="font-semibold">{meal.name} Total:</span>
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 sm:gap-4 text-xs sm:text-sm">
-                  <div className="text-center">
-                    <div className="font-bold text-gray-900 dark:text-gray-100">{Math.round(totals.calories)}</div>
-                    <div className="text-xs text-gray-500">cal</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="font-bold text-blue-600">{totals.protein.toFixed(1)}g</div>
-                    <div className="text-xs text-gray-500">protein</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="font-bold text-orange-600">{totals.carbs.toFixed(1)}g</div>
-                    <div className="text-xs text-gray-500">carbs</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="font-bold text-yellow-600">{totals.fat.toFixed(1)}g</div>
-                    <div className="text-xs text-gray-500">fat</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="font-bold text-green-600">{totals.dietary_fiber.toFixed(1)}g</div>
-                    <div className="text-xs text-gray-500">fiber</div>
-                  </div>
+                <div className={`grid grid-cols-${visibleNutrients.length} justify-end gap-x-4 text-xs sm:text-sm`}>
+                    {visibleNutrients.map(nutrient => {
+                        const details = nutrientDetails[nutrient];
+                        if (!details) return null;
+                        const value = totals[nutrient as keyof MealTotals] || 0;
+                        return (
+                            <div key={nutrient} className="text-center">
+                                <div className={`font-bold ${details.color}`}>{value.toFixed(nutrient === 'calories' ? 0 : 1)}{details.unit}</div>
+                                <div className="text-xs text-gray-500">{details.label}</div>
+                            </div>
+                        );
+                    })}
                 </div>
               </div>
             </div>
@@ -316,6 +330,7 @@ const MealCard = ({
             <EnhancedCustomFoodForm
               food={editingFoodEntry.foods}
               onSave={handleSaveFood}
+              visibleNutrients={foodDatabaseVisibleNutrients}
             />
           </DialogContent>
         </Dialog>

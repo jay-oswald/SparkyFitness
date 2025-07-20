@@ -27,7 +27,7 @@ import {
   copyFoodEntriesFromYesterday, // Import the new copy from yesterday function
 } from '@/services/foodDiaryService';
 import { Food, FoodVariant } from '@/types/food';
-import { FoodEntry } from '@/types/food.d';
+import { FoodEntry } from '@/types/food';
 import { ExpandedGoals } from '@/types/goals';
 
 
@@ -47,6 +47,16 @@ interface MealTotals {
   carbs: number;
   fat: number;
   dietary_fiber: number;
+  sugars: number;
+  sodium: number;
+  cholesterol: number;
+  saturated_fat: number;
+  trans_fat: number;
+  potassium: number;
+  vitamin_a: number;
+  vitamin_c: number;
+  iron: number;
+  calcium: number;
 }
 
 interface FoodDiaryProps {
@@ -63,7 +73,7 @@ const FoodDiary = ({ selectedDate, onDateChange, refreshTrigger: externalRefresh
   const [foodEntries, setFoodEntries] = useState<FoodEntry[]>([]);
   const [editingEntry, setEditingEntry] = useState<FoodEntry | null>(null);
   const [goals, setGoals] = useState<ExpandedGoals | null>(null);
-  const [dayTotals, setDayTotals] = useState<MealTotals>({ calories: 0, protein: 0, carbs: 0, fat: 0, dietary_fiber: 0 });
+  const [dayTotals, setDayTotals] = useState<MealTotals>({ calories: 0, protein: 0, carbs: 0, fat: 0, dietary_fiber: 0, sugars: 0, sodium: 0, cholesterol: 0, saturated_fat: 0, trans_fat: 0, potassium: 0, vitamin_a: 0, vitamin_c: 0, iron: 0, calcium: 0 });
   const [selectedFood, setSelectedFood] = useState<Food | null>(null);
   const [selectedMealType, setSelectedMealType] = useState<string>("");
   const [isUnitSelectorOpen, setIsUnitSelectorOpen] = useState(false);
@@ -84,13 +94,11 @@ const FoodDiary = ({ selectedDate, onDateChange, refreshTrigger: externalRefresh
     debug(loggingLevel, "Calculating day totals for entries:", entries);
     const totals = entries.reduce((acc, entry) => {
       const entryNutrition = calculateFoodEntryNutrition(entry);
-      acc.calories += entryNutrition.calories;
-      acc.protein += entryNutrition.protein;
-      acc.carbs += entryNutrition.carbs;
-      acc.fat += entryNutrition.fat;
-      acc.dietary_fiber += entryNutrition.dietary_fiber || 0;
+      Object.keys(acc).forEach(key => {
+        acc[key as keyof MealTotals] += entryNutrition[key as keyof MealTotals] || 0;
+      });
       return acc;
-    }, { calories: 0, protein: 0, carbs: 0, fat: 0, dietary_fiber: 0 });
+    }, { calories: 0, protein: 0, carbs: 0, fat: 0, dietary_fiber: 0, sugars: 0, sodium: 0, cholesterol: 0, saturated_fat: 0, trans_fat: 0, potassium: 0, vitamin_a: 0, vitamin_c: 0, iron: 0, calcium: 0 });
 
     info(loggingLevel, "Day totals calculated:", totals);
     setDayTotals(totals);
@@ -216,13 +224,11 @@ const FoodDiary = ({ selectedDate, onDateChange, refreshTrigger: externalRefresh
     const entries = foodEntries.filter(entry => entry.meal_type === mealType);
     const totals = entries.reduce((acc, entry) => {
       const entryNutrition = getEntryNutrition(entry);
-      acc.calories += entryNutrition.calories;
-      acc.protein += entryNutrition.protein;
-      acc.carbs += entryNutrition.carbs;
-      acc.fat += entryNutrition.fat;
-      acc.dietary_fiber += entryNutrition.dietary_fiber;
+      Object.keys(acc).forEach(key => {
+        acc[key as keyof MealTotals] += entryNutrition[key as keyof MealTotals] || 0;
+      });
       return acc;
-    }, { calories: 0, protein: 0, carbs: 0, fat: 0, dietary_fiber: 0 });
+    }, { calories: 0, protein: 0, carbs: 0, fat: 0, dietary_fiber: 0, sugars: 0, sodium: 0, cholesterol: 0, saturated_fat: 0, trans_fat: 0, potassium: 0, vitamin_a: 0, vitamin_c: 0, iron: 0, calcium: 0 });
     debug(loggingLevel, `Calculated totals for ${mealType}:`, totals);
     return totals;
   }, [foodEntries, getEntryNutrition, loggingLevel]);

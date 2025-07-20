@@ -10,6 +10,8 @@ import { Pagination, PaginationContent, PaginationItem, PaginationLink, Paginati
 import { Search, Edit, Trash2, Plus, Share2, Users, Filter } from "lucide-react";
 import { useActiveUser } from "@/contexts/ActiveUserContext";
 import { useAuth } from "@/hooks/useAuth";
+import { usePreferences } from "@/contexts/PreferencesContext";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { toast } from "@/hooks/use-toast";
 import EnhancedCustomFoodForm from "./EnhancedCustomFoodForm";
 import FoodSearchDialog from "./FoodSearchDialog";
@@ -30,6 +32,11 @@ import MealPlanCalendar from "./MealPlanCalendar"; // Import MealPlanCalendar
 const FoodDatabaseManager: React.FC = () => {
   const { user } = useAuth();
   const { activeUserId } = useActiveUser();
+  const { nutrientDisplayPreferences } = usePreferences();
+  const isMobile = useIsMobile();
+  const platform = isMobile ? 'mobile' : 'desktop';
+  const quickInfoPreferences = nutrientDisplayPreferences.find(p => p.view_group === 'quick_info' && p.platform === platform);
+  const visibleNutrients = quickInfoPreferences ? quickInfoPreferences.visible_nutrients : ['calories', 'protein', 'carbs', 'fat'];
   const [foods, setFoods] = useState<Food[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [editingFood, setEditingFood] = useState<Food | null>(null);
@@ -371,19 +378,12 @@ const FoodDatabaseManager: React.FC = () => {
                             </Badge>
                           )}
                         </div>
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4 text-xs sm:text-sm text-gray-600 dark:text-gray-400">
-                          <div>
-                            <span className="font-medium">{food.default_variant?.calories || 0}</span> cal
-                          </div>
-                          <div>
-                            <span className="font-medium text-blue-600">{food.default_variant?.protein || 0}g</span> protein
-                          </div>
-                          <div>
-                            <span className="font-medium text-orange-600">{food.default_variant?.carbs || 0}g</span> carbs
-                          </div>
-                          <div>
-                            <span className="font-medium text-yellow-600">{food.default_variant?.fat || 0}g</span> fat
-                          </div>
+                        <div className={`grid grid-cols-${visibleNutrients.length} gap-2 sm:gap-4 text-xs sm:text-sm text-gray-600 dark:text-gray-400`}>
+                          {visibleNutrients.map(nutrient => (
+                            <div key={nutrient}>
+                              <span className="font-medium">{food.default_variant?.[nutrient as keyof FoodVariant] as number || 0}</span> {nutrient.replace(/_/g, ' ')}
+                            </div>
+                          ))}
                         </div>
                         <div className="text-xs text-gray-500 mt-1">
                           Per {food.default_variant?.serving_size || 0} {food.default_variant?.serving_unit || ''}

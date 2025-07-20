@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { LineChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { useAuth } from "@/hooks/useAuth";
 import { useActiveUser } from "@/contexts/ActiveUserContext";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { parseISO, subDays, addDays, format } from "date-fns"; // Import date-fns functions
 import { usePreferences } from "@/contexts/PreferencesContext"; // Import usePreferences
 import { calculateFoodEntryNutrition } from '@/utils/nutritionCalculations'; // Import the new utility function
@@ -20,7 +21,9 @@ const MiniNutritionTrends = ({ selectedDate, refreshTrigger }: MiniNutritionTren
   const { user } = useAuth();
   const { activeUserId } = useActiveUser();
   const [chartData, setChartData] = useState<DayData[]>([]);
-  const { formatDateInUserTimezone } = usePreferences(); // Destructure formatDateInUserTimezone
+  const { formatDateInUserTimezone, nutrientDisplayPreferences } = usePreferences(); // Destructure formatDateInUserTimezone
+  const isMobile = useIsMobile();
+  const platform = isMobile ? 'mobile' : 'desktop';
 
   useEffect(() => {
     if (user && activeUserId) {
@@ -78,143 +81,66 @@ const MiniNutritionTrends = ({ selectedDate, refreshTrigger }: MiniNutritionTren
     );
   }
 
-  return (
-    <div className="mt-4 space-y-3">
-      <div className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-        14-Day Nutrition Trends
-      </div>
-      
-      {/* Calories Trend */}
-      <div className="space-y-1">
-        <div className="flex justify-between items-center">
-          <span className="text-xs font-medium text-gray-600 dark:text-gray-400">Calories</span>
-          <span className="text-xs text-green-600 font-medium">
-            {formatNutrientValue(chartData[chartData.length - 1]?.calories || 0, 'calories')}
-          </span>
-        </div>
-        <div className="h-6 bg-gray-100 dark:bg-gray-800 rounded">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={chartData}>
-              <XAxis dataKey="date" hide />
-              <YAxis hide />
-              <Tooltip content={<CustomTooltip />} />
-              <Line 
-                type="monotone" 
-                dataKey="calories" 
-                stroke="#22c55e" 
-                strokeWidth={2}
-                dot={false}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-      
-      {/* Protein Trend */}
-      <div className="space-y-1">
-        <div className="flex justify-between items-center">
-          <span className="text-xs font-medium text-gray-600 dark:text-gray-400">Protein</span>
-          <span className="text-xs text-blue-600 font-medium">
-            {formatNutrientValue(chartData[chartData.length - 1]?.protein || 0, 'protein')}
-          </span>
-        </div>
-        <div className="h-6 bg-gray-100 dark:bg-gray-800 rounded">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={chartData}>
-              <XAxis dataKey="date" hide />
-              <YAxis hide />
-              <Tooltip content={<CustomTooltip />} />
-              <Line 
-                type="monotone" 
-                dataKey="protein" 
-                stroke="#3b82f6" 
-                strokeWidth={2}
-                dot={false}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-      
-      {/* Carbs Trend */}
-      <div className="space-y-1">
-        <div className="flex justify-between items-center">
-          <span className="text-xs font-medium text-gray-600 dark:text-gray-400">Carbs</span>
-          <span className="text-xs text-orange-600 font-medium">
-            {formatNutrientValue(chartData[chartData.length - 1]?.carbs || 0, 'carbs')}
-          </span>
-        </div>
-        <div className="h-6 bg-gray-100 dark:bg-gray-800 rounded">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={chartData}>
-              <XAxis dataKey="date" hide />
-              <YAxis hide />
-              <Tooltip content={<CustomTooltip />} />
-              <Line 
-                type="monotone" 
-                dataKey="carbs" 
-                stroke="#f97316" 
-                strokeWidth={2}
-                dot={false}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-      
-      {/* Fat Trend */}
-      <div className="space-y-1">
-        <div className="flex justify-between items-center">
-          <span className="text-xs font-medium text-gray-600 dark:text-gray-400">Fat</span>
-          <span className="text-xs text-yellow-600 font-medium">
-            {formatNutrientValue(chartData[chartData.length - 1]?.fat || 0, 'fat')}
-          </span>
-        </div>
-        <div className="h-6 bg-gray-100 dark:bg-gray-800 rounded">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={chartData}>
-              <XAxis dataKey="date" hide />
-              <YAxis hide />
-              <Tooltip content={<CustomTooltip />} />
-              <Line 
-                type="monotone" 
-                dataKey="fat" 
-                stroke="#eab308" 
-                strokeWidth={2}
-                dot={false}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
+    const summaryPreferences = nutrientDisplayPreferences.find(p => p.view_group === 'summary' && p.platform === platform);
+    const visibleNutrients = summaryPreferences ? summaryPreferences.visible_nutrients : ['calories', 'protein', 'carbs', 'fat', 'dietary_fiber'];
 
-      {/* Fiber Trend */}
-      <div className="space-y-1">
-        <div className="flex justify-between items-center">
-          <span className="text-xs font-medium text-gray-600 dark:text-gray-400">Fiber</span>
-          <span className="text-xs text-green-600 font-medium">
-            {formatNutrientValue(chartData[chartData.length - 1]?.dietary_fiber || 0, 'dietary_fiber')}
-          </span>
+    const nutrientDetails: { [key: string]: { color: string, label: string } } = {
+        calories: { color: '#22c55e', label: 'Calories' },
+        protein: { color: '#3b82f6', label: 'Protein' },
+        carbs: { color: '#f97316', label: 'Carbs' },
+        fat: { color: '#eab308', label: 'Fat' },
+        dietary_fiber: { color: '#16a34a', label: 'Fiber' },
+        sugars: { color: '#d946ef', label: 'Sugars' },
+        sodium: { color: '#8b5cf6', label: 'Sodium' },
+        cholesterol: { color: '#ec4899', label: 'Cholesterol' },
+        saturated_fat: { color: '#ef4444', label: 'Saturated Fat' },
+        trans_fat: { color: '#f59e0b', label: 'Trans Fat' },
+        potassium: { color: '#14b8a6', label: 'Potassium' },
+        vitamin_a: { color: '#f59e0b', label: 'Vitamin A' },
+        vitamin_c: { color: '#f97316', label: 'Vitamin C' },
+        iron: { color: '#6b7280', label: 'Iron' },
+        calcium: { color: '#3b82f6', label: 'Calcium' },
+    };
+
+    return (
+        <div className="mt-4 space-y-3">
+            <div className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                14-Day Nutrition Trends
+            </div>
+
+            {visibleNutrients.map(nutrient => {
+                const details = nutrientDetails[nutrient];
+                if (!details) return null;
+
+                return (
+                    <div key={nutrient} className="space-y-1">
+                        <div className="flex justify-between items-center">
+                            <span className="text-xs font-medium text-gray-600 dark:text-gray-400">{details.label}</span>
+                            <span className="text-xs font-medium" style={{ color: details.color }}>
+                                {formatNutrientValue(chartData[chartData.length - 1]?.[nutrient as keyof DayData] as number || 0, nutrient)}
+                            </span>
+                        </div>
+                        <div className="h-6 bg-gray-100 dark:bg-gray-800 rounded">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <LineChart data={chartData}>
+                                    <XAxis dataKey="date" hide />
+                                    <YAxis hide />
+                                    <Tooltip content={<CustomTooltip />} />
+                                    <Line
+                                        type="monotone"
+                                        dataKey={nutrient}
+                                        stroke={details.color}
+                                        strokeWidth={2}
+                                        dot={false}
+                                    />
+                                </LineChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </div>
+                );
+            })}
         </div>
-        <div className="h-6 bg-gray-100 dark:bg-gray-800 rounded">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={chartData}>
-              <XAxis dataKey="date" hide />
-              <YAxis hide />
-              <Tooltip content={<CustomTooltip />} />
-              <Line
-                type="monotone"
-                dataKey="dietary_fiber"
-                stroke="#22c55e"
-                strokeWidth={2}
-                dot={false}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-    </div>
-  );
+    );
 };
 
 export default MiniNutritionTrends;

@@ -8,6 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Plus, Trash2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { usePreferences } from "@/contexts/PreferencesContext";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { toast } from "@/hooks/use-toast";
 import {
   isUUID,
@@ -22,6 +24,7 @@ interface EnhancedCustomFoodFormProps {
   onSave: (foodData: any) => void;
   food?: Food;
   initialVariants?: FoodVariant[]; // New prop for pre-populating variants
+  visibleNutrients?: string[];
 }
 
 const COMMON_UNITS = [
@@ -30,10 +33,16 @@ const COMMON_UNITS = [
   'bowl', 'plate', 'handful', 'scoop', 'bar', 'stick'
 ];
 
-const EnhancedCustomFoodForm = ({ onSave, food, initialVariants }: EnhancedCustomFoodFormProps) => {
+const EnhancedCustomFoodForm = ({ onSave, food, initialVariants, visibleNutrients: passedVisibleNutrients }: EnhancedCustomFoodFormProps) => {
   const { user } = useAuth();
+  const { nutrientDisplayPreferences } = usePreferences();
+  const isMobile = useIsMobile();
+  const platform = isMobile ? 'mobile' : 'desktop';
   const [loading, setLoading] = useState(false);
   const [variants, setVariants] = useState<FoodVariant[]>([]);
+
+  const foodDatabasePreferences = nutrientDisplayPreferences.find(p => p.view_group === 'food_database' && p.platform === platform);
+  const visibleNutrients = passedVisibleNutrients || (foodDatabasePreferences ? foodDatabasePreferences.visible_nutrients : Object.keys(variants[0] || {}));
   const [formData, setFormData] = useState({
     name: "",
     brand: "",
@@ -494,7 +503,7 @@ const EnhancedCustomFoodForm = ({ onSave, food, initialVariants }: EnhancedCusto
                       <div>
                         <h5 className="text-sm font-medium text-gray-700 mb-3">Main Nutrients</h5>
                         <div className="grid grid-cols-4 gap-4">
-                          <div>
+                          {visibleNutrients.includes('calories') && <div>
                             <Label>Calories</Label>
                             <Input
                               type="number"
@@ -502,8 +511,8 @@ const EnhancedCustomFoodForm = ({ onSave, food, initialVariants }: EnhancedCusto
                               onChange={(e) => updateVariant(index, 'calories', Number(e.target.value))}
                               disabled={variant.is_locked}
                             />
-                          </div>
-                          <div>
+                          </div>}
+                          {visibleNutrients.includes('protein') && <div>
                             <Label>Protein (g)</Label>
                             <Input
                               type="number"
@@ -512,8 +521,8 @@ const EnhancedCustomFoodForm = ({ onSave, food, initialVariants }: EnhancedCusto
                               onChange={(e) => updateVariant(index, 'protein', Number(e.target.value))}
                               disabled={variant.is_locked}
                             />
-                          </div>
-                          <div>
+                          </div>}
+                          {visibleNutrients.includes('carbs') && <div>
                             <Label>Carbs (g)</Label>
                             <Input
                               type="number"
@@ -522,8 +531,8 @@ const EnhancedCustomFoodForm = ({ onSave, food, initialVariants }: EnhancedCusto
                               onChange={(e) => updateVariant(index, 'carbs', Number(e.target.value))}
                               disabled={variant.is_locked}
                             />
-                          </div>
-                          <div>
+                          </div>}
+                          {visibleNutrients.includes('fat') && <div>
                             <Label>Fat (g)</Label>
                             <Input
                               type="number"
@@ -532,7 +541,7 @@ const EnhancedCustomFoodForm = ({ onSave, food, initialVariants }: EnhancedCusto
                               onChange={(e) => updateVariant(index, 'fat', Number(e.target.value))}
                               disabled={variant.is_locked}
                             />
-                          </div>
+                          </div>}
                         </div>
                       </div>
 
@@ -540,7 +549,7 @@ const EnhancedCustomFoodForm = ({ onSave, food, initialVariants }: EnhancedCusto
                       <div>
                         <h5 className="text-sm font-medium text-gray-700 mb-3">Fat Breakdown</h5>
                         <div className="grid grid-cols-4 gap-4">
-                          <div>
+                          {visibleNutrients.includes('saturated_fat') && <div>
                             <Label>Saturated Fat (g)</Label>
                             <Input
                               type="number"
@@ -549,8 +558,8 @@ const EnhancedCustomFoodForm = ({ onSave, food, initialVariants }: EnhancedCusto
                               onChange={(e) => updateVariant(index, 'saturated_fat', Number(e.target.value))}
                               disabled={variant.is_locked}
                             />
-                          </div>
-                          <div>
+                          </div>}
+                          {visibleNutrients.includes('polyunsaturated_fat') && <div>
                             <Label>Polyunsaturated Fat (g)</Label>
                             <Input
                               type="number"
@@ -559,8 +568,8 @@ const EnhancedCustomFoodForm = ({ onSave, food, initialVariants }: EnhancedCusto
                               onChange={(e) => updateVariant(index, 'polyunsaturated_fat', Number(e.target.value))}
                               disabled={variant.is_locked}
                             />
-                          </div>
-                          <div>
+                          </div>}
+                          {visibleNutrients.includes('monounsaturated_fat') && <div>
                             <Label>Monounsaturated Fat (g)</Label>
                             <Input
                               type="number"
@@ -569,8 +578,8 @@ const EnhancedCustomFoodForm = ({ onSave, food, initialVariants }: EnhancedCusto
                               onChange={(e) => updateVariant(index, 'monounsaturated_fat', Number(e.target.value))}
                               disabled={variant.is_locked}
                             />
-                          </div>
-                          <div>
+                          </div>}
+                          {visibleNutrients.includes('trans_fat') && <div>
                             <Label>Trans Fat (g)</Label>
                             <Input
                               type="number"
@@ -579,7 +588,7 @@ const EnhancedCustomFoodForm = ({ onSave, food, initialVariants }: EnhancedCusto
                               onChange={(e) => updateVariant(index, 'trans_fat', Number(e.target.value))}
                               disabled={variant.is_locked}
                             />
-                          </div>
+                          </div>}
                         </div>
                       </div>
 
@@ -587,7 +596,7 @@ const EnhancedCustomFoodForm = ({ onSave, food, initialVariants }: EnhancedCusto
                       <div>
                         <h5 className="text-sm font-medium text-gray-700 mb-3">Minerals & Other</h5>
                         <div className="grid grid-cols-4 gap-4">
-                          <div>
+                          {visibleNutrients.includes('cholesterol') && <div>
                             <Label>Cholesterol (mg)</Label>
                             <Input
                               type="number"
@@ -596,8 +605,8 @@ const EnhancedCustomFoodForm = ({ onSave, food, initialVariants }: EnhancedCusto
                               onChange={(e) => updateVariant(index, 'cholesterol', Number(e.target.value))}
                               disabled={variant.is_locked}
                             />
-                          </div>
-                          <div>
+                          </div>}
+                          {visibleNutrients.includes('sodium') && <div>
                             <Label>Sodium (mg)</Label>
                             <Input
                               type="number"
@@ -606,8 +615,8 @@ const EnhancedCustomFoodForm = ({ onSave, food, initialVariants }: EnhancedCusto
                               onChange={(e) => updateVariant(index, 'sodium', Number(e.target.value))}
                               disabled={variant.is_locked}
                             />
-                          </div>
-                          <div>
+                          </div>}
+                          {visibleNutrients.includes('potassium') && <div>
                             <Label>Potassium (mg)</Label>
                             <Input
                               type="number"
@@ -616,8 +625,8 @@ const EnhancedCustomFoodForm = ({ onSave, food, initialVariants }: EnhancedCusto
                               onChange={(e) => updateVariant(index, 'potassium', Number(e.target.value))}
                               disabled={variant.is_locked}
                             />
-                          </div>
-                          <div>
+                          </div>}
+                          {visibleNutrients.includes('dietary_fiber') && <div>
                             <Label>Dietary Fiber (g)</Label>
                             <Input
                               type="number"
@@ -626,7 +635,7 @@ const EnhancedCustomFoodForm = ({ onSave, food, initialVariants }: EnhancedCusto
                               onChange={(e) => updateVariant(index, 'dietary_fiber', Number(e.target.value))}
                               disabled={variant.is_locked}
                             />
-                          </div>
+                          </div>}
                         </div>
                       </div>
 
@@ -634,7 +643,7 @@ const EnhancedCustomFoodForm = ({ onSave, food, initialVariants }: EnhancedCusto
                       <div>
                         <h5 className="text-sm font-medium text-gray-700 mb-3">Sugars & Vitamins</h5>
                         <div className="grid grid-cols-4 gap-4">
-                          <div>
+                          {visibleNutrients.includes('sugars') && <div>
                             <Label>Sugars (g)</Label>
                             <Input
                               type="number"
@@ -643,8 +652,8 @@ const EnhancedCustomFoodForm = ({ onSave, food, initialVariants }: EnhancedCusto
                               onChange={(e) => updateVariant(index, 'sugars', Number(e.target.value))}
                               disabled={variant.is_locked}
                             />
-                          </div>
-                          <div>
+                          </div>}
+                          {visibleNutrients.includes('vitamin_a') && <div>
                             <Label>Vitamin A (μg)</Label>
                             <Input
                               type="number"
@@ -653,8 +662,8 @@ const EnhancedCustomFoodForm = ({ onSave, food, initialVariants }: EnhancedCusto
                               onChange={(e) => updateVariant(index, 'vitamin_a', Number(e.target.value))}
                               disabled={variant.is_locked}
                             />
-                          </div>
-                          <div>
+                          </div>}
+                          {visibleNutrients.includes('vitamin_c') && <div>
                             <Label>Vitamin C (mg)</Label>
                             <Input
                               type="number"
@@ -663,8 +672,8 @@ const EnhancedCustomFoodForm = ({ onSave, food, initialVariants }: EnhancedCusto
                               onChange={(e) => updateVariant(index, 'vitamin_c', Number(e.target.value))}
                               disabled={variant.is_locked}
                             />
-                          </div>
-                          <div>
+                          </div>}
+                          {visibleNutrients.includes('calcium') && <div>
                             <Label>Calcium (mg)</Label>
                             <Input
                               type="number"
@@ -673,13 +682,13 @@ const EnhancedCustomFoodForm = ({ onSave, food, initialVariants }: EnhancedCusto
                               onChange={(e) => updateVariant(index, 'calcium', Number(e.target.value))}
                               disabled={variant.is_locked}
                             />
-                          </div>
+                          </div>}
                         </div>
                       </div>
 
                       <div>
                         <div className="grid grid-cols-4 gap-4">
-                          <div>
+                          {visibleNutrients.includes('iron') && <div>
                             <Label>Iron (mg)</Label>
                             <Input
                               type="number"
@@ -688,7 +697,7 @@ const EnhancedCustomFoodForm = ({ onSave, food, initialVariants }: EnhancedCusto
                               onChange={(e) => updateVariant(index, 'iron', Number(e.target.value))}
                               disabled={variant.is_locked}
                             />
-                          </div>
+                          </div>}
                         </div>
                       </div>
                     </div>

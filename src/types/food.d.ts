@@ -55,16 +55,3 @@ export interface FoodVariant {
   calcium?: number;
   iron?: number;
 }
-
-export interface FoodEntry {
-  id: string;
-  food_id: string;
-  meal_type: string;
-  quantity: number;
-  unit: string;
-  variant_id?: string;
-  foods: Food; // This should be the comprehensive Food type
-  food_variants?: FoodVariant;
-  entry_date: string;
-  meal_plan_template_id?: string; // Add this line
-}

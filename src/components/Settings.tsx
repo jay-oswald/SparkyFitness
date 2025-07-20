@@ -21,6 +21,7 @@ import AIServiceSettings from "./AIServiceSettings";
 import CustomCategoryManager from "./CustomCategoryManager";
 import ExternalProviderSettings from "./ExternalProviderSettings"; // Import ExternalProviderSettings
 import { usePreferences } from "@/contexts/PreferencesContext"; // Import usePreferences
+import NutrientDisplaySettings from "./NutrientDisplaySettings"; // Import NutrientDisplaySettings
 import { parse } from "date-fns"; // Import parse for parsing user-entered date strings
 
 interface Profile {
@@ -654,6 +655,9 @@ const Settings: React.FC<SettingsProps> = ({ onShowAboutDialog }) => {
 
       {/* AI Service Settings */}
       <AIServiceSettings />
+
+      {/* Nutrient Display Settings */}
+      <NutrientDisplaySettings />
 
       {/* API Key Management */}
       <Card>

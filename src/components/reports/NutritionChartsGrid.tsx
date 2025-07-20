@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import ZoomableChart from "../ZoomableChart";
 import { usePreferences } from "@/contexts/PreferencesContext";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { debug, info, warn, error } from "@/utils/logging";
 import { parseISO } from "date-fns"; // Import parseISO
 
@@ -32,14 +33,18 @@ interface NutritionChartsGridProps {
 }
 
 const NutritionChartsGrid = ({ nutritionData }: NutritionChartsGridProps) => {
-  const { loggingLevel, formatDateInUserTimezone } = usePreferences(); // Destructure formatDateInUserTimezone
+  const { loggingLevel, formatDateInUserTimezone, nutrientDisplayPreferences } = usePreferences(); // Destructure formatDateInUserTimezone
+  const isMobile = useIsMobile();
+  const platform = isMobile ? 'mobile' : 'desktop';
+  const reportChartPreferences = nutrientDisplayPreferences.find(p => p.view_group === 'report_chart' && p.platform === platform);
+  
   info(loggingLevel, 'NutritionChartsGrid: Rendering component.');
 
   const formatDateForChart = (dateStr: string) => {
     return formatDateInUserTimezone(parseISO(dateStr), 'MMM dd');
   };
 
-  const nutritionCharts = [
+  const allNutritionCharts = [
     { key: 'calories', label: 'Calories', color: '#8884d8', unit: 'cal' },
     { key: 'protein', label: 'Protein', color: '#82ca9d', unit: 'g' },
     { key: 'carbs', label: 'Carbs', color: '#ffc658', unit: 'g' },
@@ -59,9 +64,13 @@ const NutritionChartsGrid = ({ nutritionData }: NutritionChartsGridProps) => {
     { key: 'iron', label: 'Iron', color: '#2d3436', unit: 'mg' }
   ];
 
+  const visibleCharts = reportChartPreferences
+    ? allNutritionCharts.filter(chart => reportChartPreferences.visible_nutrients.includes(chart.key))
+    : allNutritionCharts;
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-      {nutritionCharts.map((chart) => (
+      {visibleCharts.map((chart) => (
         <ZoomableChart key={chart.key} title={`${chart.label} (${chart.unit})`}>
           <Card>
             <CardHeader className="pb-2">

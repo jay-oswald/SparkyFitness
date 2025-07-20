@@ -9,6 +9,7 @@ import { apiCall } from '@/services/api';
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "@/hooks/use-toast";
 import { usePreferences } from "@/contexts/PreferencesContext"; // Added import
+import { useIsMobile } from "@/hooks/use-mobile";
 import { saveGoals as saveGoalsService } from '@/services/goalsService';
 import { GoalPreset, createGoalPreset, getGoalPresets, updateGoalPreset, deleteGoalPreset } from '@/services/goalPresetService';
 import { WeeklyGoalPlan, createWeeklyGoalPlan, getWeeklyGoalPlans, updateWeeklyGoalPlan, deleteWeeklyGoalPlan } from '@/services/weeklyGoalPlanService';
@@ -27,7 +28,7 @@ import { ExpandedGoals } from '@/types/goals';
 
 const GoalsSettings = () => {
   const { user } = useAuth();
-  const { dateFormat, formatDateInUserTimezone, parseDateInUserTimezone } = usePreferences(); // Corrected destructuring
+  const { dateFormat, formatDateInUserTimezone, parseDateInUserTimezone, nutrientDisplayPreferences } = usePreferences(); // Corrected destructuring
   const [goals, setGoals] = useState<ExpandedGoals>({
     calories: 2000, protein: 150, carbs: 250, fat: 67, water_goal: 8,
     saturated_fat: 20, polyunsaturated_fat: 10, monounsaturated_fat: 25, trans_fat: 0,
@@ -333,6 +334,11 @@ const GoalsSettings = () => {
     }
   };
 
+  const isMobile = useIsMobile();
+  const platform = isMobile ? 'mobile' : 'desktop';
+  const goalPreferences = nutrientDisplayPreferences.find(p => p.view_group === 'goal' && p.platform === platform);
+  const visibleNutrients = goalPreferences ? goalPreferences.visible_nutrients : Object.keys(goals);
+
   if (!user) {
     return <div>Please sign in to manage your goals.</div>;
   }
@@ -363,7 +369,7 @@ const GoalsSettings = () => {
         <CardContent>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {/* Primary Macros */}
-            <div>
+            {visibleNutrients.includes('calories') && <div>
               <Label htmlFor="calories">Calories</Label>
               <Input
                 id="calories"
@@ -371,9 +377,9 @@ const GoalsSettings = () => {
                 value={goals.calories}
                 onChange={(e) => setGoals({ ...goals, calories: Number(e.target.value) })}
               />
-            </div>
+            </div>}
             
-            <div>
+            {visibleNutrients.includes('protein') && <div>
               <Label htmlFor="protein">Protein (g)</Label>
               <Input
                 id="protein"
@@ -381,9 +387,9 @@ const GoalsSettings = () => {
                 value={goals.protein}
                 onChange={(e) => setGoals({ ...goals, protein: Number(e.target.value) })}
               />
-            </div>
+            </div>}
             
-            <div>
+            {visibleNutrients.includes('carbs') && <div>
               <Label htmlFor="carbs">Carbohydrates (g)</Label>
               <Input
                 id="carbs"
@@ -391,9 +397,9 @@ const GoalsSettings = () => {
                 value={goals.carbs}
                 onChange={(e) => setGoals({ ...goals, carbs: Number(e.target.value) })}
               />
-            </div>
+            </div>}
             
-            <div>
+            {visibleNutrients.includes('fat') && <div>
               <Label htmlFor="fat">Fat (g)</Label>
               <Input
                 id="fat"
@@ -401,10 +407,10 @@ const GoalsSettings = () => {
                 value={goals.fat}
                 onChange={(e) => setGoals({ ...goals, fat: Number(e.target.value) })}
               />
-            </div>
+            </div>}
 
             {/* Fat Types */}
-            <div>
+            {visibleNutrients.includes('saturated_fat') && <div>
               <Label htmlFor="saturated_fat">Saturated Fat (g)</Label>
               <Input
                 id="saturated_fat"
@@ -412,9 +418,9 @@ const GoalsSettings = () => {
                 value={goals.saturated_fat}
                 onChange={(e) => setGoals({ ...goals, saturated_fat: Number(e.target.value) })}
               />
-            </div>
+            </div>}
 
-            <div>
+            {visibleNutrients.includes('polyunsaturated_fat') && <div>
               <Label htmlFor="polyunsaturated_fat">Polyunsaturated Fat (g)</Label>
               <Input
                 id="polyunsaturated_fat"
@@ -422,9 +428,9 @@ const GoalsSettings = () => {
                 value={goals.polyunsaturated_fat}
                 onChange={(e) => setGoals({ ...goals, polyunsaturated_fat: Number(e.target.value) })}
               />
-            </div>
+            </div>}
 
-            <div>
+            {visibleNutrients.includes('monounsaturated_fat') && <div>
               <Label htmlFor="monounsaturated_fat">Monounsaturated Fat (g)</Label>
               <Input
                 id="monounsaturated_fat"
@@ -432,9 +438,9 @@ const GoalsSettings = () => {
                 value={goals.monounsaturated_fat}
                 onChange={(e) => setGoals({ ...goals, monounsaturated_fat: Number(e.target.value) })}
               />
-            </div>
+            </div>}
 
-            <div>
+            {visibleNutrients.includes('trans_fat') && <div>
               <Label htmlFor="trans_fat">Trans Fat (g)</Label>
               <Input
                 id="trans_fat"
@@ -442,10 +448,10 @@ const GoalsSettings = () => {
                 value={goals.trans_fat}
                 onChange={(e) => setGoals({ ...goals, trans_fat: Number(e.target.value) })}
               />
-            </div>
+            </div>}
 
             {/* Other Nutrients */}
-            <div>
+            {visibleNutrients.includes('cholesterol') && <div>
               <Label htmlFor="cholesterol">Cholesterol (mg)</Label>
               <Input
                 id="cholesterol"
@@ -453,8 +459,8 @@ const GoalsSettings = () => {
                 value={goals.cholesterol}
                 onChange={(e) => setGoals({ ...goals, cholesterol: Number(e.target.value) })}
               />
-            </div>
-            <div>
+            </div>}
+            {visibleNutrients.includes('sodium') && <div>
               <Label htmlFor="sodium">Sodium (mg)</Label>
               <Input
                 id="sodium"
@@ -462,8 +468,8 @@ const GoalsSettings = () => {
                 value={goals.sodium}
                 onChange={(e) => setGoals({ ...goals, sodium: Number(e.target.value) })}
               />
-            </div>
-            <div>
+            </div>}
+            {visibleNutrients.includes('potassium') && <div>
               <Label htmlFor="potassium">Potassium (mg)</Label>
               <Input
                 id="potassium"
@@ -471,8 +477,8 @@ const GoalsSettings = () => {
                 value={goals.potassium}
                 onChange={(e) => setGoals({ ...goals, potassium: Number(e.target.value) })}
               />
-            </div>
-            <div>
+            </div>}
+            {visibleNutrients.includes('dietary_fiber') && <div>
               <Label htmlFor="dietary_fiber">Dietary Fiber (g)</Label>
               <Input
                 id="dietary_fiber"
@@ -480,8 +486,8 @@ const GoalsSettings = () => {
                 value={goals.dietary_fiber}
                 onChange={(e) => setGoals({ ...goals, dietary_fiber: Number(e.target.value) })}
               />
-            </div>
-            <div>
+            </div>}
+            {visibleNutrients.includes('sugars') && <div>
               <Label htmlFor="sugars">Sugars (g)</Label>
               <Input
                 id="sugars"
@@ -489,9 +495,9 @@ const GoalsSettings = () => {
                 value={goals.sugars}
                 onChange={(e) => setGoals({ ...goals, sugars: Number(e.target.value) })}
               />
-            </div>
+            </div>}
             {/* Vitamins and Minerals */}
-            <div>
+            {visibleNutrients.includes('vitamin_a') && <div>
               <Label htmlFor="vitamin_a">Vitamin A (mcg)</Label>
               <Input
                 id="vitamin_a"
@@ -499,8 +505,8 @@ const GoalsSettings = () => {
                 value={goals.vitamin_a}
                 onChange={(e) => setGoals({ ...goals, vitamin_a: Number(e.target.value) })}
               />
-            </div>
-            <div>
+            </div>}
+            {visibleNutrients.includes('vitamin_c') && <div>
               <Label htmlFor="vitamin_c">Vitamin C (mg)</Label>
               <Input
                 id="vitamin_c"
@@ -508,8 +514,8 @@ const GoalsSettings = () => {
                 value={goals.vitamin_c}
                 onChange={(e) => setGoals({ ...goals, vitamin_c: Number(e.target.value) })}
               />
-            </div>
-            <div>
+            </div>}
+            {visibleNutrients.includes('calcium') && <div>
               <Label htmlFor="calcium">Calcium (mg)</Label>
               <Input
                 id="calcium"
@@ -517,8 +523,8 @@ const GoalsSettings = () => {
                 value={goals.calcium}
                 onChange={(e) => setGoals({ ...goals, calcium: Number(e.target.value) })}
               />
-            </div>
-            <div>
+            </div>}
+            {visibleNutrients.includes('iron') && <div>
               <Label htmlFor="iron">Iron (mg)</Label>
               <Input
                 id="iron"
@@ -526,7 +532,7 @@ const GoalsSettings = () => {
                 value={goals.iron}
                 onChange={(e) => setGoals({ ...goals, iron: Number(e.target.value) })}
               />
-            </div>
+            </div>}
             
             <div>
               <Label htmlFor="water">Water Goal (glasses)</Label>
