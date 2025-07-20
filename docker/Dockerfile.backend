@@ -24,7 +24,7 @@ COPY --from=backend_builder /app/SparkyFitnessServer/node_modules ./node_modules
 
 # Copy the rest of the backend application code
 COPY . .
-COPY package.json /app/package.json
+COPY package.json ./package.json
 
 # Expose the port your backend server listens on
 EXPOSE 3010

@@ -106,34 +106,144 @@ To get the SparkyFitness application running on your local machine, follow these
 
 ### Prerequisites
 
+- **Docker & Docker Compose** - For containerized deployment
+- **Node.js & npm** - For local development (optional)
+- **PostgreSQL** - Database (included in Docker setup)
+
 ### Installation
 
+Choose your deployment method:
+
+#### 🚀 Quick Start (Production)
+
+For a production deployment using pre-built images from DockerHub:
+
 1.  **Configure Environment Variables:**
+    Create a `.env` file in the root directory. Copy the template from `docker/.env.example` and update it with your settings.
 
-    Create a `.env` file in the root directory. Copy the template from the example `.env` file and update it with your settings. Refer to the WIKI for the existing configuration that I used. Try not to change the port as they may not work properly with initial releases until the project is stable.
-
-    *   **Admin Panel URL:** To enable the Admin panel and configure OIDC settings, ensure the `SPARKY_FITNESS_ADMIN_EMAIL` environment variable is set to the appropriate URL for your Admin panel.
+    ```bash
+    # Copy the example file
+    cp docker/.env.example .env
     
-
-2.  **Run with Docker Compose:**
-    Pull the Docker images and start the services. If you've made changes to the `.env` file, you should rebuild the images to ensure the new environment variables are picked up.
-    ```sh
-    docker-compose pull # Pull the latest Docker images
-    docker-compose up -d # Start the services in detached mode
+    # Key environment variables to configure:
+    SPARKY_FITNESS_ADMIN_EMAIL=your-admin@email.com
+    SPARKY_FITNESS_SERVER_HOST=sparky-fitness-server
+    SPARKY_FITNESS_SERVER_PORT=3010
     ```
-    Refer sample setup as reference
-    https://github.com/CodeWithCJ/SparkyFitness/wiki/Sample-Setup
 
-3.  **Access the Application:**
-    Once the services are up and running, access SparkyFitness in your web browser at the URL configured for your frontend (e.g., `http://localhost:3004` or `http://your_frontend_ip_or_domain:3004`).
+2.  **Start with Docker Helper:**
+    ```bash
+    # Run the helper script for production deployment
+    ./docker/docker-helper.sh prod up
+    ```
+    
+    Or use Docker Compose directly:
+    ```bash
+    docker-compose -f docker/docker-compose.prod.yml up -d
+    ```
 
-4.  **AI Chatbot - Optional Configuration:**
-    To enable the AI Chatbot's full functionality, you will need to configure the necessary API keys within the application's settings after logging in.
-  
-5.  **Initial Application Setup:**
-    After logging into the application, navigate to the settings menu to:
-    *   Add your preferred food providers (e.g., OpenFoodFacts is a free option).
-    *   Adjust your preferences and profile settings.
+#### 🔧 Development Setup
+
+For local development with live reloading:
+
+1.  **Configure Environment Variables:**
+    Create a `.env` file in the root directory from the template:
+
+    ```bash
+    cp docker/.env.example .env
+    ```
+
+2.  **Start Development Environment:**
+    ```bash
+    # Run the helper script for development
+    ./docker/docker-helper.sh dev up
+    
+    # This will:
+    # - Build images from local source code
+    # - Enable live reloading for frontend (port 8080)
+    # - Expose backend directly (port 3010) 
+    # - Expose PostgreSQL (port 5432)
+    ```
+
+3.  **Alternative: Local Development (No Docker):**
+    ```bash
+    # Copy environment template
+    cp docker/.env.example .env
+    
+    # Install dependencies
+    npm install
+    cd SparkyFitnessServer && npm install && cd ..
+    
+    # Start backend
+    npm run start-backend
+    
+    # Start frontend (in another terminal)
+    npm run dev
+    ```
+
+#### 📋 Docker Helper Commands
+
+The `docker-helper.sh` script provides easy management:
+
+```bash
+# Show all available commands
+./docker/docker-helper.sh
+
+# Environment + Action combinations
+./docker/docker-helper.sh [dev|prod] [up|down|build|logs|ps|clean]
+
+# Examples:
+./docker/docker-helper.sh dev up      # Start development
+./docker/docker-helper.sh prod logs   # View production logs  
+./docker/docker-helper.sh dev clean   # Clean up development containers
+```
+
+Refer to sample setup as reference: https://github.com/CodeWithCJ/SparkyFitness/wiki/Sample-Setup
+
+#### 🌐 Access the Application
+
+**Production (using docker-helper.sh prod up):**
+- Frontend: `http://localhost:3004` or `http://your_domain:3004`
+
+**Development (using docker-helper.sh dev up):**  
+- Frontend: `http://localhost:8080` (with live reloading)
+- Backend API: `http://localhost:3010`
+- Database: `localhost:5432` (for direct access)
+
+**Local Development (no Docker):**
+- Frontend: `http://localhost:8080`
+- Backend API: `http://localhost:3010`
+
+#### 🤖 AI Chatbot - Optional Configuration
+To enable the AI Chatbot's full functionality, you will need to configure the necessary API keys within the application's settings after logging in.
+
+#### ⚙️ Initial Application Setup
+After logging into the application, navigate to the settings menu to:
+- Add your preferred food providers (e.g., OpenFoodFacts is a free option)
+- Adjust your preferences and profile settings
+- Configure AI provider settings if using the chatbot
+
+#### 🔧 Development Tools
+
+**Useful Docker Commands:**
+```bash
+# View logs for all services
+./docker/docker-helper.sh dev logs
+
+# Check service status  
+./docker/docker-helper.sh dev ps
+
+# Rebuild after code changes (dev only)
+./docker/docker-helper.sh dev build
+
+# Clean up everything
+./docker/docker-helper.sh dev clean
+```
+
+**Port Reference:**
+- **Production**: Everything through port 3004
+- **Development**: Frontend (8080), Backend (3010), Database (5432)  
+- **Local**: Frontend (8080), Backend (3010)
 
 ### ⚠️ Known Issues / Beta Features ⚠️
 
