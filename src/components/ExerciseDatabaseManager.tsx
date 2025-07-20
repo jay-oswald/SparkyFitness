@@ -5,7 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import AddExerciseDialog from "./AddExerciseDialog";
 import ConfirmationDialog from "@/components/ui/ConfirmationDialog";
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
 import { Plus, Edit, Trash2, Share2, Lock, Settings } from "lucide-react";
@@ -34,11 +35,7 @@ const ExerciseDatabaseManager = () => {
   const [ownershipFilter, setOwnershipFilter] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-  const [newExerciseName, setNewExerciseName] = useState("");
-  const [newExerciseCategory, setNewExerciseCategory] = useState("general");
-  const [newExerciseCalories, setNewExerciseCalories] = useState(300);
-  const [newExerciseDescription, setNewExerciseDescription] = useState("");
+  const [isAddExerciseDialogOpen, setIsAddExerciseDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [selectedExercise, setSelectedExercise] = useState<Exercise | null>(null);
   const [editExerciseName, setEditExerciseName] = useState("");
@@ -93,36 +90,6 @@ const ExerciseDatabaseManager = () => {
   const totalPages = Math.ceil(totalExercisesCount / itemsPerPage); // Use totalExercisesCount
   const currentExercises = exercises; // exercises state now holds the already filtered and paginated data
 
-  const handleAddExercise = async () => {
-    try {
-      const newExercise = {
-        name: newExerciseName,
-        category: newExerciseCategory,
-        calories_per_hour: newExerciseCalories,
-        description: newExerciseDescription,
-        user_id: user?.id,
-        is_custom: true,
-      };
-      await createExercise(newExercise);
-      toast({
-        title: "Success",
-        description: "Exercise added successfully",
-      });
-      loadExercisesData(); // Changed to loadExercisesData
-      setIsAddDialogOpen(false);
-      setNewExerciseName("");
-      setNewExerciseCategory("general");
-      setNewExerciseCalories(300);
-      setNewExerciseDescription("");
-    } catch (error) {
-      console.error("Error adding exercise:", error);
-      toast({
-        title: "Error",
-        description: "Failed to add exercise",
-        variant: "destructive",
-      });
-    }
-  };
 
   const handleEditExercise = async () => {
     if (!selectedExercise) return;
@@ -251,75 +218,10 @@ const ExerciseDatabaseManager = () => {
                   <SelectItem value="public">Public</SelectItem>
                 </SelectContent>
               </Select>
-              <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button className="bg-slate-900 hover:bg-slate-800 text-white">
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add Exercise
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Add New Exercise</DialogTitle>
-                    <DialogDescription>
-                      Enter the details for a new exercise to add to your database.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="grid gap-4 py-4">
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="name" className="text-right">
-                        Name
-                      </Label>
-                      <Input
-                        id="name"
-                        value={newExerciseName}
-                        onChange={(e) => setNewExerciseName(e.target.value)}
-                        className="col-span-3"
-                      />
-                    </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="category" className="text-right">
-                        Category
-                      </Label>
-                      <Select onValueChange={setNewExerciseCategory} defaultValue={newExerciseCategory}>
-                        <SelectTrigger className="col-span-3">
-                          <SelectValue placeholder="Select a category" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="general">General</SelectItem>
-                          <SelectItem value="strength">Strength</SelectItem>
-                          <SelectItem value="cardio">Cardio</SelectItem>
-                          <SelectItem value="yoga">Yoga</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="calories" className="text-right">
-                        Calories/Hour
-                      </Label>
-                      <Input
-                        id="calories"
-                        type="number"
-                        value={newExerciseCalories.toString()}
-                        onChange={(e) => setNewExerciseCalories(Number(e.target.value))}
-                        className="col-span-3"
-                      />
-                    </div>
-                    <div className="grid grid-cols-4 items-start gap-4">
-                      <Label htmlFor="description" className="text-right mt-1">
-                        Description
-                      </Label>
-                      <Textarea
-                        id="description"
-                        value={newExerciseDescription}
-                        onChange={(e) => setNewExerciseDescription(e.target.value)}
-                        className="col-span-3"
-                      />
-                    </div>
-                  </div>
-                  <Button onClick={handleAddExercise}>Add Exercise</Button>
-                </DialogContent>
-              </Dialog>
+              <Button className="bg-slate-900 hover:bg-slate-800 text-white" onClick={() => setIsAddExerciseDialogOpen(true)}>
+                <Plus className="w-4 h-4 mr-2" />
+                Add Exercise
+              </Button>
             </div>
           </div>
           
@@ -462,6 +364,11 @@ const ExerciseDatabaseManager = () => {
         </CardContent>
       </Card>
 
+      <AddExerciseDialog
+        open={isAddExerciseDialogOpen}
+        onOpenChange={setIsAddExerciseDialogOpen}
+        onExerciseAdded={loadExercisesData}
+      />
       {/* Edit Exercise Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent>

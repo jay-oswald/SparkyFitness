@@ -641,6 +641,9 @@ const Settings: React.FC<SettingsProps> = ({ onShowAboutDialog }) => {
          </CardContent>
        </Card>
   
+       {/* Nutrient Display Settings */}
+       <NutrientDisplaySettings />
+
        {/* Family Access Management */}
        <FamilyAccessManager />
 
@@ -655,9 +658,6 @@ const Settings: React.FC<SettingsProps> = ({ onShowAboutDialog }) => {
 
       {/* AI Service Settings */}
       <AIServiceSettings />
-
-      {/* Nutrient Display Settings */}
-      <NutrientDisplaySettings />
 
       {/* API Key Management */}
       <Card>
