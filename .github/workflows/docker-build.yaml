@@ -35,7 +35,6 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: |
-            jay-oswald/SparkyFitness
             ghcr.io/${{ github.repository }}
       - name: setup Docker Buildx
         uses: docker/setup-buildx-action@v3
