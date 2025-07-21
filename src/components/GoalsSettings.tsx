@@ -28,9 +28,35 @@ import { ExpandedGoals } from '@/types/goals';
 
 const GoalsSettings = () => {
   const { user } = useAuth();
-  const { dateFormat, formatDateInUserTimezone, parseDateInUserTimezone, nutrientDisplayPreferences } = usePreferences(); // Corrected destructuring
+  const { dateFormat, formatDateInUserTimezone, parseDateInUserTimezone, nutrientDisplayPreferences, water_display_unit, setWaterDisplayUnit } = usePreferences(); // Corrected destructuring
+  
+  // Helper functions for unit conversion
+  const convertMlToSelectedUnit = (ml: number, unit: 'ml' | 'oz' | 'liter'): number => {
+    switch (unit) {
+      case 'oz':
+        return ml / 29.5735;
+      case 'liter':
+        return ml / 1000;
+      case 'ml':
+      default:
+        return ml;
+    }
+  };
+
+  const convertSelectedUnitToMl = (value: number, unit: 'ml' | 'oz' | 'liter'): number => {
+    switch (unit) {
+      case 'oz':
+        return value * 29.5735;
+      case 'liter':
+        return value * 1000;
+      case 'ml':
+      default:
+        return value;
+    }
+  };
+
   const [goals, setGoals] = useState<ExpandedGoals>({
-    calories: 2000, protein: 150, carbs: 250, fat: 67, water_goal: 8,
+    calories: 2000, protein: 150, carbs: 250, fat: 67, water_goal_ml: 1920, // Default to 8 glasses * 240ml
     saturated_fat: 20, polyunsaturated_fat: 10, monounsaturated_fat: 25, trans_fat: 0,
     cholesterol: 300, sodium: 2300, potassium: 3500, dietary_fiber: 25, sugars: 50,
     vitamin_a: 900, vitamin_c: 90, calcium: 1000, iron: 18,
@@ -79,7 +105,7 @@ const GoalsSettings = () => {
           protein: goalData.protein || 150,
           carbs: goalData.carbs || 250,
           fat: goalData.fat || 67,
-          water_goal: goalData.water_goal || 8,
+          water_goal_ml: goalData.water_goal_ml || 1920, // Default to 8 glasses * 240ml
           saturated_fat: goalData.saturated_fat || 20,
           polyunsaturated_fat: goalData.polyunsaturated_fat || 10,
           monounsaturated_fat: goalData.monounsaturated_fat || 25,
@@ -128,7 +154,7 @@ const GoalsSettings = () => {
   const handleCreatePresetClick = () => {
     setCurrentPreset({
       preset_name: '',
-      calories: 2000, protein: 150, carbs: 250, fat: 67, water_goal: 8,
+      calories: 2000, protein: 150, carbs: 250, fat: 67, water_goal_ml: 1920, // Default to 8 glasses * 240ml
       saturated_fat: 20, polyunsaturated_fat: 10, monounsaturated_fat: 25, trans_fat: 0,
       cholesterol: 300, sodium: 2300, potassium: 3500, dietary_fiber: 25, sugars: 50,
       vitamin_a: 900, vitamin_c: 90, calcium: 1000, iron: 18,
@@ -314,6 +340,7 @@ const GoalsSettings = () => {
       
       const today = new Date().toISOString().split('T')[0];
       
+      console.log("GoalsSettings: Saving goals with payload:", goals); // Re-enable logging
       await saveGoalsService(today, goals, true);
 
       toast({
@@ -535,13 +562,26 @@ const GoalsSettings = () => {
             </div>}
             
             <div>
-              <Label htmlFor="water">Water Goal (glasses)</Label>
+              <Label htmlFor="water">Water Goal ({water_display_unit})</Label>
               <Input
                 id="water"
                 type="number"
-                value={goals.water_goal}
-                onChange={(e) => setGoals({ ...goals, water_goal: Number(e.target.value) })}
+                value={convertMlToSelectedUnit(goals.water_goal_ml, water_display_unit)}
+                onChange={(e) => setGoals({ ...goals, water_goal_ml: convertSelectedUnitToMl(Number(e.target.value), water_display_unit) })}
               />
+              <Select
+                value={water_display_unit}
+                onValueChange={(value: 'ml' | 'oz' | 'liter') => setWaterDisplayUnit(value)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ml">ml</SelectItem>
+                  <SelectItem value="oz">oz</SelectItem>
+                  <SelectItem value="liter">liter</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             {/* Exercise Goals */}
             <div>
@@ -817,8 +857,26 @@ const GoalsSettings = () => {
                   <Input id="iron" type="number" value={currentPreset.iron} onChange={(e) => setCurrentPreset({ ...currentPreset, iron: Number(e.target.value) })} />
                 </div>
                 <div>
-                  <Label htmlFor="water_goal">Water (gl)</Label>
-                  <Input id="water_goal" type="number" value={currentPreset.water_goal} onChange={(e) => setCurrentPreset({ ...currentPreset, water_goal: Number(e.target.value) })} />
+                  <Label htmlFor="water_goal_ml">Water ({water_display_unit})</Label>
+                  <Input
+                    id="water_goal_ml"
+                    type="number"
+                    value={convertMlToSelectedUnit(currentPreset.water_goal_ml, water_display_unit)}
+                    onChange={(e) => setCurrentPreset({ ...currentPreset, water_goal_ml: convertSelectedUnitToMl(Number(e.target.value), water_display_unit) })}
+                  />
+                  <Select
+                    value={water_display_unit}
+                    onValueChange={(value: 'ml' | 'oz' | 'liter') => setWaterDisplayUnit(value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ml">ml</SelectItem>
+                      <SelectItem value="oz">oz</SelectItem>
+                      <SelectItem value="liter">liter</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 

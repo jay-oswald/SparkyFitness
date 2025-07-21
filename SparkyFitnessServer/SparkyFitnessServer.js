@@ -28,6 +28,7 @@ const { router: openidRoutes, initializeOidcClient } = require('./openidRoutes')
 const oidcSettingsRoutes = require('./routes/oidcSettingsRoutes');
 const versionRoutes = require('./routes/versionRoutes');
 const { applyMigrations } = require('./utils/dbMigrations');
+const waterContainerRoutes = require('./routes/waterContainerRoutes');
 const errorHandler = require('./middleware/errorHandler'); // Import the new error handler
 
 const app = express();
@@ -132,6 +133,7 @@ app.use('/admin/oidc-settings', oidcSettingsRoutes); // Admin OIDC settings rout
 app.use('/version', versionRoutes); // Version routes
 log('debug', 'Registering /openid routes');
 app.use('/openid', openidRoutes); // Import OpenID routes
+app.use('/water-containers', waterContainerRoutes);
 
 console.log('DEBUG: Attempting to start server...');
 applyMigrations().then(async () => {

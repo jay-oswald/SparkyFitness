@@ -22,6 +22,7 @@ import CustomCategoryManager from "./CustomCategoryManager";
 import ExternalProviderSettings from "./ExternalProviderSettings"; // Import ExternalProviderSettings
 import { usePreferences } from "@/contexts/PreferencesContext"; // Import usePreferences
 import NutrientDisplaySettings from "./NutrientDisplaySettings"; // Import NutrientDisplaySettings
+import WaterContainerManager from "./WaterContainerManager"; // Import WaterContainerManager
 import { parse } from "date-fns"; // Import parse for parsing user-entered date strings
 
 interface Profile {
@@ -61,7 +62,8 @@ const Settings: React.FC<SettingsProps> = ({ onShowAboutDialog }) => {
     itemDisplayLimit, setItemDisplayLimit, // Add itemDisplayLimit and setItemDisplayLimit
     loadPreferences: loadUserPreferencesFromContext, // Rename to avoid conflict
     saveAllPreferences, // Add saveAllPreferences from context
-    formatDate // Destructure formatDate
+    formatDate, // Destructure formatDate
+    water_display_unit, setWaterDisplayUnit
   } = usePreferences();
   const [profile, setProfile] = useState<Profile | null>(null);
   // Remove local preferences state as it's now managed by PreferencesContext
@@ -640,9 +642,39 @@ const Settings: React.FC<SettingsProps> = ({ onShowAboutDialog }) => {
           </Button>
          </CardContent>
        </Card>
-  
-       {/* Nutrient Display Settings */}
-       <NutrientDisplaySettings />
+
+      {/* Water Tracking Settings */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <SettingsIcon className="h-5 w-5" />
+            Water Tracking
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+           <div>
+             <Label htmlFor="water_display_unit">Water Display Unit</Label>
+             <Select
+               value={water_display_unit}
+               onValueChange={setWaterDisplayUnit}
+             >
+               <SelectTrigger>
+                 <SelectValue />
+               </SelectTrigger>
+               <SelectContent>
+                 <SelectItem value="ml">Milliliters (ml)</SelectItem>
+                 <SelectItem value="oz">Fluid Ounces (oz)</SelectItem>
+                 <SelectItem value="cup">Cups</SelectItem>
+               </SelectContent>
+             </Select>
+           </div>
+           <Separator />
+           <WaterContainerManager />
+        </CardContent>
+      </Card>
+ 
+      {/* Nutrient Display Settings */}
+      <NutrientDisplaySettings />
 
        {/* Family Access Management */}
        <FamilyAccessManager />

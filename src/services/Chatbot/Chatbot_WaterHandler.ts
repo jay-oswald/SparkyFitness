@@ -4,7 +4,7 @@ import { debug, info, error, UserLoggingLevel } from '@/utils/logging';
 import { apiCall } from '../api';
 
 export const processWaterInput = async (
-  data: { quantity: number },
+  data: { quantity: number; unit?: 'oz' | 'cup' | 'glass' },
   entryDate: string | undefined,
   formatDateInUserTimezone: (date: string | Date, formatStr?: string) => string,
   userLoggingLevel: UserLoggingLevel,
@@ -13,29 +13,43 @@ export const processWaterInput = async (
   try {
     debug(userLoggingLevel, `[${transactionId}] Processing water input with data:`, data, 'and entryDate:', entryDate);
 
-    const { quantity } = data;
+    const { quantity, unit = 'glass' } = data;
     const rawEntryDate = entryDate;
-    debug(userLoggingLevel, `[${transactionId}] Extracted quantity:`, quantity, 'and rawEntryDate:', rawEntryDate);
+    debug(userLoggingLevel, `[${transactionId}] Extracted quantity:`, quantity, 'unit:', unit, 'and rawEntryDate:', rawEntryDate);
 
-    if (typeof quantity !== 'number' || isNaN(quantity) || quantity <= 0) { // Added quantity <= 0 check
+    if (typeof quantity !== 'number' || isNaN(quantity) || quantity <= 0) {
       error(userLoggingLevel, `❌ [Water Coach] Invalid or non-positive quantity received:`, quantity);
       return {
         action: 'none',
-        response: 'Sorry, I could not understand the quantity of water or it was not a positive number. Please specify a valid number (e.g., "3 glasses").'
+        response: 'Sorry, I could not understand the quantity of water or it was not a positive number. Please specify a valid number (e.g., "8 oz").'
       };
     }
 
-    // If entryDate is not provided by AI, use today's date in user's timezone
+    // Convert all units to a base unit of ml for backend storage
+    const convertToMl = (vol: number, u: string) => {
+        switch (u) {
+            case 'oz':
+                return vol * 29.5735;
+            case 'cup':
+                return vol * 240;
+            case 'glass':
+            default:
+                return vol * 240; // Assume a standard glass is 240ml
+        }
+    };
+
+    const waterMl = convertToMl(quantity, unit);
+
     const dateToUse = formatDateInUserTimezone(rawEntryDate ? parseISO(rawEntryDate) : new Date(), 'yyyy-MM-dd');
     debug(userLoggingLevel, `[${transactionId}] Date to use for logging:`, dateToUse);
 
-    info(userLoggingLevel, `[${transactionId}] Saving water intake: ${quantity} glasses on ${dateToUse}`);
+    info(userLoggingLevel, `[${transactionId}] Saving water intake: ${waterMl} ml on ${dateToUse}`);
 
     await apiCall('/measurements/water-intake', {
       method: 'POST',
       body: {
         entry_date: dateToUse,
-        glasses_consumed: quantity,
+        water_ml: waterMl,
       },
     });
 
@@ -43,7 +57,7 @@ export const processWaterInput = async (
 
     return {
       action: 'water_added',
-      response: `✅ **Added ${quantity} glasses of water to your intake on ${formatDateInUserTimezone(dateToUse, 'PPP')}!**\n\nKeep up the great work!`
+      response: `✅ **Added ${quantity} ${unit}(s) of water to your intake on ${formatDateInUserTimezone(dateToUse, 'PPP')}!**\n\nKeep up the great work!`
     };
 
   } catch (err) {

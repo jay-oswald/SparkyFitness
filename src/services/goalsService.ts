@@ -12,7 +12,7 @@ export const loadGoals = async (selectedDate: string): Promise<ExpandedGoals> =>
     protein: 150,
     carbs: 250,
     fat: 67,
-    water_goal: 8,
+    water_goal_ml: 1920, // Default to 1920ml (8 glasses)
     saturated_fat: 20,
     polyunsaturated_fat: 10,
     monounsaturated_fat: 25,
@@ -48,7 +48,7 @@ export const saveGoals = async (selectedDate: string, goals: ExpandedGoals, casc
       p_protein: goals.protein,
       p_carbs: goals.carbs,
       p_fat: goals.fat,
-      p_water_goal: goals.water_goal,
+      p_water_goal_ml: goals.water_goal_ml,
       p_saturated_fat: goals.saturated_fat,
       p_polyunsaturated_fat: goals.polyunsaturated_fat,
       p_monounsaturated_fat: goals.monounsaturated_fat,

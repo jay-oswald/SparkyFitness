@@ -102,12 +102,12 @@ router.get('/water-intake/:date', authenticateToken, authorizeAccess('checkin', 
 
 // Endpoint to upsert water intake
 router.post('/water-intake', authenticateToken, authorizeAccess('checkin'), async (req, res, next) => {
-  const { entry_date, glasses_consumed } = req.body;
-  if (!entry_date || glasses_consumed === undefined) {
-    return res.status(400).json({ error: 'Entry date and glasses consumed are required.' });
+  const { entry_date, water_ml } = req.body;
+  if (!entry_date || water_ml === undefined) {
+    return res.status(400).json({ error: 'Entry date and water_ml are required.' });
   }
   try {
-    const result = await measurementService.upsertWaterIntake(req.userId, entry_date, glasses_consumed);
+    const result = await measurementService.upsertWaterIntake(req.userId, entry_date, water_ml);
     res.status(200).json(result);
   } catch (error) {
     if (error.message.startsWith('Forbidden')) {

@@ -93,9 +93,9 @@ async function getWaterIntake(authenticatedUserId, targetUserId, date) {
   }
 }
 
-async function upsertWaterIntake(authenticatedUserId, entryDate, glassesConsumed) {
+async function upsertWaterIntake(authenticatedUserId, entryDate, waterMl) {
   try {
-    const result = await measurementRepository.upsertWaterData(authenticatedUserId, glassesConsumed, entryDate);
+    const result = await measurementRepository.upsertWaterData(authenticatedUserId, waterMl, entryDate);
     return result;
   } catch (error) {
     log('error', `Error upserting water intake for user ${authenticatedUserId}:`, error);

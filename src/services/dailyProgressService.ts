@@ -5,36 +5,10 @@ export interface Goals {
   protein: number;
   carbs: number;
   fat: number;
+  water_goal_ml: number;
 }
 
-export interface FoodEntry {
-  id: string;
-  food_id: string;
-  meal_type: string;
-  quantity: number;
-  unit: string;
-  variant_id?: string;
-  foods: {
-    id: string;
-    name: string;
-    brand?: string;
-    calories: number;
-    protein: number;
-    carbs: number;
-    fat: number;
-    serving_size: number;
-    serving_unit: string;
-  };
-  food_variants?: {
-    id: string;
-    serving_size: number;
-    serving_unit: string;
-    calories?: number;
-    protein?: number;
-    carbs?: number;
-    fat?: number;
-  };
-}
+import { FoodEntry } from '@/types/food'; // Import FoodEntry from the central types file
 
 export interface ExerciseEntry {
   id: string;
@@ -57,13 +31,20 @@ export interface CheckInMeasurement {
   steps?: number;
 }
 
-export const getGoalsForDate = async (date: string): Promise<Goals | null> => {
+export const getGoalsForDate = async (date: string): Promise<Goals> => {
   const params = new URLSearchParams({ date });
   const data = await apiCall(`/goals/for-date?${params.toString()}`, {
     method: 'GET',
     suppress404Toast: true, // Suppress toast for 404
   });
-  return data || null; // Return null if 404 (no goals found)
+  // Ensure a default Goals object is returned if no data is found
+  return data || {
+    calories: 2000,
+    protein: 150,
+    carbs: 250,
+    fat: 67,
+    water_goal_ml: 1920, // Default to 8 glasses * 240ml
+  };
 };
 
 export const getFoodEntriesForDate = async (date: string): Promise<FoodEntry[]> => {

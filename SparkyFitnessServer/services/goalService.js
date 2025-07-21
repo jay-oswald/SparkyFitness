@@ -17,7 +17,7 @@ async function getUserGoals(targetUserId, selectedDate) {
     if (!targetUserId) {
       log('error', 'getUserGoals: targetUserId is undefined. Returning default goals.');
       return {
-        calories: 2000, protein: 150, carbs: 250, fat: 67, water_goal: 8,
+        calories: 2000, protein: 150, carbs: 250, fat: 67, water_goal_ml: 1920, // Default 8 glasses * 240ml
         saturated_fat: 20, polyunsaturated_fat: 10, monounsaturated_fat: 25, trans_fat: 0,
         cholesterol: 300, sodium: 2300, potassium: 3500, dietary_fiber: 25, sugars: 50,
         vitamin_a: 900, vitamin_c: 90, calcium: 1000, iron: 18,
@@ -59,7 +59,7 @@ async function getUserGoals(targetUserId, selectedDate) {
     // If still no goals, return hardcoded defaults
     if (!goals) {
       goals = {
-        calories: 2000, protein: 150, carbs: 250, fat: 67, water_goal: 8,
+        calories: 2000, protein: 150, carbs: 250, fat: 67, water_goal_ml: 1920, // Default 8 glasses * 240ml
         saturated_fat: 20, polyunsaturated_fat: 10, monounsaturated_fat: 25, trans_fat: 0,
         cholesterol: 300, sodium: 2300, potassium: 3500, dietary_fiber: 25, sugars: 50,
         vitamin_a: 900, vitamin_c: 90, calcium: 1000, iron: 18,
@@ -92,7 +92,7 @@ async function getUserGoals(targetUserId, selectedDate) {
 async function manageGoalTimeline(authenticatedUserId, goalData) {
   try {
     const {
-      p_start_date, p_cascade, p_calories, p_protein, p_carbs, p_fat, p_water_goal,
+      p_start_date, p_cascade, p_calories, p_protein, p_carbs, p_fat, p_water_goal_ml,
       p_saturated_fat, p_polyunsaturated_fat, p_monounsaturated_fat, p_trans_fat,
       p_cholesterol, p_sodium, p_potassium, p_dietary_fiber, p_sugars,
       p_vitamin_a, p_vitamin_c, p_calcium, p_iron,
@@ -102,6 +102,7 @@ async function manageGoalTimeline(authenticatedUserId, goalData) {
     } = goalData;
 
     log('debug', `manageGoalTimeline - Received goalData: ${JSON.stringify(goalData)}`);
+    log('debug', `manageGoalTimeline - p_water_goal_ml: ${p_water_goal_ml}`);
 
     // If percentages are provided, calculate grams for storage
     let protein_to_store = p_protein;
@@ -127,10 +128,18 @@ async function manageGoalTimeline(authenticatedUserId, goalData) {
 
     // Helper to convert NaN to 0 for numeric fields, or null if specified
     const cleanNumber = (value, allow_null = false) => {
+      log('debug', `cleanNumber: Input value: ${value}, type: ${typeof value}, allow_null: ${allow_null}`);
       if (value === null || value === undefined) {
+        log('debug', `cleanNumber: Value is null/undefined, returning ${allow_null ? null : 0}`);
         return allow_null ? null : 0;
       }
-      return isNaN(value) ? (allow_null ? null : 0) : value;
+      const num = Number(value);
+      if (isNaN(num)) {
+        log('debug', `cleanNumber: Value is NaN, returning ${allow_null ? null : 0}`);
+        return allow_null ? null : 0;
+      }
+      log('debug', `cleanNumber: Returning cleaned number: ${num}`);
+      return num;
     };
 
     const goalPayload = {
@@ -140,7 +149,7 @@ async function manageGoalTimeline(authenticatedUserId, goalData) {
       protein: cleanNumber(protein_to_store),
       carbs: cleanNumber(carbs_to_store),
       fat: cleanNumber(fat_to_store),
-      water_goal: cleanNumber(p_water_goal),
+      water_goal_ml: cleanNumber(p_water_goal_ml),
       saturated_fat: cleanNumber(p_saturated_fat),
       polyunsaturated_fat: cleanNumber(p_polyunsaturated_fat),
       monounsaturated_fat: cleanNumber(p_monounsaturated_fat),
@@ -167,12 +176,12 @@ async function manageGoalTimeline(authenticatedUserId, goalData) {
 
     // If cascade is false, or if editing a past date, only update that specific date
     if (!p_cascade || new Date(p_start_date) < new Date(format(new Date(), 'yyyy-MM-dd'))) {
-      log('debug', `manageGoalTimeline - Upserting single goal for date: ${p_start_date}`);
+      log('debug', `manageGoalTimeline - Upserting single goal for date: ${p_start_date}. Final payload before upsert: ${JSON.stringify(goalPayload)}`);
       await goalRepository.upsertGoal(goalPayload);
       return { message: 'Goal for the specified date updated successfully.' };
     } else {
       // For today or future dates with cascade: delete 6 months and insert new goals
-      log('info', `manageGoalTimeline - Updating goal for today or future date: ${p_start_date}. Applying 6-month cascade.`);
+      log('info', `manageGoalTimeline - Updating goal for today or future date: ${p_start_date}. Applying 6-month cascade. Final payload before upsert: ${JSON.stringify(goalPayload)}`);
       const startDate = new Date(p_start_date);
       const endDate = new Date(startDate);
       endDate.setMonth(endDate.getMonth() + 6);

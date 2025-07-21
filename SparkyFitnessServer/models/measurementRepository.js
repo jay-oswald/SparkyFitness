@@ -29,27 +29,25 @@ async function upsertStepData(userId, value, date) {
   }
 }
 
-async function upsertWaterData(userId, value, date) {
+async function upsertWaterData(userId, waterMl, date) {
   const client = await pool.connect();
   try {
     const existingRecord = await client.query(
-      'SELECT id, glasses_consumed FROM water_intake WHERE user_id = $1 AND entry_date = $2',
+      'SELECT id, water_ml FROM water_intake WHERE user_id = $1 AND entry_date = $2',
       [userId, date]
     );
 
     let result;
     if (existingRecord.rows.length > 0) {
-      // If record exists, increment the glasses_consumed
       const updateResult = await client.query(
-        'UPDATE water_intake SET glasses_consumed = $1, updated_at = now() WHERE id = $2 RETURNING *',
-        [value, existingRecord.rows[0].id]
+        'UPDATE water_intake SET water_ml = $1, updated_at = now() WHERE id = $2 RETURNING *',
+        [waterMl, existingRecord.rows[0].id]
       );
       result = updateResult.rows[0];
     } else {
-      // If no record, insert a new one
       const insertResult = await client.query(
-        'INSERT INTO water_intake (user_id, entry_date, glasses_consumed, created_at, updated_at) VALUES ($1, $2, $3, now(), now()) RETURNING *',
-        [userId, date, value]
+        'INSERT INTO water_intake (user_id, entry_date, water_ml, created_at, updated_at) VALUES ($1, $2, $3, now(), now()) RETURNING *',
+        [userId, date, waterMl]
       );
       result = insertResult.rows[0];
     }
@@ -63,7 +61,7 @@ async function getWaterIntakeByDate(userId, date) {
   const client = await pool.connect();
   try {
     const result = await client.query(
-      'SELECT glasses_consumed FROM water_intake WHERE user_id = $1 AND entry_date = $2',
+      'SELECT water_ml FROM water_intake WHERE user_id = $1 AND entry_date = $2',
       [userId, date]
     );
     return result.rows[0];
@@ -103,12 +101,12 @@ async function updateWaterIntake(id, userId, updateData) {
   try {
     const result = await client.query(
       `UPDATE water_intake SET
-        glasses_consumed = COALESCE($1, glasses_consumed),
+        water_ml = COALESCE($1, water_ml),
         entry_date = COALESCE($2, entry_date),
         updated_at = now()
       WHERE id = $3 AND user_id = $4
       RETURNING *`,
-      [updateData.glasses_consumed, updateData.entry_date, id, userId]
+      [updateData.water_ml, updateData.entry_date, id, userId]
     );
     return result.rows[0];
   } finally {

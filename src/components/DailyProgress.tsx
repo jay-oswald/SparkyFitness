@@ -15,10 +15,10 @@ import {
   getExerciseEntriesForDate,
   getCheckInMeasurementsForDate,
   Goals,
-  FoodEntry,
   ExerciseEntry,
   CheckInMeasurement,
 } from "@/services/dailyProgressService";
+import { FoodEntry } from "@/types/food"; // Import FoodEntry from src/types/food
 
 
 const DailyProgress = ({ selectedDate, refreshTrigger }: { selectedDate: string; refreshTrigger?: number }) => {
@@ -27,17 +27,35 @@ const DailyProgress = ({ selectedDate, refreshTrigger }: { selectedDate: string;
  const { loggingLevel } = usePreferences();
  debug(loggingLevel, "DailyProgress: Component rendered for date:", selectedDate);
 
+ const { water_display_unit } = usePreferences(); // Add water_display_unit from preferences
+
+ // Helper functions for unit conversion
+ const convertMlToSelectedUnit = (ml: number | null | undefined, unit: 'ml' | 'oz' | 'liter'): number => {
+   const safeMl = typeof ml === 'number' && !isNaN(ml) ? ml : 0;
+   switch (unit) {
+     case 'oz':
+       return safeMl / 29.5735;
+     case 'liter':
+       return safeMl / 1000;
+     case 'ml':
+     default:
+       return safeMl;
+   }
+ };
+
  const [dailyGoals, setDailyGoals] = useState({
    calories: 2000,
    protein: 150,
    carbs: 250,
    fat: 67,
+   water_goal_ml: 1920, // Default to 8 glasses * 240ml
  });
  const [dailyIntake, setDailyIntake] = useState({
    calories: 0,
    protein: 0,
    carbs: 0,
    fat: 0,
+   water_ml: 0,
  });
  const [exerciseCalories, setExerciseCalories] = useState(0);
  const [stepsCalories, setStepsCalories] = useState(0);
@@ -87,6 +105,7 @@ const DailyProgress = ({ selectedDate, refreshTrigger }: { selectedDate: string;
        protein: goalsData.protein || 150,
        carbs: goalsData.carbs || 250,
        fat: goalsData.fat || 67,
+       water_goal_ml: goalsData.water_goal_ml || 1920, // Default to 8 glasses * 240ml
      });
 
      // Load daily intake from food entries
@@ -100,8 +119,9 @@ const DailyProgress = ({ selectedDate, refreshTrigger }: { selectedDate: string;
          acc.protein += nutrition.protein;
          acc.carbs += nutrition.carbs;
          acc.fat += nutrition.fat;
+         acc.water_ml += nutrition.water_ml;
          return acc;
-       }, { calories: 0, protein: 0, carbs: 0, fat: 0 });
+       }, { calories: 0, protein: 0, carbs: 0, fat: 0, water_ml: 0 });
 
        info(loggingLevel, "DailyProgress: Daily intake calculated:", totals);
        setDailyIntake({
@@ -109,6 +129,7 @@ const DailyProgress = ({ selectedDate, refreshTrigger }: { selectedDate: string;
          protein: Math.round(totals.protein),
          carbs: Math.round(totals.carbs),
          fat: Math.round(totals.fat),
+         water_ml: Math.round(totals.water_ml),
        });
      } catch (err: any) {
        error(loggingLevel, 'DailyProgress: Error loading food entries for intake:', err);
@@ -269,6 +290,7 @@ const DailyProgress = ({ selectedDate, refreshTrigger }: { selectedDate: string;
            </div>
            <Progress value={calorieProgress} className="h-2" />
          </div>
+
        </div>
      </CardContent>
    </Card>

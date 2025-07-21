@@ -60,4 +60,6 @@ export interface FoodEntry {
   food_variants?: FoodVariant;
   entry_date: string;
   meal_plan_template_id?: string;
+  // Add water_ml to FoodEntry if it's a water entry
+  water_ml?: number;
 }

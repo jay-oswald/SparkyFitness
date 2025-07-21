@@ -6,6 +6,9 @@ import { Droplet } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "@/hooks/use-toast";
 import { apiCall } from '@/services/api'; // Import apiCall
+import { usePreferences } from "@/contexts/PreferencesContext"; // Import usePreferences
+import { convertMlToSelectedUnit } from "@/utils/nutritionCalculations"; // Import convertMlToSelectedUnit
+import { debug } from '@/utils/logging'; // Import debug
 
 interface WaterIntakeProps {
   selectedDate: string;
@@ -13,9 +16,10 @@ interface WaterIntakeProps {
 
 const WaterIntake = ({ selectedDate }: WaterIntakeProps) => {
   const { user } = useAuth();
-  const [waterGlasses, setWaterGlasses] = useState(0);
-  const [waterGoal, setWaterGoal] = useState(8);
+  const [waterMl, setWaterMl] = useState(0); // Changed to waterMl
+  const [waterGoalMl, setWaterGoalMl] = useState(1920); // Changed to waterGoalMl, default 1920ml (8 glasses)
   const [loading, setLoading] = useState(false);
+  const { water_display_unit, loggingLevel } = usePreferences(); // Get water_display_unit and loggingLevel from preferences
 
   useEffect(() => {
     if (user) {
@@ -40,32 +44,33 @@ const WaterIntake = ({ selectedDate }: WaterIntakeProps) => {
       
       // Load water goal for selected date
       const goalData = await apiCall(`/goals/for-date?date=${selectedDate}`);
-      if (goalData && goalData.water_goal) {
-        setWaterGoal(goalData.water_goal);
+      debug(loggingLevel, "WaterIntake: goalData received:", goalData); // Use debug
+      if (goalData && goalData.water_goal_ml !== undefined && goalData.water_goal_ml !== null) { // Use water_goal_ml
+        setWaterGoalMl(Number(goalData.water_goal_ml) === 0 ? 1920 : Number(goalData.water_goal_ml)); // Convert to number and fallback to 1920ml if 0
       } else {
-        setWaterGoal(8); // Default if no goal found
+        setWaterGoalMl(1920); // Default to 1920ml if no goal found
       }
 
       // Load water intake for selected date - get all records and sum them
       const waterData = await apiCall(`/measurements/water-intake/${selectedDate}`);
       if (Array.isArray(waterData) && waterData.length > 0) {
-        // Sum all glasses consumed for the day
-        const totalGlasses = waterData.reduce((sum, record) => sum + record.glasses_consumed, 0);
-        setWaterGlasses(totalGlasses);
-      } else if (waterData && waterData.glasses_consumed !== undefined) {
-        // If the API returns a single object with glasses_consumed
-        setWaterGlasses(waterData.glasses_consumed);
+        // Sum all water_ml consumed for the day
+        const totalWaterMl = waterData.reduce((sum, record) => sum + record.water_ml, 0); // Use water_ml
+        setWaterMl(totalWaterMl);
+      } else if (waterData && waterData.water_ml !== undefined) { // Use water_ml
+        // If the API returns a single object with water_ml
+        setWaterMl(waterData.water_ml);
       }
       else {
-        setWaterGlasses(0);
+        setWaterMl(0);
       }
     } catch (error) {
       console.error('Error loading water data:', error);
-      setWaterGlasses(0);
+      setWaterMl(0);
     }
   };
 
-  const saveWaterIntake = async (newGlasses: number) => {
+  const saveWaterIntake = async (newMl: number) => {
     if (!user) return;
 
     try {
@@ -77,7 +82,7 @@ const WaterIntake = ({ selectedDate }: WaterIntakeProps) => {
         body: {
           user_id: user.id,
           entry_date: selectedDate,
-          glasses_consumed: newGlasses,
+          water_ml: newMl, // Changed to water_ml
         },
       });
 
@@ -99,9 +104,9 @@ const WaterIntake = ({ selectedDate }: WaterIntakeProps) => {
     }
   };
 
-  const adjustWater = async (change: number) => {
-    const newValue = Math.max(0, waterGlasses + change);
-    setWaterGlasses(newValue);
+  const adjustWater = async (changeMl: number) => {
+    const newValue = Math.max(0, waterMl + changeMl);
+    setWaterMl(newValue);
     await saveWaterIntake(newValue);
   };
 
@@ -109,7 +114,7 @@ const WaterIntake = ({ selectedDate }: WaterIntakeProps) => {
     return null;
   }
 
-  const fillPercentage = Math.min((waterGlasses / waterGoal) * 100, 100);
+  const fillPercentage = Math.min((waterMl / waterGoalMl) * 100, 100);
 
   return (
     <Card className="h-full flex flex-col">
@@ -123,9 +128,9 @@ const WaterIntake = ({ selectedDate }: WaterIntakeProps) => {
         {/* Water count display */}
         <div className="text-center mb-3">
           <div className="text-xl font-bold">
-            {waterGlasses} / {waterGoal}
+            {convertMlToSelectedUnit(waterMl, water_display_unit).toFixed(0)} / {convertMlToSelectedUnit(waterGoalMl, water_display_unit).toFixed(0)}
           </div>
-          <div className="text-gray-500 text-xs">glasses of water</div>
+          <div className="text-gray-500 text-xs">{water_display_unit}</div>
         </div>
         
         {/* Water Bottle Visualization - takes up most space */}
@@ -172,15 +177,15 @@ const WaterIntake = ({ selectedDate }: WaterIntakeProps) => {
         <div className="flex justify-center space-x-2">
           <Button
             variant="outline"
-            onClick={() => adjustWater(-1)}
-            disabled={waterGlasses === 0 || loading}
+            onClick={() => adjustWater(-240)} // Adjust by 240ml (approx 1 glass)
+            disabled={waterMl === 0 || loading}
             size="sm"
             className="w-9 h-7 text-xs"
           >
             -1
           </Button>
           <Button
-            onClick={() => adjustWater(1)}
+            onClick={() => adjustWater(240)} // Adjust by 240ml (approx 1 glass)
             disabled={loading}
             size="sm"
             className="w-9 h-7 text-xs"

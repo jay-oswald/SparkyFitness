@@ -8,7 +8,7 @@ export interface GoalPreset {
   protein: number;
   carbs: number;
   fat: number;
-  water_goal: number;
+  water_goal_ml: number;
   saturated_fat: number;
   polyunsaturated_fat: number;
   monounsaturated_fat: number;

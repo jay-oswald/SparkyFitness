@@ -27,8 +27,33 @@ interface EditGoalsProps {
 
 const EditGoals = ({ selectedDate, onGoalsUpdated }: EditGoalsProps) => {
   const { user } = useAuth();
-  const { formatDate, nutrientDisplayPreferences } = usePreferences();
+  const { formatDate, nutrientDisplayPreferences, water_display_unit, setWaterDisplayUnit } = usePreferences();
   const isMobile = useIsMobile();
+
+  // Helper functions for unit conversion
+  const convertMlToSelectedUnit = (ml: number, unit: 'ml' | 'oz' | 'liter'): number => {
+    switch (unit) {
+      case 'oz':
+        return ml / 29.5735;
+      case 'liter':
+        return ml / 1000;
+      case 'ml':
+      default:
+        return ml;
+    }
+  };
+
+  const convertSelectedUnitToMl = (value: number, unit: 'ml' | 'oz' | 'liter'): number => {
+    switch (unit) {
+      case 'oz':
+        return value * 29.5735;
+      case 'liter':
+        return value * 1000;
+      case 'ml':
+      default:
+        return value;
+    }
+  };
   const platform = isMobile ? 'mobile' : 'desktop';
 
   const [goals, setGoals] = useState<ExpandedGoals>({
@@ -36,7 +61,7 @@ const EditGoals = ({ selectedDate, onGoalsUpdated }: EditGoalsProps) => {
     protein: 150,
     carbs: 250,
     fat: 67,
-    water_goal: 8,
+    water_goal_ml: 1920, // Default to 8 glasses * 240ml
     saturated_fat: 20,
     polyunsaturated_fat: 10,
     monounsaturated_fat: 25,
@@ -95,7 +120,7 @@ const EditGoals = ({ selectedDate, onGoalsUpdated }: EditGoalsProps) => {
         protein: cleanGoalValue(goalData.protein, 150),
         carbs: cleanGoalValue(goalData.carbs, 250),
         fat: cleanGoalValue(goalData.fat, 67),
-        water_goal: cleanGoalValue(goalData.water_goal, 8),
+        water_goal_ml: cleanGoalValue(goalData.water_goal_ml, 1920), // Default to 8 glasses * 240ml
         saturated_fat: cleanGoalValue(goalData.saturated_fat, 20),
         polyunsaturated_fat: cleanGoalValue(goalData.polyunsaturated_fat, 10),
         monounsaturated_fat: cleanGoalValue(goalData.monounsaturated_fat, 25),
@@ -176,6 +201,8 @@ const EditGoals = ({ selectedDate, onGoalsUpdated }: EditGoalsProps) => {
       }
 
       console.log("Goals to save:", goalsToSave); // Add this line for debugging
+      // Convert water_goal_ml to the correct backend field name if necessary
+      // The backend expects water_goal_ml, so no conversion needed here.
       await saveGoals(selectedDate, goalsToSave, false);
 
       toast({
@@ -206,7 +233,7 @@ const EditGoals = ({ selectedDate, onGoalsUpdated }: EditGoalsProps) => {
         protein: preset.protein,
         carbs: preset.carbs,
         fat: preset.fat,
-        water_goal: preset.water_goal,
+        water_goal_ml: preset.water_goal_ml,
         saturated_fat: preset.saturated_fat,
         polyunsaturated_fat: preset.polyunsaturated_fat,
         monounsaturated_fat: preset.monounsaturated_fat,
@@ -249,7 +276,7 @@ const EditGoals = ({ selectedDate, onGoalsUpdated }: EditGoalsProps) => {
       // A more robust solution might involve a backend endpoint to explicitly delete date-specific goals
       // and let the cascading logic take over.
       await saveGoals(selectedDate, {
-        calories: 2000, protein: 150, carbs: 250, fat: 67, water_goal: 8,
+        calories: 2000, protein: 150, carbs: 250, fat: 67, water_goal_ml: 1920, // Default to 8 glasses * 240ml
         saturated_fat: 20, polyunsaturated_fat: 10, monounsaturated_fat: 25, trans_fat: 0,
         cholesterol: 300, sodium: 2300, potassium: 3500, dietary_fiber: 25, sugars: 50,
         vitamin_a: 900, vitamin_c: 90, calcium: 1000, iron: 18,
@@ -558,13 +585,26 @@ const EditGoals = ({ selectedDate, onGoalsUpdated }: EditGoalsProps) => {
                 </div>}
                 
                 <div>
-                  <Label htmlFor="water">Water Goal (glasses)</Label>
+                  <Label htmlFor="water">Water Goal ({water_display_unit})</Label>
                   <Input
                     id="water"
                     type="number"
-                    value={goals.water_goal}
-                    onChange={(e) => setGoals({ ...goals, water_goal: isNaN(Number(e.target.value)) ? 0 : Number(e.target.value) })}
+                    value={convertMlToSelectedUnit(goals.water_goal_ml, water_display_unit)}
+                    onChange={(e) => setGoals({ ...goals, water_goal_ml: convertSelectedUnitToMl(Number(e.target.value), water_display_unit) })}
                   />
+                  <Select
+                    value={water_display_unit}
+                    onValueChange={(value: 'ml' | 'oz' | 'liter') => setWaterDisplayUnit(value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ml">ml</SelectItem>
+                      <SelectItem value="oz">oz</SelectItem>
+                      <SelectItem value="liter">liter</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 {/* Exercise Goals */}
                 <div>

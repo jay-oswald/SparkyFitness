@@ -52,6 +52,7 @@ export const calculateFoodEntryNutrition = (entry: FoodEntry) => {
       saturated_fat: 0, polyunsaturated_fat: 0, monounsaturated_fat: 0, trans_fat: 0,
       cholesterol: 0, sodium: 0, potassium: 0, dietary_fiber: 0, sugars: 0,
       vitamin_a: 0, vitamin_c: 0, calcium: 0, iron: 0,
+      water_ml: 0,
     };
   }
 
@@ -96,5 +97,30 @@ export const calculateFoodEntryNutrition = (entry: FoodEntry) => {
     vitamin_c: (nutrientValuesPerReferenceSize.vitamin_c / effectiveReferenceSize) * entry.quantity,
     calcium: (nutrientValuesPerReferenceSize.calcium / effectiveReferenceSize) * entry.quantity,
     iron: (nutrientValuesPerReferenceSize.iron / effectiveReferenceSize) * entry.quantity,
+    water_ml: (entry.unit === 'ml' || entry.unit === 'liter' || entry.unit === 'oz') ? entry.quantity : 0, // Assuming water is tracked in ml, liter, or oz
   };
+};
+
+export const convertMlToSelectedUnit = (ml: number | null | undefined, unit: 'ml' | 'oz' | 'liter'): number => {
+  const safeMl = typeof ml === 'number' && !isNaN(ml) ? ml : 0;
+  let convertedValue: number;
+  switch (unit) {
+    case 'oz':
+      convertedValue = safeMl / 29.5735;
+      break;
+    case 'liter':
+      convertedValue = safeMl / 1000;
+      break;
+    case 'ml':
+    default:
+      convertedValue = safeMl;
+      break;
+  }
+
+  // Apply decimal formatting based on unit
+  if (unit === 'liter') {
+    return parseFloat(convertedValue.toFixed(2)); // Show 2 decimal places for liters
+  } else {
+    return Math.round(convertedValue); // Round to whole number for ml and oz
+  }
 };

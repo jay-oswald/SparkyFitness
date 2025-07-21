@@ -5,16 +5,17 @@ async function getGoalByDate(userId, selectedDate) {
   const client = await pool.connect();
   try {
     const result = await client.query(
-      `SELECT calories, protein, carbs, fat, water_goal,
-              saturated_fat, polyunsaturated_fat, monounsaturated_fat, trans_fat,
-              cholesterol, sodium, potassium, dietary_fiber, sugars,
-              vitamin_a, vitamin_c, calcium, iron,
-              target_exercise_calories_burned, target_exercise_duration_minutes,
-              protein_percentage, carbs_percentage, fat_percentage,
-              breakfast_percentage, lunch_percentage, dinner_percentage, snacks_percentage
-       FROM user_goals
-       WHERE user_id = $1 AND goal_date = $2
-       LIMIT 1`,
+      `SELECT calories, protein, carbs, fat, water_goal_ml,
+               saturated_fat, polyunsaturated_fat, monounsaturated_fat, trans_fat,
+               cholesterol, sodium, potassium, dietary_fiber, sugars,
+               vitamin_a, vitamin_c, calcium, iron,
+               target_exercise_calories_burned, target_exercise_duration_minutes,
+               protein_percentage, carbs_percentage, fat_percentage,
+               breakfast_percentage, lunch_percentage, dinner_percentage, snacks_percentage
+        FROM user_goals
+        WHERE user_id = $1 AND goal_date = $2
+        ORDER BY updated_at DESC, created_at DESC -- Prioritize most recently updated/created
+        LIMIT 1`,
       [userId, selectedDate]
     );
     return result.rows[0];
@@ -27,13 +28,13 @@ async function getMostRecentGoalBeforeDate(userId, selectedDate) {
   const client = await pool.connect();
   try {
     const result = await client.query(
-      `SELECT calories, protein, carbs, fat, water_goal,
-              saturated_fat, polyunsaturated_fat, monounsaturated_fat, trans_fat,
-              cholesterol, sodium, potassium, dietary_fiber, sugars,
-              vitamin_a, vitamin_c, calcium, iron,
-              target_exercise_calories_burned, target_exercise_duration_minutes,
-              protein_percentage, carbs_percentage, fat_percentage,
-              breakfast_percentage, lunch_percentage, dinner_percentage, snacks_percentage
+      `SELECT calories, protein, carbs, fat, water_goal_ml,
+               saturated_fat, polyunsaturated_fat, monounsaturated_fat, trans_fat,
+               cholesterol, sodium, potassium, dietary_fiber, sugars,
+               vitamin_a, vitamin_c, calcium, iron,
+               target_exercise_calories_burned, target_exercise_duration_minutes,
+               protein_percentage, carbs_percentage, fat_percentage,
+               breakfast_percentage, lunch_percentage, dinner_percentage, snacks_percentage
        FROM user_goals
        WHERE user_id = $1
          AND (goal_date < $2 OR goal_date IS NULL)
@@ -52,7 +53,7 @@ async function upsertGoal(goalData) {
   try {
     const result = await client.query(
       `INSERT INTO user_goals (
-        user_id, goal_date, calories, protein, carbs, fat, water_goal,
+        user_id, goal_date, calories, protein, carbs, fat, water_goal_ml,
         saturated_fat, polyunsaturated_fat, monounsaturated_fat, trans_fat,
         cholesterol, sodium, potassium, dietary_fiber, sugars,
         vitamin_a, vitamin_c, calcium, iron,
@@ -68,7 +69,7 @@ async function upsertGoal(goalData) {
         protein = EXCLUDED.protein,
         carbs = EXCLUDED.carbs,
         fat = EXCLUDED.fat,
-        water_goal = EXCLUDED.water_goal,
+        water_goal_ml = EXCLUDED.water_goal_ml,
         saturated_fat = EXCLUDED.saturated_fat,
         polyunsaturated_fat = EXCLUDED.polyunsaturated_fat,
         monounsaturated_fat = EXCLUDED.monounsaturated_fat,
@@ -94,7 +95,7 @@ async function upsertGoal(goalData) {
         updated_at = now()
       RETURNING *`,
       [
-        goalData.user_id, goalData.goal_date, goalData.calories, goalData.protein, goalData.carbs, goalData.fat, goalData.water_goal,
+        goalData.user_id, goalData.goal_date, goalData.calories, goalData.protein, goalData.carbs, goalData.fat, goalData.water_goal_ml,
         goalData.saturated_fat, goalData.polyunsaturated_fat, goalData.monounsaturated_fat, goalData.trans_fat,
         goalData.cholesterol, goalData.sodium, goalData.potassium, goalData.dietary_fiber, goalData.sugars,
         goalData.vitamin_a, goalData.vitamin_c, goalData.calcium, goalData.iron,

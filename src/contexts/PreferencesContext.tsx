@@ -7,6 +7,7 @@ import { API_BASE_URL } from "@/services/api";
 
 // Function to fetch user preferences from the backend
 import { apiCall } from '@/services/api'; // Import apiCall
+import { createWaterContainer, setPrimaryWaterContainer } from '@/services/waterContainerService'; // Import water container service
 
 // Function to fetch user preferences from the backend
 const fetchUserPreferences = async (userId: string) => {
@@ -58,6 +59,7 @@ interface PreferencesContextType {
   timezone: string; // Add timezone
   itemDisplayLimit: number;
   nutrientDisplayPreferences: NutrientPreference[];
+  water_display_unit: 'ml' | 'oz' | 'liter';
   setWeightUnit: (unit: 'kg' | 'lbs') => void;
   setMeasurementUnit: (unit: 'cm' | 'inches') => void;
   setDateFormat: (format: string) => void;
@@ -67,6 +69,7 @@ interface PreferencesContextType {
   setTimezone: (timezone: string) => void; // Add setter for timezone
   setItemDisplayLimit: (limit: number) => void;
   loadNutrientDisplayPreferences: () => Promise<void>;
+  setWaterDisplayUnit: (unit: 'ml' | 'oz' | 'liter') => void;
   convertWeight: (value: number, from: 'kg' | 'lbs', to: 'kg' | 'lbs') => number;
   convertMeasurement: (value: number, from: 'cm' | 'inches', to: 'cm' | 'inches') => number;
   formatDate: (date: string | Date) => string;
@@ -97,6 +100,7 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const [timezone, setTimezoneState] = useState<string>(Intl.DateTimeFormat().resolvedOptions().timeZone); // Add state for timezone
   const [itemDisplayLimit, setItemDisplayLimitState] = useState<number>(10);
   const [nutrientDisplayPreferences, setNutrientDisplayPreferences] = useState<NutrientPreference[]>([]);
+  const [waterDisplayUnit, setWaterDisplayUnitState] = useState<'ml' | 'oz' | 'liter'>('ml');
 
   // Log initial state
   useEffect(() => {
@@ -154,10 +158,13 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
         setDefaultFoodDataProviderIdState(data.default_food_data_provider_id || null); // Set default food data provider ID state
         setTimezoneState(data.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone); // Set timezone state
         setItemDisplayLimitState(data.item_display_limit || 10);
+        setWaterDisplayUnitState(data.water_display_unit || 'ml');
         info(loggingLevel, 'PreferencesContext: Preferences states updated from database.');
       } else {
         info(loggingLevel, 'PreferencesContext: No preferences found, creating default preferences.');
         await createDefaultPreferences();
+        // After creating default preferences, also create a default water container
+        await createDefaultWaterContainer();
       }
     } catch (err) {
       error(loggingLevel, 'PreferencesContext: Unexpected error in loadPreferences:', err);
@@ -194,6 +201,7 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
         default_food_data_provider_id: null, // Default to no specific food data provider
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, // Add default timezone
         item_display_limit: 10,
+        water_display_unit: 'ml', // Set default water display unit
       };
 
 
@@ -226,6 +234,7 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
     default_food_data_provider_id: string | null; // Add default food data provider ID to updates type
     timezone: string; // Add timezone to updates type
     item_display_limit: number;
+    water_display_unit: 'ml' | 'oz' | 'liter';
   }>) => {
     debug(loggingLevel, "PreferencesProvider: Attempting to update preferences with:", updates);
     if (!user) {
@@ -400,11 +409,35 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
         default_food_data_provider_id: defaultFoodDataProviderId,
         timezone: timezone,
         item_display_limit: itemDisplayLimit,
+        water_display_unit: waterDisplayUnit,
       });
       info(loggingLevel, "PreferencesProvider: All preferences saved successfully.");
     } catch (err) {
       error(loggingLevel, 'PreferencesContext: Error saving all preferences:', err);
       throw err;
+    }
+  };
+
+  const createDefaultWaterContainer = async () => {
+    if (!user) {
+      warn(loggingLevel, "PreferencesProvider: Attempted to create default water container without a user.");
+      return;
+    }
+    info(loggingLevel, "PreferencesProvider: Creating default 'My Glass' water container for user:", user.id);
+    try {
+      const defaultContainer = {
+        name: "My Glass",
+        volume: 240, // 240ml for a standard glass
+        unit: "ml" as const, // Explicitly cast to literal type
+        is_primary: true,
+      };
+      const createdContainer = await createWaterContainer(defaultContainer);
+      if (createdContainer && createdContainer.id) {
+        await setPrimaryWaterContainer(createdContainer.id);
+        info(loggingLevel, "PreferencesProvider: Default 'My Glass' water container created and set as primary.");
+      }
+    } catch (err) {
+      error(loggingLevel, 'PreferencesContext: Error creating default water container:', err);
     }
   };
 
@@ -419,6 +452,7 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
       timezone, // Expose timezone
       itemDisplayLimit,
       nutrientDisplayPreferences,
+      water_display_unit: waterDisplayUnit,
       setWeightUnit,
       setMeasurementUnit,
       setDateFormat,
@@ -428,6 +462,7 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
       setTimezone, // Expose setTimezone
       setItemDisplayLimit,
       loadNutrientDisplayPreferences,
+      setWaterDisplayUnit: setWaterDisplayUnitState,
       convertWeight,
       convertMeasurement,
       formatDate,
