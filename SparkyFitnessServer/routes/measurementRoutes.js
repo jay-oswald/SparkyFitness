@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { authenticateToken, authorizeAccess } = require('../middleware/authMiddleware');
 const measurementService = require('../services/measurementService');
+const waterContainerRepository = require('../models/waterContainerRepository'); // Import waterContainerRepository
 const { log } = require('../config/logging');
 
 // Middleware to authenticate API key for health data submission
@@ -102,12 +103,13 @@ router.get('/water-intake/:date', authenticateToken, authorizeAccess('checkin', 
 
 // Endpoint to upsert water intake
 router.post('/water-intake', authenticateToken, authorizeAccess('checkin'), async (req, res, next) => {
-  const { entry_date, water_ml } = req.body;
-  if (!entry_date || water_ml === undefined) {
-    return res.status(400).json({ error: 'Entry date and water_ml are required.' });
+  const { entry_date, change_drinks, container_id } = req.body;
+  if (!entry_date || change_drinks === undefined || container_id === undefined) {
+    return res.status(400).json({ error: 'Entry date, change_drinks, and container_id are required.' });
   }
+ 
   try {
-    const result = await measurementService.upsertWaterIntake(req.userId, entry_date, water_ml);
+    const result = await measurementService.upsertWaterIntake(req.userId, entry_date, change_drinks, container_id);
     res.status(200).json(result);
   } catch (error) {
     if (error.message.startsWith('Forbidden')) {
@@ -177,6 +179,7 @@ router.delete('/water-intake/:id', authenticateToken, authorizeAccess('checkin')
     next(error);
   }
 });
+
 
 // Endpoint to upsert check-in measurements
 router.post('/check-in', authenticateToken, authorizeAccess('checkin'), async (req, res, next) => {

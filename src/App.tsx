@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { PreferencesProvider } from "@/contexts/PreferencesContext";
 import { ChatbotVisibilityProvider } from "@/contexts/ChatbotVisibilityContext";
+import { WaterContainerProvider } from "@/contexts/WaterContainerContext"; // Import WaterContainerProvider
 import AppContent from "@/components/AppContent";
 import DraggableChatbotButton from "@/components/DraggableChatbotButton";
 import AboutDialog from "@/components/AboutDialog";
@@ -40,19 +41,21 @@ const App = () => {
     <QueryClientProvider client={queryClient}>
       <PreferencesProvider>
         <ChatbotVisibilityProvider>
-          <AppSetup
-            setLatestRelease={setLatestRelease}
-            setShowNewReleaseDialog={setShowNewReleaseDialog}
-          />
-          <AppContent onShowAboutDialog={() => setShowAboutDialog(true)} />
-          <DraggableChatbotButton />
-          <AboutDialog isOpen={showAboutDialog} onClose={() => setShowAboutDialog(false)} version={appVersion} />
-          <NewReleaseDialog
-            isOpen={showNewReleaseDialog}
-            onClose={() => setShowNewReleaseDialog(false)}
-            releaseInfo={latestRelease}
-            onDismissForVersion={handleDismissRelease}
-          />
+          <WaterContainerProvider> {/* Wrap with WaterContainerProvider */}
+            <AppSetup
+              setLatestRelease={setLatestRelease}
+              setShowNewReleaseDialog={setShowNewReleaseDialog}
+            />
+            <AppContent onShowAboutDialog={() => setShowAboutDialog(true)} />
+            <DraggableChatbotButton />
+            <AboutDialog isOpen={showAboutDialog} onClose={() => setShowAboutDialog(false)} version={appVersion} />
+            <NewReleaseDialog
+              isOpen={showNewReleaseDialog}
+              onClose={() => setShowNewReleaseDialog(false)}
+              releaseInfo={latestRelease}
+              onDismissForVersion={handleDismissRelease}
+            />
+          </WaterContainerProvider>
         </ChatbotVisibilityProvider>
       </PreferencesProvider>
     </QueryClientProvider>

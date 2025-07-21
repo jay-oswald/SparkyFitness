@@ -101,7 +101,7 @@ export const calculateFoodEntryNutrition = (entry: FoodEntry) => {
   };
 };
 
-export const convertMlToSelectedUnit = (ml: number | null | undefined, unit: 'ml' | 'oz' | 'liter'): number => {
+export const convertMlToSelectedUnit = (ml: number | null | undefined, unit: 'ml' | 'oz' | 'liter'): number => { // Removed 'cup' from type
   const safeMl = typeof ml === 'number' && !isNaN(ml) ? ml : 0;
   let convertedValue: number;
   switch (unit) {
@@ -118,9 +118,5 @@ export const convertMlToSelectedUnit = (ml: number | null | undefined, unit: 'ml
   }
 
   // Apply decimal formatting based on unit
-  if (unit === 'liter') {
-    return parseFloat(convertedValue.toFixed(2)); // Show 2 decimal places for liters
-  } else {
-    return Math.round(convertedValue); // Round to whole number for ml and oz
-  }
+  return convertedValue; // Return raw converted value
 };

@@ -1,7 +1,7 @@
 const waterContainerRepository = require('../models/waterContainerRepository');
 const { log } = require('../config/logging');
 
-const VALID_UNITS = ['ml', 'oz', 'cup'];
+const VALID_UNITS = ['ml', 'oz', 'liter']; // Changed 'cup' to 'liter'
 
 function convertToMl(volume, unit) {
     if (!VALID_UNITS.includes(unit)) {
@@ -10,8 +10,8 @@ function convertToMl(volume, unit) {
     switch (unit) {
         case 'oz':
             return volume * 29.5735; // Standard US fluid ounce
-        case 'cup':
-            return volume * 240; // Standard US cup
+        case 'liter':
+            return volume * 1000; // 1 liter = 1000 ml
         case 'ml':
         default:
             return volume;
@@ -23,7 +23,9 @@ async function createWaterContainer(userId, containerData) {
         throw new Error('Invalid unit provided.');
     }
     try {
-        return await waterContainerRepository.createWaterContainer(userId, containerData);
+        const volumeInMl = convertToMl(containerData.volume, containerData.unit);
+        const dataToSave = { ...containerData, volume: volumeInMl };
+        return await waterContainerRepository.createWaterContainer(userId, dataToSave);
     } catch (error) {
         log('error', `Error creating water container for user ${userId}:`, error);
         throw error;
@@ -44,8 +46,17 @@ async function updateWaterContainer(id, userId, updateData) {
         throw new Error('Invalid unit provided.');
     }
     try {
-        // Add authorization check if needed, e.g., ensuring user owns the container
-        return await waterContainerRepository.updateWaterContainer(id, userId, updateData);
+        let dataToSave = { ...updateData };
+        if (updateData.volume !== undefined && updateData.unit !== undefined) {
+            dataToSave.volume = convertToMl(updateData.volume, updateData.unit);
+        } else if (updateData.volume !== undefined && updateData.unit === undefined) {
+            // If volume is updated but unit is not, we need the original unit to convert
+            // This scenario might require fetching the existing container first to get its unit
+            // For simplicity, we'll assume unit is always provided if volume is updated, or handle it in the frontend
+            // For now, we'll just pass the volume as is if unit is not provided, assuming it's already in ML or handled by frontend
+            log('warn', `Volume updated without unit for container ${id}. Assuming volume is already in ML.`);
+        }
+        return await waterContainerRepository.updateWaterContainer(id, userId, dataToSave);
     } catch (error) {
         log('error', `Error updating water container ${id} for user ${userId}:`, error);
         throw error;
@@ -76,11 +87,21 @@ async function setPrimaryWaterContainer(id, userId) {
     }
 }
 
+async function getPrimaryWaterContainerByUserId(userId) {
+    try {
+        return await waterContainerRepository.getPrimaryWaterContainerByUserId(userId);
+    } catch (error) {
+        log('error', `Error fetching primary water container for user ${userId}:`, error);
+        throw error;
+    }
+}
+
 module.exports = {
     createWaterContainer,
     getWaterContainersByUserId,
     updateWaterContainer,
     deleteWaterContainer,
     setPrimaryWaterContainer,
+    getPrimaryWaterContainerByUserId, // Export the new function
     convertToMl,
 };

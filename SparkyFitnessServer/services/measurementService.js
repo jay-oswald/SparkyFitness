@@ -1,6 +1,7 @@
 const measurementRepository = require('../models/measurementRepository');
 const userRepository = require('../models/userRepository');
 const exerciseRepository = require('../models/exerciseRepository'); // For active calories
+const waterContainerRepository = require('../models/waterContainerRepository'); // Import waterContainerRepository
 const { log } = require('../config/logging');
 
 async function processHealthData(healthDataArray, userId) {
@@ -93,9 +94,33 @@ async function getWaterIntake(authenticatedUserId, targetUserId, date) {
   }
 }
 
-async function upsertWaterIntake(authenticatedUserId, entryDate, waterMl) {
+async function upsertWaterIntake(authenticatedUserId, entryDate, changeDrinks, containerId) {
   try {
-    const result = await measurementRepository.upsertWaterData(authenticatedUserId, waterMl, entryDate);
+    // 1. Get current water intake for the day
+    const currentWaterRecord = await measurementRepository.getWaterIntakeByDate(authenticatedUserId, entryDate);
+    const currentWaterMl = currentWaterRecord ? Number(currentWaterRecord.water_ml) : 0;
+
+    // 2. Determine amount per drink based on container
+    let amountPerDrink;
+    if (containerId) {
+      const container = await waterContainerRepository.getWaterContainerById(containerId);
+      if (container) {
+        amountPerDrink = Number(container.volume) / Number(container.servings_per_container);
+      } else {
+        // Fallback to default if container not found (shouldn't happen if frontend sends valid ID)
+        log('warn', `Container with ID ${containerId} not found for user ${authenticatedUserId}. Using default amount per drink.`);
+        amountPerDrink = 2000 / 8; // Default: 2000ml / 8 servings
+      }
+    } else {
+      // Use default amount per drink if no container ID is provided (e.g., for default container)
+      amountPerDrink = 2000 / 8; // Default: 2000ml / 8 servings
+    }
+
+    // 3. Calculate new total water intake
+    const newTotalWaterMl = Math.max(0, currentWaterMl + (changeDrinks * amountPerDrink));
+
+    // 4. Upsert the new total water intake
+    const result = await measurementRepository.upsertWaterData(authenticatedUserId, newTotalWaterMl, entryDate);
     return result;
   } catch (error) {
     log('error', `Error upserting water intake for user ${authenticatedUserId}:`, error);

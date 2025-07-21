@@ -5,10 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Droplet } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "@/hooks/use-toast";
-import { apiCall } from '@/services/api'; // Import apiCall
-import { usePreferences } from "@/contexts/PreferencesContext"; // Import usePreferences
-import { convertMlToSelectedUnit } from "@/utils/nutritionCalculations"; // Import convertMlToSelectedUnit
-import { debug } from '@/utils/logging'; // Import debug
+import { apiCall } from '@/services/api';
+import { usePreferences } from "@/contexts/PreferencesContext";
+import { convertMlToSelectedUnit } from "@/utils/nutritionCalculations";
+import { debug } from '@/utils/logging';
+import { useWaterContainer } from '@/contexts/WaterContainerContext'; // Import useWaterContainer
 
 interface WaterIntakeProps {
   selectedDate: string;
@@ -16,10 +17,11 @@ interface WaterIntakeProps {
 
 const WaterIntake = ({ selectedDate }: WaterIntakeProps) => {
   const { user } = useAuth();
-  const [waterMl, setWaterMl] = useState(0); // Changed to waterMl
-  const [waterGoalMl, setWaterGoalMl] = useState(1920); // Changed to waterGoalMl, default 1920ml (8 glasses)
+  const [waterMl, setWaterMl] = useState(0);
+  const [waterGoalMl, setWaterGoalMl] = useState(1920);
   const [loading, setLoading] = useState(false);
-  const { water_display_unit, loggingLevel } = usePreferences(); // Get water_display_unit and loggingLevel from preferences
+  const { activeContainer } = useWaterContainer(); // Use activeContainer from context
+  const { water_display_unit, loggingLevel } = usePreferences();
 
   useEffect(() => {
     if (user) {
@@ -31,7 +33,7 @@ const WaterIntake = ({ selectedDate }: WaterIntakeProps) => {
     };
 
     window.addEventListener('measurementsRefresh', handleRefresh);
-    window.addEventListener('foodDiaryRefresh', handleRefresh); // Also listen for food diary refresh as it impacts overall progress
+    window.addEventListener('foodDiaryRefresh', handleRefresh);
 
     return () => {
       window.removeEventListener('measurementsRefresh', handleRefresh);
@@ -41,25 +43,20 @@ const WaterIntake = ({ selectedDate }: WaterIntakeProps) => {
 
   const loadWaterData = async () => {
     try {
-      
-      // Load water goal for selected date
       const goalData = await apiCall(`/goals/for-date?date=${selectedDate}`);
-      debug(loggingLevel, "WaterIntake: goalData received:", goalData); // Use debug
-      if (goalData && goalData.water_goal_ml !== undefined && goalData.water_goal_ml !== null) { // Use water_goal_ml
-        setWaterGoalMl(Number(goalData.water_goal_ml) === 0 ? 1920 : Number(goalData.water_goal_ml)); // Convert to number and fallback to 1920ml if 0
+      debug(loggingLevel, "WaterIntake: goalData received:", goalData);
+      if (goalData && goalData.water_goal_ml !== undefined && goalData.water_goal_ml !== null) {
+        setWaterGoalMl(Number(goalData.water_goal_ml) === 0 ? 1920 : Number(goalData.water_goal_ml));
       } else {
-        setWaterGoalMl(1920); // Default to 1920ml if no goal found
+        setWaterGoalMl(1920);
       }
 
-      // Load water intake for selected date - get all records and sum them
       const waterData = await apiCall(`/measurements/water-intake/${selectedDate}`);
       if (Array.isArray(waterData) && waterData.length > 0) {
-        // Sum all water_ml consumed for the day
-        const totalWaterMl = waterData.reduce((sum, record) => sum + record.water_ml, 0); // Use water_ml
+        const totalWaterMl = waterData.reduce((sum, record) => sum + Number(record.water_ml), 0);
         setWaterMl(totalWaterMl);
-      } else if (waterData && waterData.water_ml !== undefined) { // Use water_ml
-        // If the API returns a single object with water_ml
-        setWaterMl(waterData.water_ml);
+      } else if (waterData && waterData.water_ml !== undefined) {
+        setWaterMl(Number(waterData.water_ml));
       }
       else {
         setWaterMl(0);
@@ -70,23 +67,22 @@ const WaterIntake = ({ selectedDate }: WaterIntakeProps) => {
     }
   };
 
-  const saveWaterIntake = async (newMl: number) => {
+  const saveWaterIntake = async (changeDrinks: number, containerId: number | null) => {
     if (!user) return;
-
+ 
     try {
       setLoading(true);
-
-      // Use upsert for atomic update/insert
+ 
       await apiCall('/measurements/water-intake', {
         method: 'POST',
         body: {
           user_id: user.id,
           entry_date: selectedDate,
-          water_ml: newMl, // Changed to water_ml
+          change_drinks: changeDrinks, // Send the change in drinks
+          container_id: containerId, // Send the active container ID
         },
       });
-
-
+ 
       toast({
         title: "Success",
         description: "Water intake updated",
@@ -103,11 +99,9 @@ const WaterIntake = ({ selectedDate }: WaterIntakeProps) => {
       setLoading(false);
     }
   };
-
-  const adjustWater = async (changeMl: number) => {
-    const newValue = Math.max(0, waterMl + changeMl);
-    setWaterMl(newValue);
-    await saveWaterIntake(newValue);
+ 
+  const adjustWater = async (changeDrinks: number) => {
+    await saveWaterIntake(changeDrinks, activeContainer?.id || null);
   };
 
   if (!user) {
@@ -128,13 +122,13 @@ const WaterIntake = ({ selectedDate }: WaterIntakeProps) => {
         {/* Water count display */}
         <div className="text-center mb-3">
           <div className="text-xl font-bold">
-            {convertMlToSelectedUnit(waterMl, water_display_unit).toFixed(0)} / {convertMlToSelectedUnit(waterGoalMl, water_display_unit).toFixed(0)}
+            {convertMlToSelectedUnit(waterMl, activeContainer?.unit || water_display_unit).toFixed(activeContainer?.unit === 'ml' ? 0 : 2)} / {convertMlToSelectedUnit(waterGoalMl, activeContainer?.unit || water_display_unit).toFixed(activeContainer?.unit === 'ml' ? 0 : 2)}
           </div>
-          <div className="text-gray-500 text-xs">{water_display_unit}</div>
+          <div className="text-gray-500 text-xs">{activeContainer?.unit || water_display_unit}</div>
         </div>
         
         {/* Water Bottle Visualization - takes up most space */}
-        <div className="flex-1 flex items-center justify-center mb-3">
+        <div className="flex-1 flex flex-col items-center justify-center mb-3">
           <div className="relative flex flex-col items-center">
             {/* Bottle Cap */}
             <div className="w-5 h-1.5 bg-blue-400 rounded-t-sm mb-0.5"></div>
@@ -177,7 +171,7 @@ const WaterIntake = ({ selectedDate }: WaterIntakeProps) => {
         <div className="flex justify-center space-x-2">
           <Button
             variant="outline"
-            onClick={() => adjustWater(-240)} // Adjust by 240ml (approx 1 glass)
+            onClick={() => adjustWater(-1)}
             disabled={waterMl === 0 || loading}
             size="sm"
             className="w-9 h-7 text-xs"
@@ -185,13 +179,19 @@ const WaterIntake = ({ selectedDate }: WaterIntakeProps) => {
             -1
           </Button>
           <Button
-            onClick={() => adjustWater(240)} // Adjust by 240ml (approx 1 glass)
+            onClick={() => adjustWater(1)}
             disabled={loading}
             size="sm"
             className="w-9 h-7 text-xs"
           >
             +1
           </Button>
+        </div>
+        <div className="text-center text-gray-500 text-xs mt-2">
+          {activeContainer ?
+            `${convertMlToSelectedUnit(activeContainer.volume / activeContainer.servings_per_container, activeContainer.unit).toFixed(activeContainer.unit === 'ml' ? 0 : 2)} ${activeContainer.unit} per drink` :
+            `${convertMlToSelectedUnit(250, water_display_unit).toFixed(water_display_unit === 'ml' ? 0 : 2)} ${water_display_unit} per drink (default)`
+          }
         </div>
       </CardContent>
     </Card>

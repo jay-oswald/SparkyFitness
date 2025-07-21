@@ -62,4 +62,27 @@ router.put('/:id/set-primary', authenticateToken, authorizeAccess('water_contain
     }
 });
 
+// Get the primary water container for the logged-in user
+router.get('/primary', authenticateToken, authorizeAccess('water_containers'), async (req, res, next) => {
+    try {
+        const primaryContainer = await waterContainerService.getPrimaryWaterContainerByUserId(req.userId);
+        if (primaryContainer) {
+            res.status(200).json(primaryContainer);
+        } else {
+            // Return a default container if no primary is found
+            res.status(200).json({
+                id: null, // Indicate no actual container ID
+                user_id: req.userId,
+                name: 'Default Container',
+                volume: 2000, // Default to 2000ml
+                unit: 'ml',
+                is_primary: true,
+                servings_per_container: 8, // Default to 8 servings
+            });
+        }
+    } catch (error) {
+        next(error);
+    }
+});
+ 
 module.exports = router;

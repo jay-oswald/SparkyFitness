@@ -5,8 +5,9 @@ export interface WaterContainer {
   user_id: string;
   name: string;
   volume: number;
-  unit: 'ml' | 'oz' | 'cup' | 'liter';
+  unit: 'ml' | 'oz' | 'liter'; // Removed 'cup'
   is_primary: boolean;
+  servings_per_container: number; // New field
 }
 
 export const getWaterContainers = async (): Promise<WaterContainer[]> => {
@@ -37,4 +38,8 @@ export const setPrimaryWaterContainer = async (id: number): Promise<WaterContain
   return await apiCall(`/water-containers/${id}/set-primary`, {
     method: 'PUT',
   });
+};
+
+export const getPrimaryWaterContainer = async (): Promise<WaterContainer | null> => {
+  return await apiCall('/water-containers/primary');
 };

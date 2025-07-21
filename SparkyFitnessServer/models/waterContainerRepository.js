@@ -1,13 +1,13 @@
 const pool = require('../db/connection');
 
 async function createWaterContainer(userId, containerData) {
-  const { name, volume, unit, is_primary } = containerData;
+  const { name, volume, unit, is_primary, servings_per_container } = containerData;
   const client = await pool.connect();
   try {
     const result = await client.query(
-      `INSERT INTO user_water_containers (user_id, name, volume, unit, is_primary)
-       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-      [userId, name, volume, unit, is_primary]
+      `INSERT INTO user_water_containers (user_id, name, volume, unit, is_primary, servings_per_container)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+      [userId, name, volume, unit, is_primary, servings_per_container]
     );
     return result.rows[0];
   } finally {
@@ -29,7 +29,7 @@ async function getWaterContainersByUserId(userId) {
 }
 
 async function updateWaterContainer(id, userId, updateData) {
-  const { name, volume, unit, is_primary } = updateData;
+  const { name, volume, unit, is_primary, servings_per_container } = updateData;
   const client = await pool.connect();
   try {
     const result = await client.query(
@@ -38,10 +38,11 @@ async function updateWaterContainer(id, userId, updateData) {
         volume = COALESCE($2, volume),
         unit = COALESCE($3, unit),
         is_primary = COALESCE($4, is_primary),
+        servings_per_container = COALESCE($5, servings_per_container),
         updated_at = now()
-       WHERE id = $5 AND user_id = $6
+       WHERE id = $6 AND user_id = $7
        RETURNING *`,
-      [name, volume, unit, is_primary, id, userId]
+      [name, volume, unit, is_primary, servings_per_container, id, userId]
     );
     return result.rows[0];
   } finally {
@@ -86,10 +87,38 @@ async function setPrimaryWaterContainer(id, userId) {
     }
 }
 
+async function getPrimaryWaterContainerByUserId(userId) {
+  const client = await pool.connect();
+  try {
+    const result = await client.query(
+      'SELECT * FROM user_water_containers WHERE user_id = $1 AND is_primary = TRUE',
+      [userId]
+    );
+    return result.rows[0] || null;
+  } finally {
+    client.release();
+  }
+}
+ 
+async function getWaterContainerById(id) {
+  const client = await pool.connect();
+  try {
+    const result = await client.query(
+      'SELECT * FROM user_water_containers WHERE id = $1',
+      [id]
+    );
+    return result.rows[0] || null;
+  } finally {
+    client.release();
+  }
+}
+ 
 module.exports = {
   createWaterContainer,
   getWaterContainersByUserId,
   updateWaterContainer,
   deleteWaterContainer,
   setPrimaryWaterContainer,
+  getPrimaryWaterContainerByUserId,
+  getWaterContainerById, // Export the new function
 };
