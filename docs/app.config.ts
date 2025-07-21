@@ -1,8 +1,8 @@
 // https://github.com/nuxt-themes/docus/blob/main/nuxt.schema.ts
 export default defineAppConfig({
   docus: {
-    title: 'WiCAN Docs',
-    description: 'Docs and guides around WiCAN',
+    title: 'SparkyFitness Docs',
+    description: 'Docs and guides around SparkyFitness',
     socials: {
       github: 'CodeWithCJ/SparkyFitness',
     },
