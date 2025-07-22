@@ -7,7 +7,7 @@ on:
       - main
     paths:
       - 'docs/**'
-      - '.github/workflows/deploy-docs.yml'
+      - '.github/workflows/docs-deploy.yml'
 jobs:
   build:
     runs-on: ubuntu-latest
