@@ -316,5 +316,5 @@ sparkyfitness-frontend:
 ## Next Steps
 
 - [Development Workflow](./workflow) - Learn the development process
-- [API Documentation](./api) - Backend API reference  
+- API Documentation - Backend API reference - comming soon
 - [Troubleshooting](./troubleshooting) - Common issues and solutions
